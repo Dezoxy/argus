@@ -290,42 +290,70 @@ and the inert `stripe_events` — also allowlisted. Shapes below are abbreviated
 
 ```text
 -- identity & auth ------------------------------------------------------------
-tenants(id, name, created_at, …)                      # one row in practice (§4)
+tenants(id, name, created_at)                         # one row in practice (§4)
 
-users(id, tenant_id, argus_id, display_name, avatar_seed, status, role,
-      privacy_read_receipts, privacy_typing_indicators, privacy_link_previews,
-      call_relay_only, created_at)
-      # argus_id is immutable — enforced by a BEFORE UPDATE trigger, not a grant.
-      # email + external_identity_id survive as INERT columns (nulled by 0039).
+users(id, tenant_id, external_identity_id, argus_id, email, display_name,
+      avatar_seed, status, role, privacy_read_receipts,
+      privacy_typing_indicators, privacy_link_previews, call_relay_only,
+      created_at)
+      # argus_id is immutable — enforced by a BEFORE UPDATE trigger, not a grant
+      #   (Postgres cannot subtract one column from a table-level UPDATE grant).
+      # email + external_identity_id are INERT: nulled by 0039, kept for a later drop.
 
-user_tenant_index(sub, tenant_id)                     # sub -> tenant routing; read BEFORE
+user_tenant_index(sub, tenant_id, created_at)         # sub -> tenant routing; read BEFORE
                                                       # tenant context exists. No RLS (allowlisted).
-webauthn_credentials(id, tenant_id, user_id, credential_id, public_key,
-                     sign_count, …)                   # PUBLIC key material only
-webauthn_challenges(id, challenge, …)                 # ephemeral pre-auth ceremony state; no RLS
-auth_sessions(id, tenant_id, user_id, refresh_token_hash, expires_at, revoked_at)
-admin_credentials(id, tenant_id, username, argon2_hash, …)      # breakglass admin
-tenant_invites(id, tenant_id, token_hash, scope, expires_at, redeemed_at, …)  # registration codes
+webauthn_credentials(id, tenant_id, user_id, credential_id, public_key, counter,
+                     aaguid, backed_up, transports, device_label, created_at,
+                     last_used_at)                    # COSE PUBLIC key; server-auth only, NOT E2EE
+webauthn_challenges(ceremony_id, challenge_hash, purpose, argus_id, invite_id,
+                    expires_at)                       # ephemeral, delete-on-use; no RLS (allowlisted)
+auth_sessions(id, tenant_id, user_id, sub, refresh_token_hash, created_at,
+              last_used_at, expires_at, revoked_at)   # refresh state only — access tokens are stateless
+admin_credentials(id, tenant_id, user_id, username, password_hash, salt,
+                  kdf_params, failed_attempts, locked_until, …)   # breakglass; Argon2id
+tenant_invites(id, tenant_id, created_by, token_hash, invitee_email, expires_at,
+               accepted_by, accepted_at, revoked_at, created_at)  # registration codes
+                                                      # invitee_email is INERT (nulled by 0039)
 
 -- devices & keys -------------------------------------------------------------
-devices(id, tenant_id, user_id, public_identity_key, status, last_seen_at, revoked_at)
-device_enrollments(id, tenant_id, user_id, device_id, status, …)  # approve-from-trusted-device
-key_packages(id, tenant_id, device_id, mls_key_package, used_at)  # MLS KeyPackages (public)
+devices(id, tenant_id, user_id, signature_public_key, is_provisional, created_at)
+        # provisional = published but not yet approved by an enrolled device
+device_enrollments(id, tenant_id, user_id, requesting_device_id,
+                   approved_by_device_id, fingerprint, status, created_at,
+                   resolved_at, expires_at)           # approve-from-trusted-device
+key_packages(id, tenant_id, device_id, key_package, claimed_at, created_at)
+        # MLS KeyPackages — public, opaque, claimed once
 
 -- messaging ------------------------------------------------------------------
-conversations(id, tenant_id, type, is_direct, created_at, updated_at)
-conversation_members(conversation_id, tenant_id, user_id, role, joined_at, removed_at)
-conversation_commits(id, tenant_id, conversation_id, epoch, ciphertext, …)    # MLS commits
-conversation_welcomes(id, tenant_id, conversation_id, device_id, ciphertext)  # offline Welcome
-messages(id, tenant_id, conversation_id, sender_user_id, sender_device_id,
-         ciphertext, created_at, …)                   # pruned at 90 days
-conversation_receipts(…)                              # delivery / read status
-attachments(id, tenant_id, message_id, object_key, encrypted_size, expires_at)
-friendships(id, tenant_id, requester_id, addressee_id, status, …)   # the durable contact list
-push_subscriptions(id, tenant_id, user_id, endpoint, keys, …)
+conversations(id, tenant_id, created_by, is_direct, created_at)
+        # no name/title column — that would be plaintext metadata
+conversation_members(id, tenant_id, conversation_id, user_id, joined_at)
+        # membership is add/remove by row; there is no role or removed_at column
+conversation_commits(id, tenant_id, conversation_id, sender_user_id,
+                     client_commit_id, epoch, commit, created_at)   # MLS commits (ciphertext)
+conversation_welcomes(id, tenant_id, conversation_id, recipient_user_id,
+                      recipient_device_id, sender_user_id, welcome, ratchet_tree,
+                      created_at)                     # offline Welcome; consumed on join
+messages(id, tenant_id, conversation_id, sender_user_id, client_message_id,
+         ciphertext, alg, epoch, attachment_object_key, created_at)
+        # pruned at 90 days; sender_user_id nullable after GDPR erasure
+conversation_receipts(id, tenant_id, conversation_id, user_id,
+                      delivered_through_message_id, read_through_message_id, …)
+        # high-water marks per (conversation, member) — metadata only
+attachments(id, tenant_id, conversation_id, object_key, byte_size, uploaded_by,
+            created_at, expires_at)
+        # keyed to the CONVERSATION, not to a message; the content key lives only
+        # in the MLS envelope, never here
+friendships(id, tenant_id, user_low_id, user_high_id, status, requested_by,
+            expires_at, created_at, resolved_at)
+        # CANONICAL PAIR ordering — user_low_id = least(a,b), user_high_id = greatest(a,b),
+        # so one row per pair regardless of direction. Accepted-only: a decline or cancel
+        # is a hard DELETE (no rejection ledger); requested_by is NULLed on accept.
+push_subscriptions(id, tenant_id, device_id, user_id, endpoint, p256dh, auth, …)
 
 -- operations -----------------------------------------------------------------
-audit_events(id, tenant_id, actor_sub, event_type, metadata, created_at)  # pruned on a timer
+audit_events(id, tenant_id, event_type, actor_sub, ip, user_agent, metadata,
+             created_at)                              # append-only; pruned on a timer
 ```
 
 **There is no call table.** Calls persist **nothing** — no participants, no timestamps, no duration.
