@@ -1,6 +1,8 @@
 # Codebase improvement tracks
 
-> **Status:** PROPOSED 2026-06-21 — planning docs only. No application code changes in this PR.
+> **Status: Tracks 1–3 COMPLETE; Track 4 shipped its v1 deletion, with the commit-pruning tail deferred**
+> to group-chat GA (see the per-slice progress log below). Written 2026-06-21 as planning docs; every track
+> has since landed code.
 > **Origin:** A full codebase-health review (size / quality / difficulty) of the monorepo. The review
 > found a top-tier, security-hardened codebase whose only real debt is concentrated in three places.
 > These docs scope the fixes; each becomes its own follow-up PR once reviewed.

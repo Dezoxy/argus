@@ -1,6 +1,14 @@
 # Track 4 — Message retention & ciphertext pruning (bound DB growth)
 
-> **Status:** PROPOSED 2026-06-21. Mostly server-side, with **gated prerequisites before any deletion**: a
+> **Status: v1 SHIPPED; the commit-pruning tail is deferred.** Slices 1–4 and 5a–5c are merged
+> ([#289](https://github.com/Dezoxy/secmes/pull/289)–[#293](https://github.com/Dezoxy/secmes/pull/293),
+> [#296](https://github.com/Dezoxy/secmes/pull/296)): the prune-safe cursor, the threat-model note, the
+> `argus_msg_prune` boundary (`0044`), the 90-day TTL worker (`infra/retention/`), and sync-lost
+> detection + UI. **Still open:** the recovery mechanism (5c-2) and `conversation_commits` pruning
+> (5d–5e), both deliberately deferred until group chat is GA — 1:1 chats write no commits. See the
+> per-slice log in [README.md](./README.md).
+>
+> _Original proposal (2026-06-21) follows._ Mostly server-side, with **gated prerequisites before any deletion**: a
 > position-carrying backfill cursor (a backward-compatible shared-cursor change spanning `@argus/contracts` +
 > `apps/api` + web + OpenAPI), and — for commit pruning — a client missing-commit / sync-lost signal. No
 > message wire-format / envelope change. The only user-visible effect:
