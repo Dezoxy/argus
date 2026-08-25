@@ -1,8 +1,17 @@
 # Private-messenger redesign — implementation plan
 
-> **Status:** plan only. No code in this PR. A separate session implements the phases below.
-> **Branch for implementation:** `claude/brave-franklin-72kiqn` (or a fresh feature branch per phase).
-> **Audience:** the engineer/agent who picks this up next. Read it top-to-bottom once before starting Phase 0.
+> **Status: IMPLEMENTED — all seven phases shipped.** This is now the **design record**, not a work item.
+> Phases 0–6 landed as migrations `0030`–`0039` plus `apps/api/src/auth/{webauthn,breakglass,session-token}`
+> and `apps/web/src/features/auth`: `argus_id` identity spine (`0030`), self-minted EdDSA sessions
+> (`0031`–`0032`), WebAuthn + registration-by-code (`0033`–`0036`), breakglass admin (`0037`), profile +
+> avatar seed (`0038`), and the enterprise decommission (`0039` — SSO table removed, all stored email
+> nulled, legacy OIDC subjects purged).
+>
+> **Read this for the _why_, not the _what_.** The codebase has moved on since: the key-backup surface was
+> removed entirely (`0040`), friendship-gated messaging landed (`0042`), and VoIP V1 shipped after. For the
+> current shape of the system see
+> [`../architecture/secure_messaging_platform_plan.md`](../architecture/secure_messaging_platform_plan.md);
+> §3 below ("codebase facts") describes the **pre-redesign** code and is preserved as historical context.
 
 ---
 

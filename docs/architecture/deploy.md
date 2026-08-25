@@ -1,7 +1,14 @@
 # Production deploy (single Azure VM)
 
-How the production stack runs on the single Azure VM (`germanywestcentral`). **Status: built, not yet
-deployed.** The infrastructure exists as code across slices; CD (`vars.ENABLE_DEPLOY`) is still off.
+How the production stack runs on the single Azure VM (`germanywestcentral`). **Status: built; the Azure
+production track is not yet armed** — the infrastructure exists as code across the slices below, but CD
+(`vars.ENABLE_DEPLOY`) is still off, so tagged `v*` releases do not roll out.
+
+> **The stack does run somewhere.** The parallel **AWS EC2 experiment** (`infra/aws/`, `cd-aws.yml`, tag
+> namespace `aws-v*`, kill-switch `ENABLE_DEPLOY_AWS`) has taken 59 releases and is where runtime issues
+> get found. It holds no real data and is not production. Same Compose stack, different host — which is the
+> point: it proves `infra/stack/` is genuinely cloud-agnostic. See
+> [`../operations/runbooks/aws-first-deploy.md`](../operations/runbooks/aws-first-deploy.md).
 
 - **Slice 1** — VM + network + Key Vault + Managed Identity + GitHub-OIDC deploy role (`infra/azure/terraform/`).
 - **Slice 2** — the prod runtime topology: `compose.prod.yaml`, the Caddy single-origin router
@@ -19,20 +26,36 @@ users ─HTTPS─▶ Cloudflare edge (TLS · WAF · rate-limit) ─tunnel─▶ 
                  4rgus.com      → PWA + reverse-proxies /api,/ws → api:3000
                api ─▶ postgres / redis (internal Docker network, NO published ports)
                api ─▶ Backblaze B2 (egress, presigned)
+
+peers ─UDP/TLS─▶ coturn (3478, 5349, 49160-49260/udp) — the ONLY inbound NSG rules
 ```
 
-The VM opens **no inbound port** (NSG denies all inbound; `infra/azure/terraform/`). The only way in is the
+The VM opens **no inbound HTTP port** (`infra/azure/terraform/`). The only way to the app is the
 **outbound** Cloudflare tunnel. TLS, WAF, and the edge rate-limit live at Cloudflare; Caddy speaks plain HTTP
 on a non-privileged port over the internal Docker network only. Threat model:
 `docs/threat-models/vm-ingress.md`.
 
+**The one exception is coturn.** WebRTC media is UDP and a Cloudflare Tunnel cannot carry it, so the NSG
+opens 3478 (STUN/TURN, udp+tcp), 5349 (TURNS, udp+tcp), and the narrow 49160–49260/udp relay range to
+`0.0.0.0/0` — a public relay cannot restrict its source. coturn is a dumb DTLS-SRTP forwarder: it never sees
+plaintext or keys, authenticates with ephemeral HMAC credentials only, and is the most exposed service in
+the stack. Threat model: `docs/threat-models/voip-turn.md`; arming: `docs/runbooks/voip-turn.md`.
+
 ## The stack (`compose.prod.yaml`)
 
 Standalone prod stack — **not** layered over `compose.yaml` (that file is local-dev only). Services:
-`postgres`, `redis`, `api`, `caddy` (PWA + router), `cloudflared`, and the observability stack `prometheus`
-+ `grafana` + `alertmanager` (roadmap #47). No `minio` (prod uses Backblaze B2). No service publishes a host
-port. Every service runs hardened (non-root where the image allows, `no-new-privileges`, `cap_drop: [ALL]`,
-resource limits).
+
+| Group | Services |
+| --- | --- |
+| Core | `postgres`, `redis`, `api`, `caddy` (PWA + router), `cloudflared` |
+| Calling | `coturn` (TURN relay) |
+| Observability | `prometheus`, `alertmanager`, `grafana`, `loki`, `alloy`, `tempo`, `pyroscope`, `postgres-exporter`, `redis-exporter` |
+| Error tracking | `glitchtip`, `glitchtip-worker`, `glitchtip-db` |
+
+No `minio` (prod uses Backblaze B2). **No service publishes a host port**, and `coturn` is the single
+service on the **host network** — both facts are asserted by the `compose-guard` CI job, so a stray
+`ports:` mapping or a second host-network service fails the build. Every service runs hardened (non-root
+where the image allows, `no-new-privileges`, `cap_drop: [ALL]`, resource limits).
 
 Auth is **passkey-only** — the API mints and verifies its own EdDSA session tokens. Zitadel/OIDC was
 decommissioned in Phase 6 (`docs/threat-models/phase-6-decommission.md`); there is no external IdP.

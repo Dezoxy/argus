@@ -2,7 +2,7 @@
 
 Canonical instructions for **any** AI coding agent working in this repo (Codex, Claude Code, Cursor, Gemini CLI, …). Tool-specific wiring is at the bottom; the rules here apply to all.
 
-Privacy-first, **end-to-end-encrypted** messaging platform. Multi-tenant SaaS, installable PWA.
+Privacy-first, **end-to-end-encrypted** messenger, installable as a PWA. **Invite-only** (admin-minted registration code → passkey) and **passkey-only** thereafter. The multi-tenant machinery (`tenant_id` + FORCE RLS) is fully enforced, but the deployment runs as **one shared tenant pool** — privacy comes from argus-id-only discovery + E2EE, not tenant walls.
 Architecture: `docs/architecture/secure_messaging_platform_plan.md`. Security toolchain: `docs/architecture/security_toolchain.md`.
 
 ## Languages
@@ -27,7 +27,7 @@ Hard rules. A change that violates one is wrong even if it "works".
 - TypeScript strict, ESM. Monorepo via pnpm workspaces (`apps/*`, `packages/*`).
 - Backend **NestJS** (`apps/api`); realtime WebSocket gateway; **PostgreSQL** + RLS; DB layer SQL-first (Drizzle/Kysely, not Prisma) so the tenant session var is set per transaction.
 - Shared client↔server types + **Zod** schemas live in `@argus/contracts`. Validate at every boundary.
-- Frontend **React + Vite** PWA. Deploy: a **single Azure VM** (EU) running the stack via **Docker Compose** — **self-hosted Postgres + Redis** (auth is passkey-only; Zitadel/OIDC was decommissioned in Phase 6); attachment blobs on **Backblaze B2** (S3-compatible, EU `eu-central-003`); DB backups to a separate private EU B2 bucket. Ingress via **Cloudflare Tunnel** (no public ports); CD via **`az vm run-command`** (Azure control plane, GitHub OIDC). Secrets in **Azure Key Vault**, fetched on the VM via **Managed Identity** (delivered as credential files, never env). IaC Terraform is split by concern: Azure provisioning in `infra/azure/terraform/`, the cloud-agnostic runtime the VM runs (deploy script, secret-fetch, Caddy, observability, glitchtip) in `infra/stack/`, and a parallel AWS experiment in `infra/aws/`. (Kubernetes/AKS was dropped — the old AKS/Helm/Argo CD scaffolds were removed; recover from git history if K8s is ever revisited.)
+- Frontend **React + Vite** PWA. Deploy: a **single Azure VM** (EU) running the stack via **Docker Compose** — **self-hosted Postgres + Redis** (auth is passkey-only; Zitadel/OIDC was decommissioned in Phase 6); attachment blobs on **Backblaze B2** (S3-compatible, EU `eu-central-003`); DB backups to a separate private EU B2 bucket. **1:1 audio calls** run over WebRTC, always relayed through self-hosted **coturn**; a full self-hosted **observability stack** (Prometheus/Alertmanager/Grafana/Loki/Alloy/Tempo/Pyroscope/GlitchTip) runs on the same VM. Ingress via **Cloudflare Tunnel** (no inbound HTTP ports — the coturn media ports are the sole exception, since a tunnel cannot carry UDP); CD via **`az vm run-command`** (Azure control plane, GitHub OIDC). Secrets in **Azure Key Vault**, fetched on the VM via **Managed Identity** (delivered as credential files, never env). IaC Terraform is split by concern: Azure provisioning in `infra/azure/terraform/`, the cloud-agnostic runtime the VM runs (deploy script, secret-fetch, Caddy, observability, glitchtip) in `infra/stack/`, and a parallel AWS experiment in `infra/aws/`. (Kubernetes/AKS was dropped — the old AKS/Helm/Argo CD scaffolds were removed; recover from git history if K8s is ever revisited.)
 
 ## Definition of done
 
@@ -59,7 +59,7 @@ Hard rules. A change that violates one is wrong even if it "works".
 
 ## Review criteria (apply the matching set after non-trivial changes)
 
-**Crypto** (`packages/crypto`, keys, envelope): no hand-rolled crypto; server stays crypto-blind; keys never logged/transmitted in clear; key backup uses Argon2id + unique salt; CSPRNG only (no `Math.random`).
+**Crypto** (`packages/crypto`, keys, envelope): no hand-rolled crypto; server stays crypto-blind; keys never logged/transmitted in clear; the device keystore is sealed under the **WebAuthn-PRF** unlock key and **no recoverable secret is ever stored server-side** (the Argon2id key-backup surface was removed — `0040`; a lost passkey is a fresh start); CSPRNG only (no `Math.random`).
 
 **Server boundary** (`apps/api`, queries, endpoints): no plaintext on the server; `tenant_id` + RLS on every tenant table; tenant context not set from unverified client input; no secrets/tokens/content in logs; authz on every path (no IDOR); Zod-validated I/O; every route documented in the spec; every controller has a spec pinning its guard + status contract.
 

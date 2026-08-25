@@ -1,61 +1,82 @@
-# Secure Messaging Platform — Architecture Plan v2
+# argus — Architecture
 
-> Supersedes [`aws_secure_internal_messaging_architecture_plan.md`](../archive/aws_secure_internal_messaging_architecture_plan.md) (kept in `docs/archive/` as history / north-star).
-> This version reflects the decisions made: PWA-only, true E2EE (single device in v1), multi-tenant SaaS sold to other companies, privacy-first, EU-hosted. _(The original **Kubernetes learning goal** was dropped 2026-06 — see the banner.)_
+> **What this is:** the canonical "how the system is built" doc. It describes **what exists today**, not
+> what was once planned. Two later course-corrections are already folded in: Kubernetes/AKS was dropped for
+> a single VM + Docker Compose (2026-06), and the **private-messenger redesign** (2026-06/07) replaced the
+> enterprise-SaaS shape — Zitadel OIDC, per-tenant SSO, Stripe billing, self-serve workspaces, the browsable
+> user directory — with an invite-only, passkey-only messenger. The earlier AWS/Kubernetes/enterprise cuts
+> live in `git log` and [`../archive/`](../archive/); do not follow them.
 >
-> **⚠️ Composition update (2026-06 — supersedes the AKS / managed-data sections below):** Kubernetes/AKS was **dropped** as solo-dev overhead, and so were the **Azure managed data services** (managed Postgres / Cache). The deploy target is now a **single Azure VM** running **self-hosted Postgres + Redis + Zitadel** via Docker Compose; attachment blobs live on **Backblaze B2** (S3-compatible, EU `eu-central-003`, private buckets; MinIO locally); DB backups on a separate private EU B2 bucket; secrets in **Azure Key Vault**, fetched by the VM's **Managed Identity** and delivered as credential files (never env at rest). **Azure stays** (the VM + Key Vault + Entra). The detailed AKS / Helm / Argo CD / managed-data sections below are **legacy** — read them as history. Canonical: `AGENTS.md` → _Stack & conventions_.
+> **Phasing is not here.** [`../planning/roadmap/README.md`](../planning/roadmap/README.md) is canonical for
+> what is done and what is left. **Rules** are in `AGENTS.md`. This doc is the shape of the system.
 
 ---
 
 ## 0. Executive Summary
 
-A **multi-tenant, end-to-end-encrypted messaging product** delivered as an installable **PWA on every platform** (no app stores). The server is a **crypto-blind delivery layer**: it stores ciphertext, fans out real-time messages, and brokers keys — it can never read message content.
+An **end-to-end-encrypted messenger** delivered as an installable **PWA** (no app stores). The server is a
+**crypto-blind delivery layer**: it stores ciphertext, fans out real-time messages, brokers public keys, and
+relays call media — it can never read message content.
 
-**Decided stack:**
+Access is **invite-only**: an admin mints a one-time registration code, the user redeems it and sets up a
+**passkey**. There is no email, no password, no external IdP, and no self-serve signup.
 
-| Layer | Choice |
-|---|---|
-| Language | **TypeScript**, end-to-end |
-| Frontend | **React + Vite**, built as a **PWA** |
-| Backend | **NestJS** |
-| Realtime | **WebSocket** in a dedicated gateway, Redis backplane |
-| Database | **PostgreSQL** + Row-Level Security (multi-tenant) |
-| Client crypto | **MLS (RFC 9420)** via wasm — never hand-rolled |
-| Identity | **Zitadel** (self-hosted, EU), OIDC/SAML, multi-tenant |
-| Object storage | **Backblaze B2** (S3-compatible, EU `eu-central-003`, private buckets) — MinIO locally _(was Azure Blob)_ |
-| Orchestration | **Single Azure VM** + Docker Compose (EU `germanywestcentral`) _(AKS dropped)_ |
-| Ingress / TLS | **Cloudflare Tunnel** (no public ports) + Cloudflare edge TLS/WAF; **Caddy** plain-HTTP reverse proxy internally |
-| Deploy | **Docker Compose** on the VM; CD via **`az vm run-command`** (GitHub OIDC) _(Helm + Argo CD dropped)_ |
+**Stack as built:**
 
-**Why Azure (and the privacy trade you're accepting):** Azure gives you a single low-cost **VM**, **Key Vault** for secrets, native **Entra ID** alignment for the Microsoft-shop companies you're selling to, and cloud skills that transfer to any job — without the K8s ops a solo dev can't justify. The honest cost: Azure is **US-owned**, so your privacy story shifts from *"EU-owned provider"* to *"E2EE (the cloud only ever holds ciphertext + metadata) + EU Data Boundary + a German region."* That's defensible, but a notch weaker than Hetzner/Scaleway on pure sovereignty. For stricter buyers later you can deploy via an Azure sovereign operator (Delos/Bleu) or move just the VM to an EU-owned provider — the stack is plain Docker Compose, so it's portable either way.
+| Layer            | Choice                                                                                          |
+| ---------------- | ----------------------------------------------------------------------------------------------- |
+| Language         | **TypeScript**, end-to-end (strict, ESM, pnpm workspaces)                                       |
+| Frontend         | **React + Vite**, built as a **PWA**                                                            |
+| Backend          | **NestJS** (`apps/api`) — HTTP + the WebSocket gateway in one service                           |
+| Realtime         | **WebSocket** gateway, **Redis** pub/sub backplane                                              |
+| Database         | **PostgreSQL** + **FORCE Row-Level Security** on every tenant-scoped table                      |
+| Client crypto    | **MLS (RFC 9420)** via [`ts-mls`](mls-library-selection.md) — never hand-rolled                 |
+| Identity / auth  | **Passkeys (WebAuthn)** + **API-minted EdDSA session tokens**. No external IdP.                 |
+| Calling          | **WebRTC** 1:1 audio, **always relayed** through self-hosted **coturn**                       |
+| Object storage   | **Backblaze B2** (S3-compatible, EU `eu-central-003`, private buckets) — MinIO locally          |
+| Orchestration    | **Single Azure VM** (`Standard_B2ms`, `germanywestcentral`) + Docker Compose                    |
+| Ingress / TLS    | **Cloudflare Tunnel** (no public HTTP ports) + Cloudflare edge TLS/WAF; **Caddy** internally    |
+| Observability    | Self-hosted **Prometheus · Alertmanager · Grafana · Loki · Alloy · Tempo · Pyroscope · GlitchTip** |
+| Deploy           | Tag-triggered **GitHub Actions → Azure OIDC → VM run-command** (no SSH, no open ports)          |
+
+**Why Azure, and the privacy trade being accepted:** Azure gives one low-cost **VM**, **Key Vault** for
+secrets, and cloud skills that transfer — without the K8s ops a solo dev can't justify. The honest cost:
+Azure is **US-owned**, so the privacy story is _"E2EE (the cloud only ever holds ciphertext + metadata) + EU
+Data Boundary + a German region"_ rather than _"EU-owned provider"_. Defensible, but a notch weaker than
+Hetzner/Scaleway on pure sovereignty. The stack is plain Docker Compose, so moving the VM to an EU-owned
+host later is a re-provision, not a rewrite.
 
 ---
 
 ## 1. Product Goal & Scope
 
-**Goal:** a private messaging platform that companies can adopt for sensitive internal communication, where the vendor (you) is technically incapable of reading message content.
+**Goal:** a private messenger where the operator is **technically incapable** of reading message content,
+and where membership is closed — you get in because someone already inside handed you a code.
 
-**v1 scope:**
-- Multi-tenant company sign-up (one organization = one tenant)
-- SSO login via the tenant's IdP (OIDC/SAML) or local accounts
-- User directory (per tenant)
-- One-to-one text messaging (E2EE)
-- Image messages / encrypted attachments
-- Single device per user
-- Real-time delivery + offline catch-up
-- Delivery status
-- PRF-sealed device keystore — no server backup, no recovery (a lost passkey is a fresh start; see §3.4)
-- Admin panel (metadata only — never content)
-- Audit log for security events
+**Shipped today:**
 
-**Explicitly out of v1:**
-- Voice / video
-- Group chat (MLS chosen now so it's cheap to add later)
-- Multi-device sync (the single hardest E2EE problem — deferred deliberately)
+- Invite-code registration → **passkey** setup; **passkey-only** login thereafter
+- Immutable, shareable **argus-id** (`argus-<16 chars>-<animal>`); find people by **exact argus-id only**
+- **Friends list** — the durable contact source that survives a PWA reinstall
+- **1:1 and group** E2EE text messaging over MLS
+- **Encrypted image attachments** (client-side AES-GCM → presigned B2)
+- **Multi-device** — a new device is approved by an existing trusted device, after a fingerprint check
+- **1:1 audio calls** — WebRTC, always relayed via coturn in V1, signaling carried as MLS ciphertext
+- **Safety-number (fingerprint) verification** against key substitution
+- Real-time delivery + offline catch-up, delivery/read receipts, **web push**
+- Per-user privacy toggles (read receipts, typing indicators, link previews; a relay-only call preference is stored for V1.1)
+- **Metadata-only admin panel** (devices + audit; never content) and a **breakglass** admin login
+- **GDPR** export + erasure; **90-day** server-side message retention with a DB-enforced prune
+
+**Explicitly out of scope today:**
+
+- **Video calls** — V1.1; the API schema pins `media: 'audio'` and widens later
+- Group calls (1:1 only; needs an SFU)
 - Federation / cross-org messaging
-- Server-side message search (impossible with E2EE — will be client-side only)
-- Compliance/eDiscovery mode (a future, opt-in, per-tenant feature)
+- Server-side message search — impossible under E2EE; client-side only
+- Compliance / eDiscovery mode — a future, opt-in feature (§15)
 - Bots / AI features
+- Native mobile apps — planned, gated on a crypto spike ([`../planning/mobile/`](../planning/mobile/))
 
 ---
 
@@ -64,53 +85,94 @@ A **multi-tenant, end-to-end-encrypted messaging product** delivered as an insta
 > The server delivers messages; it never owns their content.
 
 - Content is encrypted **on the client** before it touches the network.
-- The database stores **ciphertext**; object storage stores **encrypted blobs**.
+- The database stores **ciphertext**; object storage stores **encrypted blobs**; coturn relays **encrypted
+  media** it cannot interpret.
 - Admins see **security metadata**, never plaintext.
 
-The backend manages: authentication, authorization, tenant isolation, the public **key directory**, message routing & storage, attachment references, audit events, and operations. It never manages: plaintext, user private keys, or decryption of conversations.
+The backend manages: authentication, authorization, tenant isolation, the public **key directory**, message
+routing & storage, attachment references, TURN credential minting, audit events, and operations. It never
+manages: plaintext, user private keys, or decryption of conversations.
 
 ---
 
 ## 3. Security Model
 
 ### 3.1 What "E2EE" means here (device-local keys)
-- One client/device was the v1 baseline; **multi-device enrollment (B2) has since shipped** — a user may have N devices, each added by **approval from an existing trusted device** after an out-of-band fingerprint check (`multi-device-enrollment.md`). MLS private keys live in **IndexedDB**, sealed under the per-passkey PRF unlock key.
-- There is **no key backup/recovery**: every new device is provisioned **fresh** (no prior history — forward secrecy), either via B2 enrollment from an existing device or, for a user with **no** remaining enrolled device, via a new registration code (§3.4). "New phone / new browser" is therefore always a fresh device, never a restore of old keys.
+
+- A user may have **N devices**. Each new device is added by **approval from an existing trusted device**
+  after an out-of-band fingerprint check (`threat-models/multi-device-enrollment.md`). MLS private keys live
+  in **IndexedDB**, sealed under the per-passkey PRF unlock key.
+- There is **no key backup and no recovery**: every new device is provisioned **fresh** (no prior history —
+  MLS forward secrecy), either via enrollment from an existing device or, for a user with **no** remaining
+  enrolled device, via a new registration code (§3.4). "New phone / new browser" is always a fresh device.
 
 ### 3.2 The honest PWA caveat (read this twice)
-A web app delivers the encryption code on every load, so a **fully compromised server could ship malicious JavaScript** and capture plaintext. Native apps avoid this; a pure PWA cannot fully escape it. You can only narrow it:
 
-- Strict **Content-Security-Policy** + **Subresource Integrity** (browser rejects tampered scripts)
-- **Service worker** caches the app shell, so the code changes rarely and visibly
-- **Reproducible builds** + publish the bundle hash on a security page for verification
-- Treat the **deploy pipeline as your #1 attack surface** — lock it down hard
+A web app delivers the encryption code on every load, so a **fully compromised server could ship malicious
+JavaScript** and capture plaintext. Native apps avoid this; a pure PWA cannot fully escape it. It can only
+be narrowed:
 
-Be honest with buyers: this is "very strong privacy," not "uncompromisable." It's the same trade Signal made when it chose native apps. Acceptable for a privacy-first PWA; just don't oversell it.
+- Strict **Content-Security-Policy** + **Subresource Integrity** (the browser rejects tampered scripts)
+- **Service worker** caches the app shell, so the code changes rarely and visibly; the SW's own integrity is
+  inlined at build time and checked in CI (`apps/web/scripts/check-sw-integrity.mjs`)
+- Published bundle hashes on the in-app transparency page, for independent verification
+- Treat the **deploy pipeline as the #1 attack surface** — sign and scan every image, gate every rollout
+
+Be honest with users: this is "very strong privacy", not "uncompromisable". It is the same trade Signal made
+when it chose native apps. Acceptable for a privacy-first PWA; do not oversell it. See
+`threat-models/code-delivery-integrity.md`.
 
 ### 3.3 Crypto: build on a standard, never hand-roll
-- **Protocol: MLS (RFC 9420)** via a wasm library. Chosen over the Signal protocol because MLS is the modern IETF standard and is **group-ready**, so adding group chat later is not a rewrite.
-- **Do not** use the deprecated `libsignal-protocol-javascript`.
-- **Do not** compose your own scheme from primitives ("rolling crypto") — it weakens both security and your sales story.
-- Server stores MLS **KeyPackages** (public), ciphertext messages, and Welcome messages for offline delivery.
 
-### 3.4 Key backup & recovery — superseded: no server backup, no recovery
-> **Updated (2026-06):** the original passphrase / Argon2id / server-stored key-backup design was **dropped** (migration `0040_drop_key_backups.sql`; `packages/crypto/src/key-backup.ts` deleted). The shipped model seals the device keystore directly under a per-passkey **WebAuthn-PRF** key (no passphrase, no Argon2) and keeps **no recoverable secret on the server**.
+- **Protocol: MLS (RFC 9420)** via [`ts-mls`](mls-library-selection.md) (MIT, pure TypeScript). Chosen over
+  the Signal protocol because MLS is the modern IETF standard and is **group-ready**, so group chat was an
+  increment rather than a rewrite.
+- **Do not** compose a scheme from primitives. All cryptography lives in `packages/crypto`; primitives must
+  not appear elsewhere (AGENTS.md invariant #4).
+- The server stores MLS **KeyPackages** (public), ciphertext messages, ciphertext commits, and Welcome
+  messages for offline delivery. All of it is opaque to the server.
 
-- The keystore is sealed at rest under the PRF unlock key (non-extractable AES-256-GCM `CryptoKey`, in memory only).
-- A lost passkey or an evicted PWA store is a **fresh start** — the admin mints a new registration code; the device re-enrolls and starts with no history.
-- This trades recoverability for a strictly smaller attack surface (no server-held key ciphertext to steal or brute-force) and is consistent with MLS forward secrecy. See `docs/threat-models/prf-keystore-unlock.md` and `key-model.md`.
+### 3.4 Key backup & recovery — there is none, by design
+
+The original passphrase / Argon2id / server-stored key-backup design was **removed** (migration
+`0040_drop_key_backups.sql`; `packages/crypto/src/key-backup.ts` deleted). The shipped model seals the device
+keystore directly under a per-passkey **WebAuthn-PRF** key — no passphrase, no Argon2, and **no recoverable
+secret on the server**.
+
+- The keystore (IndexedDB, currently schema v8) is sealed at rest under the PRF unlock key: a
+  non-extractable AES-256-GCM `CryptoKey` that exists in memory only.
+- A lost passkey or an evicted PWA store is a **fresh start** — an admin mints a new registration code, the
+  user re-registers as a **new identity**, and starts with no history.
+- This trades recoverability for a strictly smaller attack surface (no server-held key ciphertext to steal
+  or brute-force) and is consistent with MLS forward secrecy. See `threat-models/prf-keystore-unlock.md` and
+  `threat-models/key-model.md`.
 
 ### 3.5 Auth ↔ crypto boundary
-The IdP authenticates **who you are**. It **never** sees or holds **message keys**. Keep these two systems strictly separate or you've defeated E2EE.
+
+**A passkey is not an MLS device key.** The passkey authenticates _who you are_: the server stores its
+WebAuthn **public** key, which is safe for crypto-blindness because it is not message key material. The MLS
+device signature key is the per-device **E2EE identity** and never leaves the client. The two systems stay
+independent — losing one does not compromise the other, and a lost passkey means a new MLS identity too.
 
 ---
 
-## 4. Multi-Tenancy
+## 4. Tenancy
 
-- **Model:** shared PostgreSQL, every table carries `tenant_id`, enforced with **Row-Level Security (RLS)**. The app sets the tenant context per request; Postgres rejects cross-tenant reads even if app code has a bug.
-- **Isolation upgrade path:** schema-per-tenant or database-per-tenant only when a large buyer contractually demands it.
-- **Per-tenant config:** IdP connection, branding, retention policy, feature flags.
-- **Tenant onboarding:** self-serve org creation → first admin → invite users.
+The multi-tenant machinery is **retained and enforced**, but the deployment is **effectively single-tenant**.
+
+- **Model:** shared PostgreSQL; every tenant-scoped table carries `tenant_id` with **`ENABLE` + `FORCE`
+  RLS**. The app sets `app.tenant_id` per transaction (`withTenant()` in `apps/api/src/db/index.ts`), so
+  Postgres rejects cross-tenant reads even when application code has a bug (AGENTS.md invariant #3).
+- **The guard is catalog-driven, not a hand-written list.** `apps/api/src/db/rls-coverage.spec.ts` enumerates
+  every ordinary table in `public` from the live catalog and fails if one is not tenant-isolated by the exact
+  policy shape. A new table without a policy turns it red automatically. Four tables sit on a justified
+  allowlist (`schema_migrations`, `user_tenant_index`, `webauthn_challenges`, `stripe_events`).
+- **One tenant in practice:** every user is bound to a single fixed `DEFAULT_TENANT_ID`
+  (`apps/api/src/auth/breakglass.service.ts`). Privacy comes from **argus-id-only discovery + E2EE**, not
+  from tenant walls. Keeping RLS costs a few lines and leaves real multi-tenancy reversible; removing it
+  would be a multi-month teardown of the security boundary.
+- **No per-tenant IdP config, no plans, no billing.** Those columns survive as inert residue from migration
+  `0039_decommission_enterprise.sql` and are slated for a later cleanup migration.
 
 ---
 
@@ -118,278 +180,428 @@ The IdP authenticates **who you are**. It **never** sees or holds **message keys
 
 ```text
         Every platform (installed PWA: iOS/Android/Win/macOS/Linux)
-                                  |
-                                  | HTTPS / WSS
-                                  v
-                   Cloudflare edge (TLS, WAF, rate-limit; Access on admin subdomains)
-                                  |
-                                  | Cloudflare Tunnel (cloudflared dials OUT — no public ports)
-                                  v
-        ============== single Azure VM (germanywestcentral) ==============
-        |                Docker Compose stack                            |
-        |                                                                |
-        |   cloudflared ── Caddy (plain-HTTP reverse proxy, single origin)|
-        |                    |        |          |                       |
-        |                    v        v          v                       |
-        |                 web (PWA)  api      realtime (WS)   zitadel     |
-        |                 static    NestJS   WS gateway       identity    |
-        |                              |        |               |        |
-        |                              v        v               v        |
-        |                          Postgres   Redis         zitadel-db    |
-        |                        (self-host) (backplane)   (self-host PG) |
-        ==================================================================
-                                       |
-                                       v
-                          Backblaze B2 (EU eu-central-003)
-                            encrypted image blobs (private)
+                        |                              |
+                        | HTTPS / WSS                  | UDP/TLS (media)
+                        v                              |
+      Cloudflare edge (TLS, WAF, rate-limit)           |
+                        |                              |
+                        | Cloudflare Tunnel            |  (cannot ride the tunnel — UDP)
+                        | (cloudflared dials OUT)      |
+                        v                              v
+    ========== single Azure VM (germanywestcentral) ==========
+    |            Docker Compose stack                        |
+    |                                                        |
+    |   cloudflared -- caddy (plain HTTP, single origin)      |
+    |                    |                                   |
+    |                    v                                   |
+    |            PWA static  +  api (NestJS: HTTP + WS)       |
+    |                              |        |                |
+    |                              v        v                |
+    |                          postgres    redis              |
+    |                         (self-host) (backplane)         |
+    |                                                        |
+    |   coturn (TURN relay — ciphertext media only)           |
+    |   prometheus · alertmanager · grafana · loki · alloy    |
+    |   tempo · pyroscope · exporters · glitchtip             |
+    ==========================================================
+                              |
+                              v
+                Backblaze B2 (EU eu-central-003)
+          encrypted image blobs + encrypted DB backups (private)
 
-  Secrets: Azure Key Vault, fetched by the VM's Managed Identity as credential files.
-  Network: Azure NSG denies all inbound; the VM reaches out only via the Cloudflare Tunnel.
+  Secrets: Azure Key Vault, fetched by the VM's Managed Identity as credential files (tmpfs).
+  Network: the Azure NSG denies all inbound except the coturn media ports; everything else is
+           outbound-only via the Cloudflare Tunnel.
 ```
 
 ---
 
 ## 6. VM Deploy Architecture
 
-> Kubernetes/AKS was dropped (solo-dev overhead). The deploy is now a **single Azure VM** running the whole stack via **Docker Compose**. The old §6 AKS/Helm/Argo CD design is recoverable from git history if K8s is ever re-opened.
+Full operational detail — rollout, rollback, health gates — lives in [`deploy.md`](deploy.md). This section
+is the shape only.
 
 ### 6.1 The VM
-- **Host:** one Azure VM (burstable **B-series** to start) in **Germany West Central** (`germanywestcentral`) for the strongest EU data-residency story. Pin every Azure resource to the same region.
-- **Stack:** **Docker Compose** runs **self-hosted Postgres + Redis + Zitadel** alongside `api`, `web`, **Caddy**, and **cloudflared**. One container per service (no autoscaling — scale up the VM if needed).
-- **Identity:** the VM's **Managed Identity** reads secrets from **Azure Key Vault** with no static creds; secrets are delivered as **credential files** (systemd `LoadCredential`), never env at rest.
+
+- **Host:** one Azure VM (`Standard_B2ms` — 2 vCPU / 8 GiB, burstable) in **Germany West Central**
+  (`germanywestcentral`). Every Azure resource is pinned to the same region.
+- **Stack:** **Docker Compose** (`compose.prod.yaml`) runs self-hosted **Postgres + Redis** alongside `api`,
+  `caddy` (which also serves the PWA), `cloudflared`, `coturn`, and the full observability stack. One
+  container per service — no autoscaling; scale the VM up if needed.
+- **Native workers:** four jobs run on the VM as **systemd timers**, not containers — nightly encrypted DB
+  backup (`infra/backup/`), expired-attachment reaper (`infra/cleanup/`), audit-event prune
+  (`infra/audit-prune/`), and the 90-day message-retention prune (`infra/retention/`). Each connects as its
+  own least-privilege Postgres role.
+- **Identity:** the VM's **Managed Identity** reads secrets from **Azure Key Vault** with no static creds;
+  secrets land as **credential files** in a tmpfs, never in env at rest (AGENTS.md invariant #5).
 
 ### 6.2 Ingress, TLS & isolation
-- **Ingress = Cloudflare Tunnel.** `cloudflared` dials **outbound** to Cloudflare, so **no inbound ports** are opened on the VM. Cloudflare is the edge: **TLS termination, WAF, rate-limit**. Admin/ops surfaces sit on subdomains behind **Cloudflare Access**.
-- **Internal proxy = Caddy** (plain HTTP, single origin): serves the PWA, proxies `/api` and `/ws`. TLS is Cloudflare's job, not Caddy's (no cert-manager / Let's-Encrypt-on-host).
-- **Network isolation = Azure NSG** (deny all inbound) + Cloudflare. There is no K8s NetworkPolicy/Cilium — the NSG + outbound-only tunnel are the boundary.
+
+- **Ingress = Cloudflare Tunnel.** `cloudflared` dials **outbound**, so no inbound HTTP port is opened.
+  Cloudflare is the edge: **TLS termination, WAF, rate-limit**.
+- **The one exception is coturn.** WebRTC media is UDP, which a Cloudflare Tunnel cannot carry, so the TURN
+  ports are the only inbound rule in the NSG. coturn is the most exposed service in the stack and is
+  hardened accordingly — ephemeral HMAC credentials, no long-lived users, peer ACLs. See
+  `threat-models/voip-turn.md` and [`../runbooks/voip-turn.md`](../runbooks/voip-turn.md).
+- **Internal proxy = Caddy** (plain HTTP, single origin): serves the PWA and proxies `/api` and `/ws`. TLS is
+  Cloudflare's job (no cert-manager, no Let's-Encrypt-on-host).
+- **Network isolation = Azure NSG** + Cloudflare. **No service publishes a host port**; `coturn` alone runs
+  on the host network so it can reach the TURN ports. Both facts are asserted by the `compose-guard` CI job.
 
 ### 6.3 CD & secrets
-- **CD = `az vm run-command`** driven by **GitHub Actions + Azure OIDC** — no SSH, no open ports, and it works before the tunnel exists. The pipeline builds + signs the image (registry: GHCR), then runs the deploy command on the VM (pull + `docker compose up` + migrate-on-deploy).
-- **Secrets = Key Vault + Managed Identity**, delivered as files (above). The `db:migrate` runs with the owner/migration credential (not the runtime `argus_app` role) before the new container takes traffic.
 
-### 6.4 Container security (Compose-level, apply everywhere)
+- **CD is driven by GitHub Actions + Azure OIDC** through the Azure control plane — no SSH, no open ports,
+  and it works before the tunnel exists. The pipeline builds, scans (Trivy), and **signs** (cosign keyless)
+  both images, pushes to GHCR, then runs the deploy script on the VM: pull → **migrate-before-serve** →
+  `docker compose up`.
+- **Secrets = Key Vault + Managed Identity**, delivered as files. `db:migrate` runs with the owner
+  credential (never the runtime `argus_app` role) before the new container takes traffic.
+
+### 6.4 Container security (applied to every service)
+
 ```text
-runAsNonRoot, read-only root filesystem, drop ALL capabilities
+non-root where the image allows, read-only root filesystem, cap_drop: ALL, no-new-privileges
 resource limits on every service
-data services (Postgres/Redis/Zitadel-db) on the private Docker network only — never published
-image scanning (Trivy) in CI; only signed/scanned images deploy
+data services (postgres/redis) on the private Docker network only — never published
+image scanning (Trivy) in CI; only signed + scanned images deploy
 short-lived OIDC tokens for CD; no long-lived cloud keys on the VM
 ```
 
 ### 6.5 IaC
-- Terraform (`infra/azure/`) provisions the RG, VNet, NSG (deny inbound), the VM, Key Vault, and the Managed Identity.
+
+Terraform is split by concern, deliberately:
+
+- `infra/azure/terraform/` — the production target: RG, VNet, NSG, the VM, Key Vault, Managed Identity, and
+  the GitHub-OIDC deploy role.
+- `infra/stack/` — the **cloud-agnostic** runtime the VM actually runs: deploy script, Key Vault
+  secret-fetch, Caddy, coturn, observability, GlitchTip.
+- `infra/aws/` — a **parallel EC2 experiment** (`t3.medium`, `eu-central-1`) on its own tag namespace and
+  kill-switch. Not production; it exists to prove the stack is portable and to shake out runtime issues.
+- `infra/b2/` — the Backblaze bucket CORS policy.
 
 ---
 
 ## 7. Data Model
 
-Every table includes `tenant_id` (RLS-enforced). Key tables:
+21 tables are modeled in `apps/api/src/db/schema.ts`; **19 of them are tenant-isolated by RLS**, and two are
+on the justified allowlist (§4). The database holds two more that carry no app model — `schema_migrations`
+and the inert `stripe_events` — also allowlisted. Shapes below are abbreviated; the source of truth is
+`schema.ts` and the numbered migrations in `apps/api/src/db/migrations/`.
 
 ```text
-tenants(id, name, idp_config, retention_policy, created_at)
+-- identity & auth ------------------------------------------------------------
+tenants(id, name, created_at, …)                      # one row in practice (§4)
 
-users(id, tenant_id, external_identity_id, email, display_name,
-      status, created_at, updated_at)
+users(id, tenant_id, argus_id, display_name, avatar_seed, status, role,
+      privacy_read_receipts, privacy_typing_indicators, privacy_link_previews,
+      call_relay_only, created_at)
+      # argus_id is immutable — enforced by a BEFORE UPDATE trigger, not a grant.
+      # email + external_identity_id survive as INERT columns (nulled by 0039).
 
-devices(id, tenant_id, user_id, public_identity_key, status,
-        created_at, last_seen_at, revoked_at)          # one per user in v1
+user_tenant_index(sub, tenant_id)                     # sub -> tenant routing; read BEFORE
+                                                      # tenant context exists. No RLS (allowlisted).
+webauthn_credentials(id, tenant_id, user_id, credential_id, public_key,
+                     sign_count, …)                   # PUBLIC key material only
+webauthn_challenges(id, challenge, …)                 # ephemeral pre-auth ceremony state; no RLS
+auth_sessions(id, tenant_id, user_id, refresh_token_hash, expires_at, revoked_at)
+admin_credentials(id, tenant_id, username, argon2_hash, …)      # breakglass admin
+tenant_invites(id, tenant_id, token_hash, scope, expires_at, redeemed_at, …)  # registration codes
 
-key_packages(id, tenant_id, device_id, mls_key_package, used_at, created_at)
-                                                        # MLS KeyPackages (public)
-                          # (key_backups table removed — migration 0040; PRF keystore, no server backup)
+-- devices & keys -------------------------------------------------------------
+devices(id, tenant_id, user_id, public_identity_key, status, last_seen_at, revoked_at)
+device_enrollments(id, tenant_id, user_id, device_id, status, …)  # approve-from-trusted-device
+key_packages(id, tenant_id, device_id, mls_key_package, used_at)  # MLS KeyPackages (public)
 
-conversations(id, tenant_id, type, created_at, updated_at)
-
-conversation_members(conversation_id, tenant_id, user_id, role,
-                     joined_at, removed_at)
-
+-- messaging ------------------------------------------------------------------
+conversations(id, tenant_id, type, is_direct, created_at, updated_at)
+conversation_members(conversation_id, tenant_id, user_id, role, joined_at, removed_at)
+conversation_commits(id, tenant_id, conversation_id, epoch, ciphertext, …)    # MLS commits
+conversation_welcomes(id, tenant_id, conversation_id, device_id, ciphertext)  # offline Welcome
 messages(id, tenant_id, conversation_id, sender_user_id, sender_device_id,
-         ciphertext, encrypted_metadata, created_at, expires_at)
+         ciphertext, created_at, …)                   # pruned at 90 days
+conversation_receipts(…)                              # delivery / read status
+attachments(id, tenant_id, message_id, object_key, encrypted_size, expires_at)
+friendships(id, tenant_id, requester_id, addressee_id, status, …)   # the durable contact list
+push_subscriptions(id, tenant_id, user_id, endpoint, keys, …)
 
-attachments(id, tenant_id, message_id, object_key, encrypted_size,
-            encrypted_metadata, created_at, expires_at)
-
-delivery_receipts(id, tenant_id, message_id, recipient_user_id,
-                  status, created_at)
-
-audit_events(id, tenant_id, actor_user_id, event_type, ip_address,
-             user_agent, metadata, created_at)
+-- operations -----------------------------------------------------------------
+audit_events(id, tenant_id, actor_sub, event_type, metadata, created_at)  # pruned on a timer
 ```
+
+**There is no call table.** Calls persist **nothing** — no participants, no timestamps, no duration.
+Signaling is relayed in memory over the WebSocket, and TURN credentials are minted per attempt with a
+600-second TTL. The only durable call-related state is the per-user `call_relay_only` preference.
+
+**Removed, with inert residue:** `key_backups` (removed by `0040`), `tenant_sso_configs` (removed by `0039`).
+`stripe_events` and the `tenants.plan_*` / `stripe_*` columns still exist but nothing reads or writes them.
 
 ---
 
 ## 8. Identity & Auth
 
-- **Zitadel** self-hosted in the Docker Compose stack on the VM — built for multi-tenant federation, keeps identity data on infra you control, stays portable. *(Azure-native alternative: Entra External ID — managed CIAM, but more lock-in. Either way, customers' own Entra/Okta/Google federate in.)*
-- Per-tenant **OIDC/SAML** so customers bring their own IdP (Entra ID, Okta, Google Workspace); local accounts as fallback for small tenants.
-- Backend validates JWTs; maps `external_identity_id` → `users`.
-- MFA, conditional access, user lifecycle, disable/revoke all handled by the IdP.
-- **Reminder:** identity ≠ message keys (§3.5).
+There is **no external IdP**. The API is the identity provider.
+
+**Registration** — invite-only, three steps:
+
+1. An admin mints a one-time **registration code** (32 bytes, SHA-256 at rest, single-use atomic redeem,
+   7-day TTL). A dedicated RLS carve-out exposes exactly one invite row via a transaction-local
+   `app.invite_token_hash` GUC — the pattern for "look up a code before any session context exists".
+2. The client redeems the code and runs a **WebAuthn registration** ceremony. The server stores the
+   credential's **public** key.
+3. The server mints an immutable **argus-id** — `argus-<16 unambiguous chars>-<animal>`, CSPRNG-generated —
+   and a matching `users` row. `argus_id` cannot be changed; a `BEFORE UPDATE` trigger enforces it, because
+   Postgres cannot subtract one column from a table-level UPDATE grant.
+
+**Login** — passkey only. The client auto-tries a discoverable passkey; if none exists, the user falls back
+to "I have a registration code". No password, no email, no magic link.
+
+**Sessions** — the API mints and verifies **its own** tokens:
+
+- A **10-minute EdDSA (Ed25519) access token**, held in memory only. The signing key is a Key Vault
+  credential file (an ephemeral pair in dev, so sessions do not survive a restart).
+- A **30-day refresh token** in an `HttpOnly` + `SameSite=Strict` cookie, hashed at rest in `auth_sessions`,
+  paired with a CSRF header. This is what makes "stay logged in across a reload" work.
+- `sub` is the identity spine: **`"argusid:" + argus_id`**. It is the PK of `user_tenant_index`, the lookup
+  key in `requireUser()`, the match key in `AdminGuard`, the room key in the WS gateway, and the audit
+  actor. A new identity is a new `sub` — which is exactly why "lost passkey = fresh start" falls out for
+  free.
+
+**Discovery** — exact **argus-id lookup only** (`GET /users/lookup`). The browsable directory was removed;
+users cannot be enumerated.
+
+**Breakglass admin** — a single admin **username + password** (Argon2id, lockout, fully audited),
+bootstrapped from Azure Key Vault. It exists so the operator can reach the admin panel when no passkey
+works. See `threat-models/breakglass-admin.md`.
+
+**Authorization** — a global deny-by-default JWT guard, with `@Public()` / `@AllowUnbound()` as the explicit
+opt-outs; `AdminGuard` re-reads the role from the database rather than trusting the token. Messaging is
+**friendship-gated**: a conversation cannot be started with a non-friend.
 
 ---
 
-## 9. Message & Image Flows
+## 9. Message, Image & Call Flows
 
 ### Text
+
 ```text
-1. Client fetches recipient's MLS KeyPackage from the key directory.
+1. Client fetches the recipient's MLS KeyPackage from the key directory.
 2. Client encrypts the message (MLS) locally.
 3. Client sends ciphertext to api.
-4. api authorizes sender, writes ciphertext to Postgres, emits delivery event.
-5. realtime pushes ciphertext to the recipient over WSS (or queues if offline).
-6. Recipient client decrypts locally.
+4. api authorizes the sender (membership + friendship), writes ciphertext, emits a delivery event.
+5. The WS gateway pushes ciphertext to the recipient (or it waits, durable, until reconnect).
+6. Recipient decrypts locally.
 ```
 
 ### Image
+
 ```text
-1. Client generates a random content key, encrypts the image locally.
-2. Client requests a presigned upload URL from api.
-3. Client uploads the encrypted blob directly to object storage.
-4. Client sends an E2EE message containing the encrypted attachment metadata
-   (object key + content key wrapped for the recipient).
-5. Recipient downloads the blob, decrypts locally.
+1. Client generates a random content key and encrypts the image locally (AES-GCM).
+2. Client requests a presigned upload URL from api (server-generated, tenant-namespaced object key).
+3. Client uploads the encrypted blob directly to Backblaze B2.
+4. Client sends an E2EE message carrying the encrypted attachment metadata
+   (object key + content key, wrapped for the recipients).
+5. Recipient fetches a presigned download URL, downloads, decrypts locally.
 ```
 
-Object storage: **private buckets, no public URLs, access only via short-lived presigned URLs**, server-side encryption on top of the client-side encryption.
+Object storage: **private buckets, no public URLs, short-lived presigned access only**. Presigned URLs are
+never logged (AGENTS.md invariant #2). Expired attachments are reaped by the `infra/cleanup/` timer.
+
+### Audio call
+
+```text
+1. Caller POSTs /calls — api checks friendship + membership, returns a callId and
+   ephemeral TURN credentials (HMAC-derived, 600 s TTL, minted in packages/crypto).
+2. api rings the callee over the WebSocket. No call row is written.
+3. Both peers exchange SDP + ICE as MLS ciphertext through the existing conversation —
+   the server relays signaling frames it cannot read, and each frame is sender-bound.
+4. Media flows over WebRTC. ICE is forced through coturn, so neither peer ever learns
+   the other's IP address.
+5. On hangup, everything is gone — nothing was persisted.
+```
+
+`iceTransportPolicy: 'relay'` is set **server-side** and never overridden by the client. In V1 it is
+**unconditional**: the per-user `call_relay_only` preference is stored and readable but deliberately ignored,
+so no user can accidentally (or be tricked into) leaking their IP. Honouring the opt-out is a V1.1 decision.
+See `threat-models/voip-calling.md`.
 
 ---
 
 ## 10. Realtime Design
 
-- The WebSocket gateway (in the `api` service) holds the connections; on the single-container VM that's one process.
-- **Redis pub/sub backplane** is the realtime bus (and the future throttler store); it would also fan out across instances if the API ever ran more than one.
-- Cloudflare + Caddy proxy the WebSocket upgrade through to the gateway.
-- Offline users: messages persist as ciphertext; delivered on reconnect.
-- Presence/typing indicators: optional, off by default (privacy).
+- The WebSocket gateway lives inside the `api` service; on the single-VM deployment that is one process.
+- **Redis pub/sub** is the realtime bus (and the rate-limiter store). It would fan out across instances if
+  the API ever ran more than one.
+- Cloudflare and Caddy proxy the WebSocket upgrade through to the gateway.
+- WS auth is a first-frame `auth` message verified by the same `auth.verify()` the HTTP guard uses.
+- Offline users: messages persist as ciphertext and are delivered on reconnect.
+- Presence and typing indicators are **per-user opt-out** and privacy-defaulted.
 
 ---
 
 ## 11. Observability (without leaking content)
 
 **Log:** request id, tenant id, user id, service, operation, status, latency, error category, message id.
-**Never log:** message text, image data, plaintext metadata, private keys, tokens, full auth headers, presigned URLs.
+**Never log:** message text, image data, plaintext metadata, private keys, tokens, full auth headers,
+presigned URLs. A Semgrep rule plus a CI label guard (`scripts/check-observability-log-labels.sh`) enforce
+this mechanically.
 
-Stack: OpenTelemetry → self-hosted **Prometheus + Grafana** (metrics + dashboards) + **Loki** (logs) on the VM, with **Sentry** for error tracking. Azure-native alternative if you want managed: Azure Monitor managed Prometheus + Managed Grafana + Application Insights — watch Log Analytics ingestion cost (set retention and a daily cap).
+The stack is fully self-hosted on the VM (`infra/stack/observability/`):
+
+| Component                             | Role                                                          |
+| ------------------------------------- | ------------------------------------------------------------- |
+| **Prometheus**                        | metrics scrape + storage                                      |
+| **Alertmanager**                      | alert routing (infra alerts, SLO multi-burn-rate)             |
+| **Grafana**                           | dashboards (service, infra, SLO, security, logs)              |
+| **Loki** + **Alloy**                  | log aggregation + shipping, with alerting rules on security events |
+| **Tempo**                             | distributed traces, linked from metrics via exemplars         |
+| **Pyroscope**                         | continuous profiling                                          |
+| **postgres-exporter**, **redis-exporter** | data-service metrics                                      |
+| **GlitchTip**                         | error tracking (self-hosted, Sentry-compatible)               |
+
+Roadmap and per-idea notes: [`../planning/observability-improvements/`](../planning/observability-improvements/).
 
 ---
 
 ## 12. CI/CD
 
 ```text
-push / PR
-  └─ lint, unit + integration tests, typecheck
-  └─ SAST + dependency scan
-  └─ build container image
-  └─ Trivy image scan
-  └─ cosign sign + SBOM
-  └─ push to the container registry (GHCR)   # GitHub Actions → Azure via OIDC, no stored creds
-merge to main
-  └─ az vm run-command on the VM (GitHub Actions → Azure OIDC; no SSH, no open ports)
-       pull the new image → migrate-on-deploy → docker compose up
-       (auto to staging, manual gate to prod)
+push / PR         ci.yml         build-test (typecheck · unit tests · migrations · OpenAPI · SW-SRI)
+                                 e2e (Playwright)
+                                 compose-guard (no published host ports; exactly one host-network
+                                   service; CSP connect-src pinned; observability log labels)
+                  security.yml   Semgrep (custom rules) · OSV · gitleaks · Checkov · 42Crunch audit
+                  codeql.yml     CodeQL
+                  claude.yml     the @claude PR reviewer
+nightly           dast.yml       DAST
+
+tag v*.*.*        cd.yml         build → Trivy → SBOM → cosign sign → GHCR
+                                 → VM run-command → migrate-before-serve → compose up
+tag aws-v*.*.*    cd-aws.yml     the same, against the parallel EC2 experiment box
 ```
 
-Tools: GitHub Actions (OIDC federation to Entra — no stored Azure secrets), Docker Compose, `az vm run-command`, GHCR, Trivy, cosign, Checkov, Dependabot (dep updates).
+Both deploy workflows sit behind **two gates**: a repo-variable kill-switch (`vars.ENABLE_DEPLOY` /
+`vars.ENABLE_DEPLOY_AWS`) and a GitHub **Environment approval**. The version tag _is_ the image tag, so a
+running container is always traceable to a git tag.
+
+Locally, **lefthook** runs gitleaks + ESLint + Prettier + Semgrep on commit, and typecheck + tests on push.
 
 ---
 
-## 13. Repository / IaC Structure
+## 13. Repository Structure
 
 ```text
-infra/
-  vm/                   # Terraform (azurerm): RG, VNet, NSG (deny inbound),
-                        #   the VM, Key Vault, Managed Identity
-  backup/               # nightly pg_dump → encrypted → private EU B2 bucket (systemd)
-  cleanup/              # expired-attachment reaper (systemd timer)
-  local/                # local-dev stand-ins (Zitadel bootstrap, etc.)
 apps/
-  web/                  # React + Vite PWA
-  api/                  # NestJS (HTTP + WebSocket gateway)
-  worker/               # background jobs
-  packages/
-    crypto/             # MLS wrapper, shared client/server
-    contracts/          # shared TS types + Zod schemas (the E2EE envelope)
-compose.yaml            # dev stack today (Postgres, Redis, MinIO, Zitadel, api); prod overlay adds web, Caddy, cloudflared
-.github/workflows/      # CI + CD (build/sign image → az vm run-command deploy)
+  api/                  # NestJS — HTTP + WS gateway, crypto-blind routing, identity,
+                        #   key directory, friends, calls, admin, GDPR
+  web/                  # React + Vite PWA — chat, calls, device linking, admin, v2 UI sketch
+packages/
+  contracts/            # shared TS types + Zod schemas (the E2EE envelope) — validated at every boundary
+  crypto/               # MLS (ts-mls) wrapper, device keys, safety numbers, TURN credential minting
+infra/
+  azure/terraform/      # the production target (VM, NSG, Key Vault, Managed Identity, OIDC role)
+  aws/                  # the parallel EC2 experiment (own tag namespace + kill-switch)
+  stack/                # cloud-agnostic VM runtime: deploy · secrets · caddy · coturn ·
+                        #   observability · glitchtip
+  backup/ cleanup/      # systemd timers: nightly encrypted DB backup · attachment reaper
+  audit-prune/          # systemd timer: audit-event prune
+  retention/            # systemd timer: 90-day message prune
+  notify/ b2/           # failure alerting · Backblaze bucket CORS
+docs/                   # architecture · planning · operations · threat-models · reviews · gdpr
+scripts/                # repo guards (CSP, dockerignore/secret sync, log labels, PWA build verify)
+compose.yaml            # dev stack (Postgres, Redis, MinIO, api)
+compose.prod.yaml       # prod stack (+ caddy, cloudflared, coturn, observability, glitchtip)
+.github/workflows/      # ci · security · codeql · dast · cd · cd-aws · claude
 ```
 
-The `packages/contracts` shared types are the concrete payoff of going TypeScript end-to-end — client and server can never disagree on the encrypted envelope.
+`packages/contracts` is the concrete payoff of going TypeScript end-to-end — client and server can never
+disagree on the encrypted envelope.
 
 ---
 
 ## 14. Threat Model
 
-| Threat | Protection |
-|---|---|
-| Database leak | Ciphertext only; RLS limits blast radius per tenant |
-| Object storage leak | Client-side encryption + private buckets + presigned-only access |
-| Cross-tenant access | Postgres RLS + tenant context per request |
-| Stolen infra credentials | Least-privilege, no long-lived keys on the VM (Managed Identity + Key Vault), audit logs |
-| Compromised container | NSG deny-inbound + Cloudflare edge; data services private on the Docker network; non-root, read-only FS, dropped caps |
-| Compromised admin | MFA via IdP, least privilege, full audit trail, no content access |
-| Lost device | Fresh start (no key backup/recovery by design — §3.4); device revocation |
-| Malicious insider (you) | E2EE means you *cannot* read content — provable, sellable |
-| Metadata exposure (who talks to whom, when, message sizes) | Inherent to a hosted delivery layer; minimized (opaque conversation IDs, no titles, pseudonymous identity, IDs-only logs, RLS) and stated as an accepted residual — see `threat-models/metadata-exposure.md` |
-| Malicious JS injection | CSP + SRI + service-worker pinning + hardened pipeline (§3.2) |
-| Compromised user account | IdP MFA + session controls + device revocation |
+Per-feature notes live in [`../threat-models/`](../threat-models/); this is the summary sheet.
+
+| Threat                                                | Protection                                                                                                                                                                                          |
+| ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Database leak                                         | Ciphertext only; FORCE RLS limits blast radius; no key material at rest                                                                                                                             |
+| Object storage leak                                   | Client-side encryption + private buckets + presigned-only access                                                                                                                                    |
+| Cross-tenant access                                   | Postgres RLS + per-transaction tenant context + a catalog-driven coverage guard                                                                                                                     |
+| Stolen infra credentials                              | Managed Identity + Key Vault, no long-lived keys on the VM, audit logs                                                                                                                              |
+| Compromised container                                 | NSG + Cloudflare edge; data services private; non-root, read-only FS, dropped caps                                                                                                                  |
+| Compromised admin                                     | Metadata-only admin surface, breakglass lockout + full audit trail, no content path                                                                                                                 |
+| Lost device / passkey                                 | Fresh start by design (§3.4); device revocation; KeyPackage invalidation                                                                                                                            |
+| Malicious insider (the operator)                      | E2EE means content is unreadable — provable, not promised                                                                                                                                           |
+| Key substitution / MITM                               | Safety-number (fingerprint) verification; key-directory threat note                                                                                                                                 |
+| Metadata exposure (who talks to whom, when, sizes)    | Inherent to a hosted delivery layer; minimized (opaque conversation ids, no titles, pseudonymous argus-ids, IDs-only logs) and stated as accepted residual — `threat-models/metadata-exposure.md`     |
+| Peer IP disclosure during a call                      | Relay-only by default, enforced server-side; opt-in direct P2P only                                                                                                                                 |
+| Malicious JS injection                                | CSP + SRI + service-worker integrity + a hardened, signed pipeline (§3.2)                                                                                                                            |
+| User enumeration                                      | Exact-argus-id lookup only; no directory; uniform responses                                                                                                                                         |
+| Unbounded ciphertext growth                           | 90-day retention prune, enforced by a DB-scoped role that cannot read content                                                                                                                       |
 
 ---
 
-## 15. Privacy vs. Compliance Positioning (your call, not mine)
+## 15. Privacy vs. Compliance Positioning
 
-Maximum-privacy E2EE means you **cannot** offer message archival, eDiscovery, legal hold, or admin content audit. That wins privacy-first buyers (legal, M&A, journalism, executive comms, privacy-conscious healthcare) and loses regulated buyers who *require* content retention (some finance/healthcare).
+Maximum-privacy E2EE means the operator **cannot** offer message archival, eDiscovery, legal hold, or admin
+content audit. That is the point, and it is the differentiator — but it does close the door on anyone who
+_requires_ content retention.
 
-**Recommendation:** commit to **privacy-first** for the beta — it's your differentiator. Keep a documented, opt-in, **per-tenant "compliance mode"** as a future feature for buyers who need it. Decide your target customer before you write sales copy, not during a sales call.
+**Position:** stay privacy-first. Keep a documented, opt-in, **per-tenant compliance mode** as a future
+feature if that market ever matters ([`../planning/roadmap/09-backlog.md`](../planning/roadmap/09-backlog.md),
+item B3). Decide the target user before writing any public copy.
 
 ---
 
 ## 16. Cost Estimate (EU, monthly, rough)
 
 ```text
-Azure VM (1× B2ms/B2s burstable)          ~$30–60   (runs the whole Compose stack)
+Azure VM (1× B2ms, 2 vCPU / 8 GiB)        ~$60      (runs the whole Compose stack)
 Azure Key Vault                           ~$0–5
 Backblaze B2 (blobs + backups + egress)   ~$5–10
 Cloudflare (Tunnel + edge, Free/Pro)      $0–20
 GHCR (container registry)                 $0
-Self-hosted Postgres/Redis/Zitadel        $0   (on the VM)
+Self-hosted Postgres / Redis / coturn     $0        (on the VM)
+Self-hosted observability + GlitchTip     $0        (on the VM — but it is the RAM hog)
 ------------------------------------------------
-Total                                     ~$40–95 / month
+Total                                     ~$65–95 / month
 ```
 
-Self-hosting the data services on one VM is far cheaper than managed Azure data + AKS; the trade is you own Postgres/Redis backups + patching (mitigated by the nightly encrypted B2 backup + restore drill). Native Entra alignment for B2B buyers stays. Cost levers: a burstable VM, Cloudflare Free tier, scale the VM up before splitting services out.
+The observability stack is the reason the VM is 8 GiB rather than 4: Loki, Tempo, Pyroscope, and GlitchTip
+together cost more memory than the application. If memory gets tight, resize to `B4ms` (16 GiB) — a resize,
+not a rebuild. Owning Postgres/Redis backups and patching is the trade for the low bill, mitigated by the
+nightly encrypted B2 backup and a rehearsed restore drill
+([`../operations/runbooks/disaster-recovery.md`](../operations/runbooks/disaster-recovery.md)).
 
 ---
 
-## 17. Phased Delivery
+## 17. Delivery History
 
-> This is an earlier, looser cut. `docs/planning/roadmap/README.md` is **canonical** for phasing — defer to it when they disagree.
+[`../planning/roadmap/README.md`](../planning/roadmap/README.md) is **canonical** — it tracks what is done
+and what is left. The short version of how the system got here:
 
-**Phase 0 — VM & pipeline**
-The Azure VM via Terraform (`infra/azure/`), Managed Identity → Key Vault, NSG deny-inbound, Cloudflare Tunnel ingress + Caddy reverse proxy, CD via `az vm run-command`, migrate-on-deploy, a "hello world" `api` live end-to-end. *Prove the pipeline before the bulk of the app logic.*
-
-**Phase 1 — Identity & tenancy**
-Zitadel deployed (Docker Compose on the VM); tenant + user model with RLS; OIDC login; admin role; audit events for login/logout.
-
-**Phase 2 — Device keys**
-Client MLS key generation; KeyPackage upload; key directory; PRF-sealed device keystore (no passphrase, no server backup/recovery — a lost passkey is a fresh start).
-
-**Phase 3 — 1:1 encrypted text**
-Self-hosted Postgres on the VM; encrypt → store ciphertext → WSS delivery → offline catch-up → delivery status. Redis backplane (the realtime bus).
-
-**Phase 4 — Encrypted images**
-Client-side image encryption; presigned upload to object storage; encrypted metadata message; recipient download + decrypt.
-
-**Phase 5 — Harden & observe**
-NSG deny-inbound + Cloudflare edge, CSP/SRI, rate limiting, Prometheus + Loki + Grafana dashboards, Sentry, backups with a **tested restore**, basic DR runbook.
-
-**Phase 6 — Productize**
-Multi-tenant onboarding polish, per-tenant SSO config UI, Web Push notifications, security page (protocol + bundle hashes), pen-test prep.
+| Phase    | What it delivered                                                                                  |
+| -------- | -------------------------------------------------------------------------------------------------- |
+| 0        | VM + Terraform, Key Vault + Managed Identity, Cloudflare Tunnel + Caddy, gated CD                  |
+| 1        | Tenant + user model with RLS, admin role, audit events                                             |
+| 2        | MLS device keys, KeyPackage directory, PRF-sealed keystore                                         |
+| 3        | 1:1 encrypted text — ciphertext storage, WS delivery, offline catch-up, receipts                   |
+| 4        | Encrypted images — client-side encryption, presigned B2 upload/download                            |
+| 5        | The PWA — installable shell, CSP/SRI, service worker, chat UI                                      |
+| 6        | Hardening + observability; **the enterprise decommission** (Zitadel, SSO, billing removed)         |
+| 7        | GA prep — GDPR, transparency page, retention. Two external paid gates remain: crypto review, pen test |
+| B1 / B2  | Group chat; multi-device enrollment                                                                |
+| VoIP V1  | 1:1 audio calls, coturn, always-relayed media                                                          |
 
 ---
 
-## 18. Future / North-Star (not now)
+## 18. Future / North-Star
 
-Group chat (MLS makes it incremental), multi-device sync, optional per-tenant compliance mode, multi-region / zone-redundant deploy, Azure sovereign-operator (Delos/Bleu) deployment for stricter buyers, native apps if a buyer demands the stronger code-delivery trust model.
+- **Video calls** (V1.1) — the API schema already reserves the widening point
+- **Native mobile** (React Native + Expo) — gated on a fail-closed crypto spike:
+  [`../planning/mobile/`](../planning/mobile/)
+- Group calls (needs an SFU); optional per-tenant compliance mode; multi-region / zone-redundant deploy;
+  an Azure sovereign-operator deployment for stricter buyers
 
 ---
 
