@@ -55,6 +55,7 @@ infra/
   notify/ b2/          # failure alerting, Backblaze bucket CORS
 docs/                  # architecture, planning/roadmap, operations, threat models, reviews, GDPR
 scripts/               # repo guards (CSP, dockerignore/secret sync, log labels, PWA build verify)
+.design-sync/          # durable inputs that sync the real UI primitives into the design tool
 .github/workflows/     # CI (build/test); security (Semgrep/Checkov/gitleaks/CodeQL/DAST/42Crunch); CD (gated)
 compose.yaml           # dev stack (Postgres, Redis, MinIO, api)
 compose.prod.yaml      # prod stack (+ Caddy, cloudflared, coturn, observability, glitchtip) — see docs/architecture/deploy.md
