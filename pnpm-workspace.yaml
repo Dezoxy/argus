@@ -13,10 +13,31 @@ injectWorkspacePackages: true
 # Moved from package.json's "pnpm.overrides" field — pnpm >=11 no longer reads that field.
 overrides:
   esbuild: '^0.28.1'
-  js-yaml: '^4.2.0'
-  multer: '^2.2.0'
+  # Advisory floors. Every entry below is a transitive dependency whose own
+  # parent still resolves a vulnerable version; each fix is a patch or minor
+  # within the same major, so nothing here is a breaking upgrade. Raising an
+  # existing floor (js-yaml, multer, protobufjs) rather than adding a second
+  # entry keeps one source of truth per package. Verified against
+  # `osv-scanner --lockfile=./pnpm-lock.yaml`, which must report no issues.
+  js-yaml: '^4.3.2'
+  multer: '^2.3.0'
   '@opentelemetry/core': '^2.8.0'
-  protobufjs: '^8.6.0'
+  '@opentelemetry/propagator-jaeger': '^2.9.0'
+  protobufjs: '^8.6.6'
+  baseline-browser-mapping: '^2.11.0'
+  # brace-expansion ships three supported majors and all three are affected,
+  # so each is floored on its own line -- a single '^5' override would force
+  # unrelated 1.x and 2.x consumers onto a major they never asked for.
+  'brace-expansion@1': '^1.1.18'
+  'brace-expansion@2': '^2.1.4'
+  'brace-expansion@5': '^5.0.9'
+  browserslist: '^4.28.7'
+  fast-uri: '^3.1.6'
+  'nanoid@3': '^3.3.18'
+  postcss: '^8.5.23'
+  qs: '^6.16.0'
+  react-router: '^7.18.2'
+  undici: '^7.29.0'
 
 # Moved from .npmrc's "engine-strict" — pnpm >=11 only reads auth/registry settings from
 # .npmrc, everything else must live here. Fails `pnpm install` outright on an unsupported

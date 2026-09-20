@@ -523,8 +523,12 @@ be tricked into) leaking their IP. Honouring the opt-out is a V1.1 decision. See
 
 - The WebSocket gateway lives inside the `api` service; on the single-VM
   deployment that is one process.
-- **Redis pub/sub** is the realtime bus (and the rate-limiter store). It would
-  fan out across instances if the API ever ran more than one.
+- **Redis pub/sub** is the realtime bus. It would fan out across instances if
+  the API ever ran more than one. It is **not** the rate-limiter store: rate
+  limiting is in-memory on the single instance
+  (`apps/api/src/rate-limit/rate-limit.constants.ts`), so limits reset on
+  restart. Moving that store to Redis is tracked as
+  [TD-002](risks/technical-debt.md).
 - Cloudflare and Caddy proxy the WebSocket upgrade through to the gateway.
 - WS auth is a first-frame `auth` message verified by the same `auth.verify()`
   the HTTP guard uses.

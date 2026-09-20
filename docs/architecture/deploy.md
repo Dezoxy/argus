@@ -124,8 +124,7 @@ Threat model: [`docs/threat-models/vm-cd.md`](../threat-models/vm-cd.md).
 `AZURE_CLIENT_ID`/`AZURE_TENANT_ID`/ `AZURE_SUBSCRIPTION_ID`; vars
 `AZURE_RESOURCE_GROUP`/`AZURE_VM_NAME`/`KEY_VAULT_NAME`; the api's non-secret
 runtime config `S3_ENDPOINT`/`S3_REGION`/`S3_BUCKET`/`S3_ACCESS_KEY_ID` (the B2
-key **id**) + `OIDC_ISSUER`/`OIDC_AUDIENCE` (CD passes these into `compose up`);
-the PWA's build-time `VITE_OIDC_*`; and `ENABLE_DEPLOY=true` to arm it. GHCR
+key **id**); and `ENABLE_DEPLOY=true` to arm it. GHCR
 **push** uses the built-in `GITHUB_TOKEN`; the VM's GHCR **pull** uses the
 `argus-ghcr-token` PAT from Key Vault — set `vars.GHCR_USER` to the account that
 owns that PAT if it isn't the repo owner (the default).
@@ -237,8 +236,8 @@ never the value in env). Compose's secret sources point at
 Set the actual values in Key Vault once (the `az keyvault secret set` commands +
 the full name→file→consumer table are in
 [`infra/stack/secrets/README.md`](../../infra/stack/secrets/README.md)).
-Non-secret config (B2 endpoint/region/bucket + access-key-**id**, the API's OIDC
-issuer/audience, the PWA's build-time `VITE_OIDC_*`, image tags) is in
+Non-secret config (B2 endpoint/region/bucket + access-key-**id**, image tags)
+is in
 `.env.prod.example` — copy it into the deploy environment. The `secrets/`
 directory (local dev) is gitignored; nothing is committed or baked into an
 image.
@@ -304,13 +303,13 @@ release, and opaque tenant/user id tags (invariant #2). Threat model:
 (5xx + unhandled; 4xx is skipped), via a non-invasive interceptor that
 observes + rethrows — the response shape is unchanged.
 
-- **Backend:** self-hosted **GlitchTip** (Sentry-API-compatible) as a gated
-  Compose service is **Slice B** (not yet in the tree); SaaS Sentry EU is a
-  one-line DSN swap (same SDK + protocol, zero lock-in).
-- **Arming:** stand up GlitchTip (or point at Sentry EU), create a project, then
-  set **`SENTRY_DSN`** in the deploy env — it is already wired into the `api`
-  container (Slice A), so nothing else is needed (it is a write-only **ingest**
-  key, not a read credential, so env is fine; `SENTRY_RELEASE` defaults to
-  `IMAGE_TAG`). The mounted-file form (`SENTRY_DSN_FILE` → an `argus-sentry-dsn`
-  Key Vault secret) lands with the GlitchTip service in Slice B. Nothing emits
-  until the DSN is set.
+- **Backend:** self-hosted **GlitchTip** (Sentry-API-compatible) **is in the
+  tree**: `compose.prod.yaml` defines `glitchtip`, `glitchtip-worker` and its
+  own separate `glitchtip-db`, reachable on `glitchtip.*` behind Cloudflare
+  Access. SaaS Sentry EU remains a one-line DSN swap (same SDK and protocol,
+  zero lock-in).
+- **Arming:** create a project in GlitchTip (or point at Sentry EU), then supply
+  the DSN. The API already reads **`SENTRY_DSN_FILE`**, mounted from the
+  `argus-sentry-dsn` Key Vault secret like every other credential;
+  `SENTRY_RELEASE` defaults to `IMAGE_TAG`. Nothing is emitted until the DSN is
+  set.

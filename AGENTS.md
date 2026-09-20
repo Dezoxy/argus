@@ -238,15 +238,41 @@ paths, pins and checks; never copy the base repo's fictional Payment Platform.
 Everything above is the shared contract. This section adds only the
 Claude-Code-specific tooling that serves it.
 
-- **Subagents** (`.claude/agents/`): route through the matching reviewer after
-  non-trivial changes — `crypto-reviewer` (crypto/keys/envelope),
+- **Subagents** (`.claude/agents/`), this repo's own: route through the matching
+  reviewer after non-trivial changes — `crypto-reviewer` (crypto/keys/envelope),
   `security-boundary-auditor` (server boundary, RLS, logging, authz),
   `infra-reviewer` (Terraform / Docker Compose / systemd). Use
   `security-architect` proactively *before* coding anything that touches
   architecture, roadmap order, E2EE/protocol design, key management, or trust
   boundaries — get its plan, then implement on the session model.
-- **Skills** (`.claude/skills/`): `/db-migration`, `/feature-threat-model`,
-  `/api-spec`. Plus built-ins `/security-review`, `/code-review`.
+- **Subagents imported from agent-base**: `silent-failure-hunter` (swallowed
+  errors, bad fallbacks — the gap the four reviewers above do not cover),
+  `type-design-analyzer` (encapsulation and invariants in types),
+  `build-error-resolver` (build and type errors, minimal diffs),
+  `comment-analyzer` (comment rot).
+- **Skills** (`.claude/skills/`), this repo's own: `/db-migration`,
+  `/feature-threat-model`, `/api-spec`, `/await-reviews`. From
+  architecture-base: `/architecture-views`, `/architecture-docs`, `/docs-sync`.
+  Plus built-ins `/security-review`, `/code-review`.
+- **Skills imported from agent-base**: `/e2e-testing`, `/accessibility`,
+  `/production-audit`, `/github-ops`, `/nestjs-patterns`, `/postgres-patterns`,
+  `/docker-patterns`, `/react-patterns`, `/vite-patterns`. The last five carry
+  an **"In this repository"** note recording where upstream assumes a different
+  stack — Prisma, Supabase, Kubernetes, Next.js — and what this repo does
+  instead. Read that note before following the body.
+- **Vendored rules** (`.claude/rules/ecc/`): agent-base's TypeScript and React
+  rule sets. `check_docs_consistency.py` excludes this directory by design, so
+  they are reference material, not gated documentation.
+- **Every skill is mirrored byte-for-byte into `.agents/skills/`**, and
+  `make docs` fails when a mirror drifts. That mirror is what makes these
+  usable by Codex and any other agent, which is the point of importing them
+  rather than relying on a machine-local install.
+- **A link inside a mirrored skill must resolve from both copies**, since the
+  two are byte-identical. So a relative link is fine when its target is
+  mirrored too — a file inside the same skill directory, or a sibling skill —
+  and must be an **absolute URL** when it points anywhere else, such as
+  `.claude/rules/ecc/`, which exists under `.claude/` only. `SELF_REPO` is set,
+  so `check_self_links` verifies those absolute links resolve on disk.
 - **Hooks + permissions** (`.claude/settings.json`): destructive-bash guard +
   edit-time invariant checks. Open `/hooks` once (or restart) to activate after
   a fresh clone.

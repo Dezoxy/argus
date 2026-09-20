@@ -35,6 +35,7 @@ contradicts the shared rules; an agent that is not Claude Code simply has no
 | Review checklists | subagents (`.claude/agents/`) | "Review criteria" section in AGENTS.md | ✅ as guidance |
 | Procedures (RLS migration, threat model, api-spec) | skills (`.claude/skills/`) | prompts (`.codex/prompts/`) | ✅ mirrored |
 | Architecture authoring | skills (`.claude/skills/`) | same files under `.agents/skills/` | ✅ byte-identical mirror, gated by `make docs` |
+| Stack know-how (NestJS, Postgres, Docker, React, Vite, E2E, a11y) | skills imported from agent-base | same files under `.agents/skills/` | ✅ byte-identical mirror; imported rather than left machine-local precisely so Codex gets them too |
 | Destructive-command boundary | PreToolUse hooks + permissions (`.claude/settings.json`) | `approval_policy` + `sandbox_mode` (`~/.codex/config.toml`) | ⚠️ different mechanism, same outcome |
 | **Hard enforcement** | — | — | ✅ **lefthook + CI, identical for both** |
 
