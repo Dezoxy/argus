@@ -2,8 +2,9 @@
 
 Purpose: isolated workspace for the **Minimal Messenger OS** redesign.
 
-This folder is exposed only through the `/v2` sketch routes. The current production UI stays under
-`features/` and `routes/`; v2 does not replace `/chat` or any existing v1 URL yet.
+This folder is exposed only through the `/v2` sketch routes. The current
+production UI stays under `features/` and `routes/`; v2 does not replace `/chat`
+or any existing v1 URL yet.
 
 ## Direction
 

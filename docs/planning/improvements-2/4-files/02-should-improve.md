@@ -1,8 +1,8 @@
 # 02 - Should improve
 
-> **Status:** PROPOSED 2026-06-26.
-> These do not currently explain the Friends screen incident, but they make the observability stack noisy or
-> misleading enough to slow down future incident response.
+> **Status:** PROPOSED 2026-06-26. These do not currently explain the Friends
+> screen incident, but they make the observability stack noisy or misleading
+> enough to slow down future incident response.
 
 ## 1. Stop Postgres exporter WAL permission spam
 
@@ -10,18 +10,19 @@
 
 ### Problem
 
-Postgres logs and `postgres-exporter` logs repeat `permission denied for function pg_ls_waldir` every scrape
-interval.
+Postgres logs and `postgres-exporter` logs repeat `permission denied for
+function pg_ls_waldir` every scrape interval.
 
 ### Evidence
 
-Loki showed repeated Postgres errors and exporter `collector failed name=wal` lines. The exporter runs as
-`argus_app`, which should stay least-privilege.
+Loki showed repeated Postgres errors and exporter `collector failed name=wal`
+lines. The exporter runs as `argus_app`, which should stay least-privilege.
 
 ### Plan
 
 - [x] Prefer disabling the WAL collector for `postgres-exporter` unless WAL metrics are needed now.
-- [x] Do not grant WAL monitoring privileges now; WAL metrics are not needed for current incident response.
+- [x] Do not grant WAL monitoring privileges now; WAL metrics are not needed for
+  current incident response.
 - [x] Keep exporter credentials file-backed via `DATA_SOURCE_PASS_FILE`.
 
 ### Verification
@@ -41,14 +42,17 @@ directory`.
 
 ### Evidence
 
-The repo has dashboards under `infra/stack/observability/grafana/dashboards`, and `compose.prod.yaml` mounts
-that path into Grafana. The runtime error means the staged VM path or bind mount is missing or wrong.
+The repo has dashboards under `infra/stack/observability/grafana/dashboards`,
+and `compose.prod.yaml` mounts that path into Grafana. The runtime error means
+the staged VM path or bind mount is missing or wrong.
 
 ### Plan
 
 - [x] Confirm `deploy.sh` stages `infra/stack/observability/grafana/dashboards` into `/opt/argus`.
-- [x] Fail deploy if the staged dashboard directory is missing or contains no dashboard JSON files.
-- [x] Recreate Grafana during deploy when the bind-mounted provisioning or dashboard files change.
+- [x] Fail deploy if the staged dashboard directory is missing or contains no
+  dashboard JSON files.
+- [x] Recreate Grafana during deploy when the bind-mounted provisioning or
+  dashboard files change.
 - [x] Keep dashboards read-only inside Grafana.
 
 ### Verification
@@ -66,13 +70,14 @@ Alertmanager retries notification delivery against an empty or invalid webhook U
 
 ### Evidence
 
-Loki showed `Notify for alerts failed` and `unsupported protocol scheme ""` for alert groups including
-`RedisDown` and `ArgusCoturnDown`.
+Loki showed `Notify for alerts failed` and `unsupported protocol scheme ""` for
+alert groups including `RedisDown` and `ArgusCoturnDown`.
 
 ### Plan
 
-- [x] Change unarmed Alertmanager behavior to a real null receiver, or template the config during deploy based
-  on whether `alertmanager_webhook_url` is non-empty.
+- [x] Change unarmed Alertmanager behavior to a real null receiver, or template
+  the config during deploy based on whether `alertmanager_webhook_url` is
+  non-empty.
 - [x] Preserve the file-backed webhook secret.
 - [x] Document how to arm the webhook in the runbook.
 
@@ -91,14 +96,15 @@ Pyroscope runs but cannot write some data under `/var/pyroscope`.
 
 ### Evidence
 
-Loki showed permission errors such as `failed to CAS cluster seed key` and `mkdir /var/pyroscope/anonymous:
-permission denied`.
+Loki showed permission errors such as `failed to CAS cluster seed key` and
+`mkdir /var/pyroscope/anonymous: permission denied`.
 
 ### Plan
 
 - [x] Check the Pyroscope image user and named-volume ownership expectation.
 - [x] Fix the `pyroscope-data` volume ownership or set an explicit compatible runtime user.
-- [x] Keep `read_only: true` for the container root filesystem and only make the data volume writable.
+- [x] Keep `read_only: true` for the container root filesystem and only make the
+  data volume writable.
 
 ### Verification
 

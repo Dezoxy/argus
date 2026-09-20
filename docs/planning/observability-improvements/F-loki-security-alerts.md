@@ -6,9 +6,14 @@
 
 ## Problem
 
-The security dashboard (`argus-security.json`) shows breakglass events, WS auth failures, and rate-limit hits visually. However, nothing fires an alert when these spike. An attacker probing the API or a compromised account reusing credentials produces a detectable log pattern that should notify the operator immediately.
+The security dashboard (`argus-security.json`) shows breakglass events, WS auth
+failures, and rate-limit hits visually. However, nothing fires an alert when
+these spike. An attacker probing the API or a compromised account reusing
+credentials produces a detectable log pattern that should notify the operator
+immediately.
 
-Loki has a built-in alerting ruler that sends alerts to the same Alertmanager instance that Prometheus uses — no new component needed.
+Loki has a built-in alerting ruler that sends alerts to the same Alertmanager
+instance that Prometheus uses — no new component needed.
 
 ---
 
@@ -95,21 +100,31 @@ loki:
     - loki-data:/loki
 ```
 
-Also add a `tmpfs` entry for the ruler's working directory (`/tmp/loki-ruler`) since the container runs with a read-only root fs.
+Also add a `tmpfs` entry for the ruler's working directory (`/tmp/loki-ruler`)
+since the container runs with a read-only root fs.
 
 ---
 
 ## Notes
 
-- The Loki ruler sends alerts to Alertmanager using the same protocol as Prometheus. Idea A (wiring the Alertmanager receiver) must be done first for these to actually notify anyone.
-- The `{job="docker"}` selector matches the existing Alloy scrape config — the same label used in all dashboards.
-- Thresholds (3 breakglass/hour, 20 WS failures/5min, etc.) are starting points. Tune them once real traffic baselines are established.
-- These rules do NOT query message content, user IDs, or sensitive fields — only `context`, `msg`, and `level` labels, which carry only categorical metadata (invariant #2 safe).
+- The Loki ruler sends alerts to Alertmanager using the same protocol as
+  Prometheus. Idea A (wiring the Alertmanager receiver) must be done first for
+  these to actually notify anyone.
+- The `{job="docker"}` selector matches the existing Alloy scrape config — the
+  same label used in all dashboards.
+- Thresholds (3 breakglass/hour, 20 WS failures/5min, etc.) are starting points.
+  Tune them once real traffic baselines are established.
+- These rules do NOT query message content, user IDs, or sensitive fields — only
+  `context`, `msg`, and `level` labels, which carry only categorical metadata
+  (invariant #2 safe).
 
 ---
 
 ## Verification
 
 1. `docker compose exec loki wget -qO- http://localhost:3100/loki/api/v1/rules` — should return the loaded rules.
-2. In Grafana → Alerting → Alert rules → filter by datasource "Loki" — the four security rules should appear.
-3. Inject a test: generate > 20 fake `ws:auth_failed` log lines via the API test harness → `WSAuthFailureSpike` should appear as `Firing` in Alertmanager within 1 minute.
+2. In Grafana → Alerting → Alert rules → filter by datasource "Loki" — the four
+   security rules should appear.
+3. Inject a test: generate > 20 fake `ws:auth_failed` log lines via the API test
+   harness → `WSAuthFailureSpike` should appear as `Firing` in Alertmanager
+   within 1 minute.

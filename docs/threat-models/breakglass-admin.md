@@ -4,9 +4,10 @@
 
 ## Scope
 
-Introduces an emergency admin login path — a single username + Argon2id password credential
-(`admin_credentials` table) that mints an admin-role session via the Phase 1 `mintSession()`
-machinery. The credential is seeded from `ADMIN_BOOTSTRAP_HASH_FILE` (Key Vault optional secret).
+Introduces an emergency admin login path — a single username + Argon2id password
+credential (`admin_credentials` table) that mints an admin-role session via the
+Phase 1 `mintSession()` machinery. The credential is seeded from
+`ADMIN_BOOTSTRAP_HASH_FILE` (Key Vault optional secret).
 
 ---
 
@@ -35,18 +36,20 @@ issuance, and SSO configuration. It is weaker than the passkey path by design (a
 phishing-resistant; a password is not) and exists solely as a recovery mechanism for the passkey
 path being unavailable.
 
-**Residual**: the password is the single weakest link. The lockout + Argon2id KDF cost make
-online guessing infeasible, but an offline attack on an exfiltrated hash is bounded only by the
-KDF's memory-hardness. The threat model for a passkey-primary system accepts this residual
-because:
+**Residual**: the password is the single weakest link. The lockout + Argon2id
+KDF cost make online guessing infeasible, but an offline attack on an
+exfiltrated hash is bounded only by the KDF's memory-hardness. The threat model
+for a passkey-primary system accepts this residual because:
 
 1. Breakglass is not the primary auth path — it is never shown in the UI.
 2. The `admin_credentials` table is under FORCE RLS with `tenant_id` isolation; an attacker
    cannot read the hash without already having a DB-level compromise.
-3. Argon2id at 64 MiB / t=3 / p=1 makes offline cracking expensive even on custom hardware.
+3. Argon2id at 64 MiB / t=3 / p=1 makes offline cracking expensive even on
+   custom hardware.
 
-**Alerting recommendation**: fire an out-of-band alert on every `breakglass.login_succeeded`
-audit row. Breakglass usage should be rare; any login is an operational anomaly worth reviewing.
+**Alerting recommendation**: fire an out-of-band alert on every
+`breakglass.login_succeeded` audit row. Breakglass usage should be rare; any
+login is an operational anomaly worth reviewing.
 
 ---
 
@@ -56,10 +59,10 @@ The login endpoint must not reveal whether a username exists via response-time d
 
 **Implementation:**
 
-- At module load (once, not per request), `BreakglassService.onModuleInit()` computes a
-  constant dummy Argon2id output over a random 32-byte input with a random 16-byte salt, using
-  the same `PARAMS = { m: 65536, t: 3, p: 1 }` as real hashes. Stored as `dummyHash` and
-  `dummySalt` on the service instance.
+- At module load (once, not per request), `BreakglassService.onModuleInit()`
+  computes a constant dummy Argon2id output over a random 32-byte input with a
+  random 16-byte salt, using the same `PARAMS = { m: 65536, t: 3, p: 1 }` as
+  real hashes. Stored as `dummyHash` and `dummySalt` on the service instance.
 
 - For every login attempt — regardless of whether the username exists — the service calls
   `argon2idAsync` exactly once, against the stored hash/salt if the user was found and against
@@ -69,12 +72,13 @@ The login endpoint must not reveal whether a username exists via response-time d
 - `timingSafeEqual` (Node.js `node:crypto`) compares the candidate hash to the stored hash;
   this eliminates the short-circuit comparison timing leak from a naive `===`.
 
-- Both "username not found" and "wrong password" return `401 invalid credentials` with identical
-  response bodies. Only a locked account returns a distinct response (`423`), because:
+- Both "username not found" and "wrong password" return `401 invalid
+  credentials` with identical response bodies. Only a locked account returns a
+  distinct response (`423`), because:
   - The username is a fixed, operator-known value (not a secret) — "this account is locked"
     reveals nothing an attacker doesn't already know.
-  - The lockout check fires **before** the KDF, preventing a locked account from also being a
-    free 64 MiB-per-attempt DoS amplifier.
+  - The lockout check fires **before** the KDF, preventing a locked account from
+    also being a free 64 MiB-per-attempt DoS amplifier.
 
 ---
 
@@ -90,17 +94,19 @@ The login endpoint must not reveal whether a username exists via response-time d
 
 ### Lockout applies to `rotate` too
 
-`POST /auth/breakglass/rotate` verifies the current password before accepting a new one. It
-**shares the same `failed_attempts` / `locked_until` columns** as the login path. This prevents
-`rotate` from becoming an unthrottled password-confirmation oracle: an attacker with a stolen
-admin access token cannot use `rotate` to guess the existing password at Argon2id cost per
-attempt without hitting the lockout.
+`POST /auth/breakglass/rotate` verifies the current password before accepting a
+new one. It **shares the same `failed_attempts` / `locked_until` columns** as
+the login path. This prevents `rotate` from becoming an unthrottled
+password-confirmation oracle: an attacker with a stolen admin access token
+cannot use `rotate` to guess the existing password at Argon2id cost per attempt
+without hitting the lockout.
 
 ### Non-breakglass unlock runbook
 
-Because breakglass is the *recovery path for when the passkey path is broken*, it must itself
-have a recovery path that does not depend on any application endpoint. If the account is locked
-during an incident, an operator with direct DB access (owner connection) can unlock it:
+Because breakglass is the *recovery path for when the passkey path is broken*,
+it must itself have a recovery path that does not depend on any application
+endpoint. If the account is locked during an incident, an operator with direct
+DB access (owner connection) can unlock it:
 
 ```sql
 -- Run via the owner connection (bypasses RLS / argus_app restrictions).
@@ -147,9 +153,10 @@ An absent or empty file means:
   an oracle indicating the endpoint exists but credentials are wrong.
 - The rest of the API (passkey auth, messaging, admin) is entirely unaffected.
 
-This follows the `OPTIONAL_SECRETS` degraded-mode pattern (`infra/stack/secrets/fetch-keyvault-secrets.sh`):
-an unprovisioned optional secret degrades only that feature, never the whole stack. (The earlier cross-reference
-here was to `BillingService`, removed in #223.)
+This follows the `OPTIONAL_SECRETS` degraded-mode pattern
+(`infra/stack/secrets/fetch-keyvault-secrets.sh`): an unprovisioned optional
+secret degrades only that feature, never the whole stack. (The earlier
+cross-reference here was to `BillingService`, removed in #223.)
 
 ---
 
@@ -160,9 +167,10 @@ here was to `BillingService`, removed in #223.)
 2. The **current** breakglass password verified via Argon2id against the stored hash.
 3. The lockout counter passes (check before KDF, same as login).
 
-Without the current-password gate, a stolen admin session could silently replace the breakglass
-password and lock the real operator out of their own recovery path — turning the recovery
-mechanism into attacker persistence. The re-auth gate costs one extra Argon2id verify call.
+Without the current-password gate, a stolen admin session could silently replace
+the breakglass password and lock the real operator out of their own recovery
+path — turning the recovery mechanism into attacker persistence. The re-auth
+gate costs one extra Argon2id verify call.
 
 ---
 
@@ -170,11 +178,13 @@ mechanism into attacker persistence. The re-auth gate costs one extra Argon2id v
 
 Two layers of protection prevent concurrent requests from bypassing the lockout:
 
-**Layer 1 — `SELECT FOR UPDATE`**: The credential row is locked with `FOR UPDATE` at the start of
-the login and rotate transactions. A second concurrent request blocks at the `SELECT` until the
-first commits (after its KDF + counter update). This prevents a burst of concurrent requests from
-all reading a not-yet-locked row and then all proceeding to the KDF — which would allow more than
-`MAX_ATTEMPTS` guesses before `locked_until` is set (even with an atomic UPDATE).
+**Layer 1 — `SELECT FOR UPDATE`**: The credential row is locked with `FOR
+UPDATE` at the start of the login and rotate transactions. A second concurrent
+request blocks at the `SELECT` until the first commits (after its KDF + counter
+update). This prevents a burst of concurrent requests from all reading a
+not-yet-locked row and then all proceeding to the KDF — which would allow more
+than `MAX_ATTEMPTS` guesses before `locked_until` is set (even with an atomic
+UPDATE).
 
 **Layer 2 — Atomic `UPDATE`**: The `failed_attempts` increment is a single atomic SQL expression:
 
@@ -183,15 +193,17 @@ SET failed_attempts = failed_attempts + 1,
     locked_until = CASE WHEN failed_attempts + 1 >= 5 THEN now() + interval '15 minutes' ELSE NULL END
 ```
 
-A read-then-write pattern (`newCount = row.failedAttempts + 1; UPDATE SET failed_attempts = $newCount`)
-would be vulnerable to concurrent requests each reading the same stale count and writing it back,
-allowing more than 5 attempts before the lockout fires (CWE-362). The atomic expression is the
-correct form. The `FOR UPDATE` at Layer 1 makes a sequential ordering guarantee, while Layer 2
-ensures the counter arithmetic is also correct in the DB even if two transactions somehow
-interleave (defence-in-depth).
+A read-then-write pattern (`newCount = row.failedAttempts + 1; UPDATE SET
+failed_attempts = $newCount`) would be vulnerable to concurrent requests each
+reading the same stale count and writing it back, allowing more than 5 attempts
+before the lockout fires (CWE-362). The atomic expression is the correct form.
+The `FOR UPDATE` at Layer 1 makes a sequential ordering guarantee, while Layer 2
+ensures the counter arithmetic is also correct in the DB even if two
+transactions somehow interleave (defence-in-depth).
 
-The KDF runs inside the transaction (holding the DB connection for ~1–3 s per attempt), which is
-acceptable because the endpoint is rate-limited and expected to be used rarely.
+The KDF runs inside the transaction (holding the DB connection for ~1–3 s per
+attempt), which is acceptable because the endpoint is rate-limited and expected
+to be used rarely.
 
 ---
 
@@ -201,30 +213,34 @@ acceptable because the endpoint is rate-limited and expected to be used rarely.
 `SessionTokenService.revokeSession(DEFAULT_TENANT_ID, { userId })`, which sets `revoked_at`
 on **all active `auth_sessions` rows for the breakglass user** in a single UPDATE.
 
-**Why**: The threat scenario for rotation is credential compromise. If an attacker obtained
-the old password and logged in before rotation, they hold a valid refresh token that would
-otherwise remain alive for the full 30-day session lifetime. Revoking all sessions at rotation
-time closes that window: the attacker's refresh token is invalidated, and their next refresh
-attempt returns 401. The legitimate operator must log in again with the new password, which
-is the expected and correct outcome of a post-compromise credential rotation.
+**Why**: The threat scenario for rotation is credential compromise. If an
+attacker obtained the old password and logged in before rotation, they hold a
+valid refresh token that would otherwise remain alive for the full 30-day
+session lifetime. Revoking all sessions at rotation time closes that window: the
+attacker's refresh token is invalidated, and their next refresh attempt
+returns 401. The legitimate operator must log in again with the new password,
+which is the expected and correct outcome of a post-compromise credential
+rotation.
 
-The caller's own session is also revoked — the caller must re-authenticate with the new password
-after rotation. This is by design; the cost of one extra login is acceptable for the assurance
-that no prior session can survive a rotation.
+The caller's own session is also revoked — the caller must re-authenticate with
+the new password after rotation. This is by design; the cost of one extra login
+is acceptable for the assurance that no prior session can survive a rotation.
 
-**Atomicity**: The `admin_credentials` UPDATE (new hash) and the `auth_sessions` UPDATE
-(`revoked_at`) both execute inside the same `withTenant()` transaction. If the process crashes
-after the tx commits, both changes are durable; if it crashes before, neither is. A partial
-state (new password but live sessions) is impossible.
+**Atomicity**: The `admin_credentials` UPDATE (new hash) and the `auth_sessions`
+UPDATE (`revoked_at`) both execute inside the same `withTenant()` transaction.
+If the process crashes after the tx commits, both changes are durable; if it
+crashes before, neither is. A partial state (new password but live sessions) is
+impossible.
 
-**Access token invalidation**: Stateless JWTs have a 10-minute TTL and are not individually
-checked against `auth_sessions.revoked_at` in the normal auth path — revoking refresh tokens
-alone would leave an attacker with up to 10 minutes of admin access via an already-minted
-access token. `AdminGuard` closes this window: for Argus-minted tokens (those with a `sid`
-claim), the guard does a point lookup on `auth_sessions WHERE id = $sid` and rejects immediately
-if `revoked_at IS NOT NULL`. This check applies only to admin endpoints and adds one DB query
-per admin request (the guard already performs a role-check query, so the overhead is marginal).
-Regular user endpoints are not affected.
+**Access token invalidation**: Stateless JWTs have a 10-minute TTL and are not
+individually checked against `auth_sessions.revoked_at` in the normal auth path
+— revoking refresh tokens alone would leave an attacker with up to 10 minutes of
+admin access via an already-minted access token. `AdminGuard` closes this
+window: for Argus-minted tokens (those with a `sid` claim), the guard does a
+point lookup on `auth_sessions WHERE id = $sid` and rejects immediately if
+`revoked_at IS NOT NULL`. This check applies only to admin endpoints and adds
+one DB query per admin request (the guard already performs a role-check query,
+so the overhead is marginal). Regular user endpoints are not affected.
 
 ---
 
@@ -236,11 +252,12 @@ who logged in via `POST /auth/breakglass/login`) holds a JWT whose `userId` matc
 `admin_credentials` row. A WebAuthn admin with an admin JWT would get 503
 ("breakglass not provisioned") since their `userId` has no matching row.
 
-This means: only the breakglass user themselves can rotate the breakglass credential. Operator-
-assisted rotation (a different admin rotating the breakglass credential on behalf of another) is
-out of scope. If that use case is ever needed, the query should switch to a singleton lookup
-(`WHERE tenant_id = DEFAULT_TENANT_ID LIMIT 1`) — which is safe since there is exactly one row
-per tenant by the `admin_credentials_tenant_username_idx` invariant.
+This means: only the breakglass user themselves can rotate the breakglass
+credential. Operator- assisted rotation (a different admin rotating the
+breakglass credential on behalf of another) is out of scope. If that use case is
+ever needed, the query should switch to a singleton lookup (`WHERE tenant_id =
+DEFAULT_TENANT_ID LIMIT 1`) — which is safe since there is exactly one row per
+tenant by the `admin_credentials_tenant_username_idx` invariant.
 
 ---
 
@@ -252,39 +269,44 @@ transaction:
 2. `admin_credentials` row — `username='admin'`, hashed password, KDF params
 3. (`user_tenant_index` is inserted by `mintSession()` on first login — not needed at bootstrap)
 
-A crash before the tx commits leaves nothing; the next boot re-attempts cleanly. A crash after
-commit but before `onModuleInit` returns sets `this.provisioned = false` — a harmless no-op
-because the data is already in the DB and the next boot will detect the existing credential row
-via the pre-flight SELECT and return early.
+A crash before the tx commits leaves nothing; the next boot re-attempts cleanly.
+A crash after commit but before `onModuleInit` returns sets `this.provisioned =
+false` — a harmless no-op because the data is already in the DB and the next
+boot will detect the existing credential row via the pre-flight SELECT and
+return early.
 
-**Idempotency guard order matters**: the `users` insert executes before the `admin_credentials`
-insert within the tx. On restart with existing data, the `users_tenant_display_name_idx` unique
-index (enforcing one display name per tenant) would fire first with a `23505` before the
-`admin_credentials_tenant_username_idx` guard is reached — leaving `provisioned=false` even
-though the credential is present. The fix is a pre-flight `SELECT FROM admin_credentials`
-before the insert loop; if the credential row exists, `onModuleInit` logs and exits immediately.
-The `23505` catches in the insert loop remain as a race-condition guard for two pods starting
-simultaneously: whichever pod loses the insert race is caught by either the `users` or
-`admin_credentials` constraint, both treated as idempotent.
+**Idempotency guard order matters**: the `users` insert executes before the
+`admin_credentials` insert within the tx. On restart with existing data, the
+`users_tenant_display_name_idx` unique index (enforcing one display name per
+tenant) would fire first with a `23505` before the
+`admin_credentials_tenant_username_idx` guard is reached — leaving
+`provisioned=false` even though the credential is present. The fix is a
+pre-flight `SELECT FROM admin_credentials` before the insert loop; if the
+credential row exists, `onModuleInit` logs and exits immediately. The `23505`
+catches in the insert loop remain as a race-condition guard for two pods
+starting simultaneously: whichever pod loses the insert race is caught by either
+the `users` or `admin_credentials` constraint, both treated as idempotent.
 
 ---
 
 ## §invariant-4 boundary: Argon2id for password verification
 
-**Security invariant #4** reads: _"No hand-rolled crypto. All cryptography goes through the MLS
-library in `packages/crypto`."_ The Argon2id password hashing/verification in
-`apps/api/src/auth/breakglass.service.ts` is a **second accepted, documented exception** —
-alongside the `jose` session-signing exception in `docs/threat-models/session-tokens.md
-§invariant-4` — for the following reasons:
+**Security invariant #4** reads: _"No hand-rolled crypto. All cryptography goes
+through the MLS library in `packages/crypto`."_ The Argon2id password
+hashing/verification in `apps/api/src/auth/breakglass.service.ts` is a **second
+accepted, documented exception** — alongside the `jose` session-signing
+exception in `docs/threat-models/session-tokens.md §invariant-4` — for the
+following reasons:
 
 1. **`packages/crypto` is an MLS wrapper** scoped to E2EE operations. Password hashing for a
    server-side admin credential is *server-auth infrastructure*, not E2EE key material. Routing
    it through `packages/crypto` would give the E2EE package a server-infrastructure
    responsibility and blur the crypto-blind boundary.
 
-2. **`@noble/hashes` is the same library** already used in `packages/crypto/src/key-backup.ts`
-   for the Argon2id KDF (same `DEFAULT_ARGON2` params: `{ m: 65536, t: 3, p: 1 }`). The
-   package is already audited, already in the lockfile. Adding it as a direct dependency of
+2. **`@noble/hashes` is the same library** already used in
+   `packages/crypto/src/key-backup.ts` for the Argon2id KDF (same
+   `DEFAULT_ARGON2` params: `{ m: 65536, t: 3, p: 1 }`). The package is already
+   audited, already in the lockfile. Adding it as a direct dependency of
    `apps/api` is an explicit, justified import — not new transitive exposure.
 
 3. **The enforcing Semgrep rule** (`argus-crypto-only-in-crypto-package`) matches
@@ -306,20 +328,25 @@ boundary.
 {"hash":"<base64>","salt":"<base64>","m":65536,"t":3,"p":1}
 ```
 
-- `hash`: standard base64 of the 32-byte raw `argon2idAsync` output (exactly 32 decoded bytes — validated at bootstrap)
-- `salt`: standard base64 of the 16-byte CSPRNG salt (exactly 16 decoded bytes — validated at bootstrap)
-- `m`, `t`, `p`: Argon2id parameters (validated against floor `MIN_PARAMS = { m: 8192, t: 2, p: 1 }` and ceiling `MAX_PARAMS = { m: 1048576, t: 200, p: 16 }`)
+- `hash`: standard base64 of the 32-byte raw `argon2idAsync` output (exactly 32
+  decoded bytes — validated at bootstrap)
+- `salt`: standard base64 of the 16-byte CSPRNG salt (exactly 16 decoded bytes —
+  validated at bootstrap)
+- `m`, `t`, `p`: Argon2id parameters (validated against floor `MIN_PARAMS = { m:
+  8192, t: 2, p: 1 }` and ceiling `MAX_PARAMS = { m: 1048576, t: 200, p: 16 }`)
 
-Generate with the bundled helper (uses the same `@noble` code path as the verifier — do NOT
-use the system `argon2` CLI, which may use a different base64 encoding):
+Generate with the bundled helper (uses the same `@noble` code path as the
+verifier — do NOT use the system `argon2` CLI, which may use a different base64
+encoding):
 
 ```bash
 # Safe: read -rs never puts the password in argv, process listings, or shell history.
 read -rs BGPASS && printf '%s' "$BGPASS" | pnpm --filter @argus/api generate-admin-hash
 ```
 
-**Do NOT use `echo -n "password" |`** — that exposes the password in process listings and persists
-in shell history files. Use `read -rs` or pipe from a file descriptor instead.
+**Do NOT use `echo -n "password" |`** — that exposes the password in process
+listings and persists in shell history files. Use `read -rs` or pipe from a file
+descriptor instead.
 
 Pipe the output into the Key Vault secret:
 ```bash

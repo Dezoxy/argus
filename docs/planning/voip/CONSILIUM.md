@@ -1,30 +1,141 @@
 # CONSILIUM.md — argus VoIP Plan Review
 
-> **Subject:** the 10-file VoIP planning set under `docs/voip/` (1:1 E2EE audio/video, self-hosted WebRTC P2P + coturn, relay-only-by-default, PWA-only).
-> **Process:** five lenses (security/crypto, infra/reliability, privacy/GDPR, product/PWA-UX, cost/solo-realism) reviewed the draft independently; this is the chair's synthesis. Claims that drive must-fix verdicts were spot-checked against the live repo (see §6).
-> **Bottom line:** the architecture is *mainstream-correct and the grounding is unusually honest* — but the plan is **not ready to implement as written**. One crypto keystone is built on a capability the code does not have, the roadmap ships connecting calls *before* the MITM defense exists, and the plan is disconnected from the repo's own GDPR/compliance artifacts. All fixable without re-architecting. **Verdict: sound-with-fixes; revise the 10 files per the directives, then build.**
+> **Subject:** the 10-file VoIP planning set under `docs/voip/` (1:1 E2EE
+> audio/video, self-hosted WebRTC P2P + coturn, relay-only-by-default,
+> PWA-only). **Process:** five lenses (security/crypto, infra/reliability,
+> privacy/GDPR, product/PWA-UX, cost/solo-realism) reviewed the draft
+> independently; this is the chair's synthesis. Claims that drive must-fix
+> verdicts were spot-checked against the live repo (see §6). **Bottom line:**
+> the architecture is *mainstream-correct and the grounding is unusually honest*
+> — but the plan is **not ready to implement as written**. One crypto keystone
+> is built on a capability the code does not have, the roadmap ships connecting
+> calls *before* the MITM defense exists, and the plan is disconnected from the
+> repo's own GDPR/compliance artifacts. All fixable without re-architecting.
+> **Verdict: sound-with-fixes; revise the 10 files per the directives, then
+> build.**
 
 ---
 
 ## 1. The roundtable
 
-The five lenses converged on a striking degree of agreement about *what is good*, and an equally striking convergence on *one root problem* and *one scope problem*. The disagreements are about emphasis and sequencing, not direction.
+The five lenses converged on a striking degree of agreement about *what is
+good*, and an equally striking convergence on *one root problem* and *one scope
+problem*. The disagreements are about emphasis and sequencing, not direction.
 
-**Where everyone agreed (the plan's real strengths).** All five lenses independently praised the same things: coturn stays a crypto-blind relay (it forwards opaque DTLS-SRTP, holds no key); SDP/ICE rides inside the existing MLS `CipherEnvelope` so the server forwards call setup exactly like a chat message; ephemeral HMAC TURN credentials + Key-Vault file delivery satisfy invariants 2 and 5; relay-only-by-default genuinely removes the peer-IP leak; and the Cloudflare-Tunnel-vs-UDP collision is resolved the *right* way for a solo EU dev (coturn on the VM public IP behind a narrow NSG, with a deliberately-modeled `compose-guard` exception rather than a silent bypass). The infra lens explicitly verified the load-bearing infra claims (compose-guard, deny-all NSG, cloudflared-only ingress, secret-fetch-to-files, `az vm run-command` CD) against the repo and found them accurate. The cost lens verified the "reuse what we already run" story (friends helpers, ungated messaging, `allowSubscribe`, content-free push, next migration `0045`) and found it true. The comparative survey (07) is excellent and earned a clean pass: it correctly validates the 1:1 design against Signal/WhatsApp and reserves Wire/Matrix/Jitsi group patterns behind the MLS exporter.
+**Where everyone agreed (the plan's real strengths).** All five lenses
+independently praised the same things: coturn stays a crypto-blind relay (it
+forwards opaque DTLS-SRTP, holds no key); SDP/ICE rides inside the existing MLS
+`CipherEnvelope` so the server forwards call setup exactly like a chat message;
+ephemeral HMAC TURN credentials + Key-Vault file delivery satisfy invariants 2
+and 5; relay-only-by-default genuinely removes the peer-IP leak; and the
+Cloudflare-Tunnel-vs-UDP collision is resolved the *right* way for a solo EU dev
+(coturn on the VM public IP behind a narrow NSG, with a deliberately-modeled
+`compose-guard` exception rather than a silent bypass). The infra lens
+explicitly verified the load-bearing infra claims (compose-guard, deny-all NSG,
+cloudflared-only ingress, secret-fetch-to-files, `az vm run-command` CD) against
+the repo and found them accurate. The cost lens verified the "reuse what we
+already run" story (friends helpers, ungated messaging, `allowSubscribe`,
+content-free push, next migration `0045`) and found it true. The comparative
+survey (07) is excellent and earned a clean pass: it correctly validates the 1:1
+design against Signal/WhatsApp and reserves Wire/Matrix/Jitsi group patterns
+behind the MLS exporter.
 
-**The collision that dominated the table — the crypto keystone is fictional.** The security lens opened with the finding that reframes the whole review: the plan's central anti-MITM claim — "a fingerprint that arrives over the MLS channel is cryptographically bound to a specific, fingerprint-verified device" (01 §3.2), and the call-setup sequence step "`Conversation.decrypt()` -> verifies MLS sender identity" (01 §10.2) — **is false against the actual code**. `Conversation.decrypt()` in `packages/crypto/src/index.ts` returns a bare `Promise<string>`; it surfaces *no* sender leaf index and *no* per-sender identity. MLS application messages *are* signed by the sender's leaf key, but the wrapper throws that authenticated identity away. So the app layer literally cannot tell *which* group member produced a given `call.offer`. The chair verified this directly: `decrypt()` returns `td.decode(result.message)` and nothing else. This is not a documentation nitpick — it is the load-bearing security property of the entire feature, and it does not exist yet.
+**The collision that dominated the table — the crypto keystone is fictional.**
+The security lens opened with the finding that reframes the whole review: the
+plan's central anti-MITM claim — "a fingerprint that arrives over the MLS
+channel is cryptographically bound to a specific, fingerprint-verified device"
+(01 §3.2), and the call-setup sequence step "`Conversation.decrypt()` ->
+verifies MLS sender identity" (01 §10.2) — **is false against the actual code**.
+`Conversation.decrypt()` in `packages/crypto/src/index.ts` returns a bare
+`Promise<string>`; it surfaces *no* sender leaf index and *no* per-sender
+identity. MLS application messages *are* signed by the sender's leaf key, but
+the wrapper throws that authenticated identity away. So the app layer literally
+cannot tell *which* group member produced a given `call.offer`. The chair
+verified this directly: `decrypt()` returns `td.decode(result.message)` and
+nothing else. This is not a documentation nitpick — it is the load-bearing
+security property of the entire feature, and it does not exist yet.
 
-The infra and cost lenses, arriving from a completely different direction, landed an *amplifying* blow: the plan's own multi-device "ring-all" design (D8) requires the callee's 1:1 MLS group to contain *multiple* of the callee's devices — but the crypto wrapper's `addMember` is explicitly "2-PARTY SCOPE" and 3+-member commit fan-out is a *deferred backlog item*. So even the weaker honest claim ("authored by *some* current member of this 2-party group") degrades to "some authorized device" the moment ring-all is real. Two lenses independently exposed that the security keystone and the marquee UX feature are in tension with the same unbuilt MLS capability.
+The infra and cost lenses, arriving from a completely different direction,
+landed an *amplifying* blow: the plan's own multi-device "ring-all" design (D8)
+requires the callee's 1:1 MLS group to contain *multiple* of the callee's
+devices — but the crypto wrapper's `addMember` is explicitly "2-PARTY SCOPE" and
+3+-member commit fan-out is a *deferred backlog item*. So even the weaker honest
+claim ("authored by *some* current member of this 2-party group") degrades to
+"some authorized device" the moment ring-all is real. Two lenses independently
+exposed that the security keystone and the marquee UX feature are in tension
+with the same unbuilt MLS capability.
 
-**The resolution the table reached.** This is fixable, but only by treating the sender-attribution gap as **core in-scope work, not a deferred gap**. The fix is a new crypto-reviewer-gated `decrypt` variant that surfaces the authenticated sender's leaf/identity, plus a receiver-side check "author == expected peer for this callId," landing as a **hard Phase-0 predecessor of the first connecting call**. The plan must also stop calling this "reuse, zero new crypto" (it is new crypto-adjacent code) and honestly downscope the 1:1 guarantee. The security lens further demanded that the replay/glare/first-accept logic stop trusting the *server-stamped* `senderUserId` for any security decision, and that establishment-glare auto-accept (D12 loser auto-accepts) be removed until attribution is cryptographic.
+**The resolution the table reached.** This is fixable, but only by treating the
+sender-attribution gap as **core in-scope work, not a deferred gap**. The fix is
+a new crypto-reviewer-gated `decrypt` variant that surfaces the authenticated
+sender's leaf/identity, plus a receiver-side check "author == expected peer for
+this callId," landing as a **hard Phase-0 predecessor of the first connecting
+call**. The plan must also stop calling this "reuse, zero new crypto" (it is new
+crypto-adjacent code) and honestly downscope the 1:1 guarantee. The security
+lens further demanded that the replay/glare/first-accept logic stop trusting the
+*server-stamped* `senderUserId` for any security decision, and that
+establishment-glare auto-accept (D12 loser auto-accepts) be removed until
+attribution is cryptographic.
 
-**The sequencing collision — fail-closed is a promise the roadmap breaks.** The security and product lenses converged here. The plan promises (00 §5 #4) that "a tampered fingerprint causes the call to fail to connect." But the roadmap (08) ships P1-UI — the first *connecting* audio call — before the fingerprint-binding slice, and 01 §3.3 says "no new verification UX is required for V1." The security lens drew the conclusion bluntly: between P1 and whenever binding lands, a malicious server can MITM the *media* and nothing fails closed — the only thing that would catch it is two users proactively reading safety-number digits aloud, which the plan says is *not* required for calls. The safety number is an out-of-band human artifact; it is **not** an automatic backstop. **Resolution: ordering, not documentation.** The binding slice becomes a hard predecessor of any connecting call, or pre-binding builds are gated behind a dev-only flag that cannot reach production.
+**The sequencing collision — fail-closed is a promise the roadmap breaks.** The
+security and product lenses converged here. The plan promises (00 §5 #4) that "a
+tampered fingerprint causes the call to fail to connect." But the roadmap (08)
+ships P1-UI — the first *connecting* audio call — before the fingerprint-binding
+slice, and 01 §3.3 says "no new verification UX is required for V1." The
+security lens drew the conclusion bluntly: between P1 and whenever binding
+lands, a malicious server can MITM the *media* and nothing fails closed — the
+only thing that would catch it is two users proactively reading safety-number
+digits aloud, which the plan says is *not* required for calls. The safety number
+is an out-of-band human artifact; it is **not** an automatic backstop.
+**Resolution: ordering, not documentation.** The binding slice becomes a hard
+predecessor of any connecting call, or pre-binding builds are gated behind a
+dev-only flag that cannot reach production.
 
-**The scope collision — three lenses said "too big," and they're right.** The cost lens (the most decisive here) counted ~21 PR slices across a new public-ingress practice, coturn ops, a from-scratch cross-browser WebRTC client, a signaling state machine, push-wake, *and* a metadata ledger with its own prune role/worker — a multi-month solo program before the first call connects. The product lens arrived at the same place from the UX side: the PWA can't ring a locked iPhone, so the realistic V1 is "in-conversation calling" (foreground ring), which makes the expensive push-wake + missed-call machinery buy a degraded experience the survey says can't be made good. The security lens independently said "cut ring-all-to-multiple-devices unless multi-device-MLS is done." **Resolution the table converged on: cut V1 to audio-first, foreground-ring, no `call_sessions` ledger, no prune worker, single-device.** That collapses ~21 slices to ~9, neutralizes the egress-cost objection, neutralizes the VM-contention objection, *and* sidesteps the multi-device-MLS prerequisite — one cut resolves four separate findings.
+**The scope collision — three lenses said "too big," and they're right.** The
+cost lens (the most decisive here) counted ~21 PR slices across a new
+public-ingress practice, coturn ops, a from-scratch cross-browser WebRTC client,
+a signaling state machine, push-wake, *and* a metadata ledger with its own prune
+role/worker — a multi-month solo program before the first call connects. The
+product lens arrived at the same place from the UX side: the PWA can't ring a
+locked iPhone, so the realistic V1 is "in-conversation calling" (foreground
+ring), which makes the expensive push-wake + missed-call machinery buy a
+degraded experience the survey says can't be made good. The security lens
+independently said "cut ring-all-to-multiple-devices unless multi-device-MLS is
+done." **Resolution the table converged on: cut V1 to audio-first,
+foreground-ring, no `call_sessions` ledger, no prune worker, single-device.**
+That collapses ~21 slices to ~9, neutralizes the egress-cost objection,
+neutralizes the VM-contention objection, *and* sidesteps the multi-device-MLS
+prerequisite — one cut resolves four separate findings.
 
-**The privacy lens's orthogonal-but-serious thread.** The GDPR lens didn't fight the architecture — it praised it (relay-default, no-presence, content-free push, explicit non-goals are all the right instincts). Its finding is that the plan reasons about GDPR *in the abstract* and never connects to the four canonical artifacts that **already exist in this repo**: `docs/gdpr/article-30-records.md` (ROPA), `docs/gdpr/data-residency.md`, `docs/threat-models/metadata-exposure.md`, and the hand-maintained Art.17/20 enumeration in `apps/api/src/users/gdpr.service.ts`. The chair verified all four exist. As written, VoIP would silently make the residency doc *factually false* (it asserts "no public ports" and "TLS terminates at Cloudflare"; relay-only + TURNS-on-5349 breaks both), leave the new `call_sessions` personal-data table outside export/erasure, and omit the call-graph from the very page sales/DPA copy is gated on. Every privacy must-fix has the *same* root cause and the *same* cheap fix: a Phase-0 "GDPR artifact updates" bundle.
+**The privacy lens's orthogonal-but-serious thread.** The GDPR lens didn't fight
+the architecture — it praised it (relay-default, no-presence, content-free push,
+explicit non-goals are all the right instincts). Its finding is that the plan
+reasons about GDPR *in the abstract* and never connects to the four canonical
+artifacts that **already exist in this repo**: `docs/gdpr/article-30-records.md`
+(ROPA), `docs/gdpr/data-residency.md`,
+`docs/threat-models/metadata-exposure.md`, and the hand-maintained Art.17/20
+enumeration in `apps/api/src/users/gdpr.service.ts`. The chair verified all four
+exist. As written, VoIP would silently make the residency doc *factually false*
+(it asserts "no public ports" and "TLS terminates at Cloudflare"; relay-only +
+TURNS-on-5349 breaks both), leave the new `call_sessions` personal-data table
+outside export/erasure, and omit the call-graph from the very page sales/DPA
+copy is gated on. Every privacy must-fix has the *same* root cause and the
+*same* cheap fix: a Phase-0 "GDPR artifact updates" bundle.
 
-**One tension the lenses left for the chair to resolve — privacy-relay-default vs. cost-of-egress.** The privacy lens wants relay-only firmly kept (and is right). The cost lens flags that relay-default makes the operator pay media egress on *every* call and makes coturn a *hard dependency* (no P2P fallback for default users), so the newest, most-abuse-prone service gates 100% of calling availability. These are not actually in conflict once V1 is audio-first: audio egress is ~58 MB/call-hour (trivial), so relay-default's cost is a non-issue until video is a *deliberate, separately-sized* decision — at which point the dedicated relay host (Option d) becomes the default, not "enterprise-optional." **Chair's ruling: keep relay-default (privacy wins), ship audio-first (cost objection dissolves), and make "split to a dedicated relay before enabling video" a stated trigger, not a footnote.** The infra lens reinforces this: at video concurrency a TURN flood or a few HD calls starving the co-located Postgres is a V1-plausible incident on the dense 13-service box.
+**One tension the lenses left for the chair to resolve — privacy-relay-default
+vs. cost-of-egress.** The privacy lens wants relay-only firmly kept (and is
+right). The cost lens flags that relay-default makes the operator pay media
+egress on *every* call and makes coturn a *hard dependency* (no P2P fallback for
+default users), so the newest, most-abuse-prone service gates 100% of calling
+availability. These are not actually in conflict once V1 is audio-first: audio
+egress is ~58 MB/call-hour (trivial), so relay-default's cost is a non-issue
+until video is a *deliberate, separately-sized* decision — at which point the
+dedicated relay host (Option d) becomes the default, not "enterprise-optional."
+**Chair's ruling: keep relay-default (privacy wins), ship audio-first (cost
+objection dissolves), and make "split to a dedicated relay before enabling
+video" a stated trigger, not a footnote.** The infra lens reinforces this: at
+video concurrency a TURN flood or a few HD calls starving the co-located
+Postgres is a V1-plausible incident on the dense 13-service box.
 
 ---
 
@@ -55,7 +166,9 @@ The infra and cost lenses, arriving from a completely different direction, lande
 | M6 | **Relay-default + public coturn make two checked-in GDPR docs factually false, and the plan never names them.** `data-residency.md` asserts "no public ports" and "TLS terminates at Cloudflare"; relay-only routes 100% of media + both peer IPs through coturn on the public IP via a Cloudflare-bypassing `turn.4rgus.com`, terminating TURNS TLS on the VM. The doc's own change-control clause is triggered. | 03; `docs/gdpr/data-residency.md`; `docs/gdpr/article-30-records.md` | A Phase-0 slice (fold into P0-TM) that **revises `data-residency.md`** (new coturn relay row: EU VM, transient peer-IP processing, TLS-on-VM, the Cloudflare bypass) and **`article-30-records.md`** (new processing activity, new personal-data category, new sub-processor, new retention row), in the *same PR* as the NSG change. |
 | M7 | **VoIP duplicates rather than extends the canonical `metadata-exposure.md`** — the page DPA/sales claims are explicitly gated on. The new call-graph / call-timing / relay-peer-IP metadata classes never reach it, so the source-of-truth page would omit calls entirely. | 06; `docs/threat-models/metadata-exposure.md` | Make **extending** `metadata-exposure.md` a required P0-TM deliverable (add call-graph, call-timing, relay-side peer-IP rows; update the §5 disclosure sentence). Keep 06 as the feature deep-dive that *points at* the canonical page, not a competing enumeration. |
 
-> The chair adds one cross-cutting **must-do that is technically a scope cut, not a defect**, because three lenses made it a precondition for the plan being *buildable*:
+> The chair adds one cross-cutting **must-do that is technically a scope cut,
+> not a defect**, because three lenses made it a precondition for the plan being
+> *buildable*:
 
 | # | Finding | Owning file(s) | Fix |
 |---|---|---|---|
@@ -97,28 +210,59 @@ The infra and cost lenses, arriving from a completely different direction, lande
 ## 4. Key tensions & resolutions
 
 1. **Privacy-relay-default vs. cost-of-egress + coturn-as-hard-dependency.**
-   *Privacy lens:* keep relay-only-by-default (right — it's the product's defining promise). *Cost/infra lens:* relay-default means the operator pays media egress on every call and the newest/most-abuse-prone service gates 100% of calling, and at video concurrency it can starve the co-located DB.
-   **Resolution:** Keep relay-default. Ship **audio-first** — audio egress (~58 MB/call-hr) is trivial, so the cost objection evaporates until video is a deliberate, separately-sized decision. Make **"split to a dedicated relay host before enabling video"** a stated trigger (also resolves R12 IP-hiding). Add a P0 coturn uptime alert + runbook stub since its availability == calling availability. *(Bakes into 00 §4, 03 §2/§10, 08.)*
+   *Privacy lens:* keep relay-only-by-default (right — it's the product's
+   defining promise). *Cost/infra lens:* relay-default means the operator pays
+   media egress on every call and the newest/most-abuse-prone service gates 100%
+   of calling, and at video concurrency it can starve the co-located DB.
+   **Resolution:** Keep relay-default. Ship **audio-first** — audio egress (~58
+   MB/call-hr) is trivial, so the cost objection evaporates until video is a
+   deliberate, separately-sized decision. Make **"split to a dedicated relay
+   host before enabling video"** a stated trigger (also resolves R12 IP-hiding).
+   Add a P0 coturn uptime alert + runbook stub since its availability == calling
+   availability. *(Bakes into 00 §4, 03 §2/§10, 08.)*
 
-2. **"Reuse existing MLS, zero new crypto" vs. the code reality.**
-   *Plan's framing:* calls inherit MLS auth for free. *Security lens:* `decrypt()` provides no sender attribution; this is new crypto-adjacent code.
-   **Resolution:** The security lens wins on facts (chair verified). The plan must add a Phase-0 authenticated-sender decrypt slice, route it through `crypto-reviewer`, and rewrite every "zero new crypto" claim. The 1:1 guarantee is honestly "authored by some current member of this 2-party group" — which equals the peer *only while the group has one other member*, so single-device V1 (M-CUT) makes the honest claim *also* the strong claim.
+2. **"Reuse existing MLS, zero new crypto" vs. the code reality.** *Plan's
+   framing:* calls inherit MLS auth for free. *Security lens:* `decrypt()`
+   provides no sender attribution; this is new crypto-adjacent code.
+   **Resolution:** The security lens wins on facts (chair verified). The plan
+   must add a Phase-0 authenticated-sender decrypt slice, route it through
+   `crypto-reviewer`, and rewrite every "zero new crypto" claim. The 1:1
+   guarantee is honestly "authored by some current member of this 2-party group"
+   — which equals the peer *only while the group has one other member*, so
+   single-device V1 (M-CUT) makes the honest claim *also* the strong claim.
 
-3. **Fail-closed promise vs. roadmap ordering.**
-   *Plan:* 00 §5 #4 promises tampering fails closed. *Roadmap:* connecting calls ship before the binding.
-   **Resolution:** Ordering, not documentation. Binding is a hard predecessor of the first connecting call, or pre-binding is dev-flag-gated out of prod. No middle ground — a production window with silent media MITM defeats the product's reason to exist.
+3. **Fail-closed promise vs. roadmap ordering.** *Plan:* 00 §5 #4 promises
+   tampering fails closed. *Roadmap:* connecting calls ship before the binding.
+   **Resolution:** Ordering, not documentation. Binding is a hard predecessor of
+   the first connecting call, or pre-binding is dev-flag-gated out of prod. No
+   middle ground — a production window with silent media MITM defeats the
+   product's reason to exist.
 
-4. **Multi-device "ring-all" UX vs. 2-party-only MLS.**
-   *Product/plan:* ring all the callee's devices (D8). *Security/cost:* that needs 3+-member MLS, which is deferred backlog.
-   **Resolution:** Cut multi-device from V1 (single-device). It's already implied by M-CUT and removes a hidden prerequisite. Revisit ring-all only after both the multi-device-MLS path and the authenticated-sender decrypt exist.
+4. **Multi-device "ring-all" UX vs. 2-party-only MLS.** *Product/plan:* ring all
+   the callee's devices (D8). *Security/cost:* that needs 3+-member MLS, which
+   is deferred backlog. **Resolution:** Cut multi-device from V1
+   (single-device). It's already implied by M-CUT and removes a hidden
+   prerequisite. Revisit ring-all only after both the multi-device-MLS path and
+   the authenticated-sender decrypt exist.
 
-5. **GDPR design-instincts (excellent) vs. GDPR artifact-completeness (absent).**
-   *Privacy lens:* the design is sound; the docs are disconnected from the repo's living compliance artifacts.
-   **Resolution:** This is a doc-completeness problem, not a design problem. A single Phase-0 "GDPR artifact updates" bundle (revise `data-residency.md` + `article-30-records.md`, extend `metadata-exposure.md`, create `dpia-voip-calling.md`) discharges M6, M7, S4, S5, S6 at once. Cheap, mandatory, fits the repo's "docs-before-code" discipline.
+5. **GDPR design-instincts (excellent) vs. GDPR artifact-completeness
+   (absent).** *Privacy lens:* the design is sound; the docs are disconnected
+   from the repo's living compliance artifacts. **Resolution:** This is a
+   doc-completeness problem, not a design problem. A single Phase-0 "GDPR
+   artifact updates" bundle (revise `data-residency.md` +
+   `article-30-records.md`, extend `metadata-exposure.md`, create
+   `dpia-voip-calling.md`) discharges M6, M7, S4, S5, S6 at once. Cheap,
+   mandatory, fits the repo's "docs-before-code" discipline.
 
-6. **Product honesty-in-prose vs. honesty-in-product.**
-   *Product lens:* each file is honest about its piece, but no file walks one persona end-to-end, so the set collectively oversells receivability.
-   **Resolution:** Add one worked end-to-end receive scenario per platform (00 or 05) and the per-platform receivability table (S7); frame V1 as **"in-conversation calling"** (which a PWA does well) rather than implying WhatsApp-grade ringing. If "rings a locked phone" is a hard product requirement, that is the signal Capacitor is a V1 *prerequisite* — surface that fork now (resolve 09 Q4 decisively toward "accept + be honest, audio-foreground V1").
+6. **Product honesty-in-prose vs. honesty-in-product.** *Product lens:* each
+   file is honest about its piece, but no file walks one persona end-to-end, so
+   the set collectively oversells receivability. **Resolution:** Add one worked
+   end-to-end receive scenario per platform (00 or 05) and the per-platform
+   receivability table (S7); frame V1 as **"in-conversation calling"** (which a
+   PWA does well) rather than implying WhatsApp-grade ringing. If "rings a
+   locked phone" is a hard product requirement, that is the signal Capacitor is
+   a V1 *prerequisite* — surface that fork now (resolve 09 Q4 decisively toward
+   "accept + be honest, audio-foreground V1").
 
 ---
 
@@ -126,12 +270,35 @@ The infra and cost lenses, arriving from a completely different direction, lande
 
 **Sound-with-fixes. Not ready to implement as written; ready after the revisions below.**
 
-The architecture is correct and the survey work (07) confirms it is mainstream — argus's V1 is Signal's 1:1 model with a stronger privacy default. The grounding is unusually honest, and three independent lenses verified the plan's factual claims about the existing stack and found them accurate. This is a *good* plan with three concentrated, fixable defects:
+The architecture is correct and the survey work (07) confirms it is mainstream —
+argus's V1 is Signal's 1:1 model with a stronger privacy default. The grounding
+is unusually honest, and three independent lenses verified the plan's factual
+claims about the existing stack and found them accurate. This is a *good* plan
+with three concentrated, fixable defects:
 
-1. **A crypto keystone with no code basis** (M1) and a **roadmap that ships connecting calls before the defense exists** (M2/M3). Until an authenticated-sender decrypt lands as a hard Phase-0 predecessor, V1 would put a media path into production with no effective MITM defense against the exact adversary argus exists to resist. This is the gating issue.
-2. **One total-call-outage infra bug** (M4, dynamic private IP) plus operational freebies that aren't free (cert renewal S2, compose-guard S3) and an unconfronted "every deploy drops live calls" reality (S1).
-3. **A compliance regression by omission** (M5–M7): the plan is disconnected from the repo's four canonical GDPR artifacts and would silently falsify a checked-in residency statement.
+1. **A crypto keystone with no code basis** (M1) and a **roadmap that ships
+   connecting calls before the defense exists** (M2/M3). Until an
+   authenticated-sender decrypt lands as a hard Phase-0 predecessor, V1 would
+   put a media path into production with no effective MITM defense against the
+   exact adversary argus exists to resist. This is the gating issue.
+2. **One total-call-outage infra bug** (M4, dynamic private IP) plus operational
+   freebies that aren't free (cert renewal S2, compose-guard S3) and an
+   unconfronted "every deploy drops live calls" reality (S1).
+3. **A compliance regression by omission** (M5–M7): the plan is disconnected
+   from the repo's four canonical GDPR artifacts and would silently falsify a
+   checked-in residency statement.
 
-The path to "ready": apply M1–M7, accept the **audio-first / foreground-ring / single-device / no-ledger** re-cut (M-CUT) — which alone resolves four cross-lens tensions — fold the GDPR bundle into Phase-0, and land the should-fixes that harden reliability (S1–S3) and product honesty (S7–S10). With those, the ~9-slice audio V1 is a genuinely strong, defensible, solo-buildable plan that proves the privacy promise; video, reliability, push-wake, and the metadata ledger then sequence cleanly as V1.1 with their own (already-drafted) slices and threat-model addenda.
+The path to "ready": apply M1–M7, accept the **audio-first / foreground-ring /
+single-device / no-ledger** re-cut (M-CUT) — which alone resolves four
+cross-lens tensions — fold the GDPR bundle into Phase-0, and land the
+should-fixes that harden reliability (S1–S3) and product honesty (S7–S10). With
+those, the ~9-slice audio V1 is a genuinely strong, defensible, solo-buildable
+plan that proves the privacy promise; video, reliability, push-wake, and the
+metadata ledger then sequence cleanly as V1.1 with their own (already-drafted)
+slices and threat-model addenda.
 
-The chair is decisive on the contested points: **keep relay-default** (privacy wins; audio-first dissolves the cost objection), **make the crypto-binding ordering a hard gate** (not a documented gap), and **resolve the open questions now** rather than deferring — Q3 → 30-day retention, Q4 → accept-and-be-honest with foreground-audio V1, Q6 → 600s. Build it in that shape.
+The chair is decisive on the contested points: **keep relay-default** (privacy
+wins; audio-first dissolves the cost objection), **make the crypto-binding
+ordering a hard gate** (not a documented gap), and **resolve the open questions
+now** rather than deferring — Q3 → 30-day retention, Q4 → accept-and-be-honest
+with foreground-audio V1, Q6 → 600s. Build it in that shape.

@@ -107,10 +107,11 @@ flowchart TD
    design step that returns a plan; the domain reviewers (`crypto` / `boundary` / `infra`)
    audit what you already wrote. Route through the one matching the area you touched.
 
-3. **Green CI never merges on its own.** Both reviews — Codex *and* `@claude` — are equal
-   and required. `review-status.sh --wait` reads every channel (formal reviews, comments,
-   a bare 👍 from Codex, usage-limit failures) and reports an aggregate. Merge needs
-   CI green **and** both verdicts resolved. The merge itself is the one step a human drives.
+3. **Green CI never merges on its own.** Both reviews — Codex *and* `@claude` —
+   are equal and required. `review-status.sh --wait` reads every channel (formal
+   reviews, comments, a bare 👍 from Codex, usage-limit failures) and reports an
+   aggregate. Merge needs CI green **and** both verdicts resolved. The merge
+   itself is the one step a human drives.
 
 ## Escalation, not model-switching
 

@@ -1,40 +1,73 @@
 # Threat model: VoIP 1:1 calling (audio core, V1)
 
-> **Status: ratified — governs the VoIP V1 (audio-core) build.** This is the canonical
-> threat-model note required by `AGENTS.md` (Definition of Done) for the VoIP feature: the copy
-> the `security-boundary-auditor` and the 6-invariant gate target. Its design rationale and the
-> full plan set live in `docs/planning/voip/` (00–09); this note is kept in sync with the
-> source-of-truth [06 — Threat Model & Privacy](../planning/voip/06-threat-model-and-privacy.md).
-> The companion infra note is [`voip-turn.md`](./voip-turn.md); [`vm-ingress.md`](./vm-ingress.md)
-> is revised in the same bundle because VoIP introduces the platform's first sanctioned
-> non-tunnel ingress.
+> **Status: ratified — governs the VoIP V1 (audio-core) build.** This is the
+> canonical threat-model note required by `AGENTS.md` (Definition of Done) for
+> the VoIP feature: the copy the `security-boundary-auditor` and the 6-invariant
+> gate target. Its design rationale and the full plan set live in
+> `docs/planning/voip/` (00–09); this note is kept in sync with the
+> source-of-truth [06 — Threat Model &
+> Privacy](../planning/voip/06-threat-model-and-privacy.md). The companion infra
+> note is [`voip-turn.md`](./voip-turn.md); [`vm-ingress.md`](./vm-ingress.md)
+> is revised in the same bundle because VoIP introduces the platform's first
+> sanctioned non-tunnel ingress.
 >
-> **Scope of this note:** the privacy and security posture of **1:1 calls** under the locked V1
-> scope (see [00 — Overview & Goals](../planning/voip/00-overview-and-goals.md)): **V1 = 1:1
-> _audio only_, relay-only, foreground-ring only, single-device per user.** Video,
-> ICE-restart/reconnection, push-wake + missed-call ledger, multi-device ring-all, and the
-> metadata-ledger/prune chain are deferred to **V1.1** and are threat-modelled here as *future*
-> surface so the design doesn't paint itself into a corner. Group calls / SFU are explicitly out
-> of scope and call out their *new* threats where relevant. Read alongside
-> [01 — Architecture & Crypto Model](../planning/voip/01-architecture-and-crypto-model.md),
-> [02 — Signaling Protocol & State Machine](../planning/voip/02-signaling-protocol-and-state-machine.md),
-> [03 — Infrastructure: TURN/coturn & Networking](../planning/voip/03-infrastructure-turn-and-networking.md),
-> [04 — Server API & Database](../planning/voip/04-server-api-and-database.md), and
-> [05 — Frontend, PWA & WebRTC Client](../planning/voip/05-frontend-pwa-and-webrtc.md).
+> **Scope of this note:** the privacy and security posture of **1:1 calls**
+> under the locked V1 scope (see [00 — Overview &
+> Goals](../planning/voip/00-overview-and-goals.md)): **V1 = 1:1 _audio only_,
+> relay-only, foreground-ring only, single-device per user.** Video,
+> ICE-restart/reconnection, push-wake + missed-call ledger, multi-device
+> ring-all, and the metadata-ledger/prune chain are deferred to **V1.1** and are
+> threat-modelled here as *future* surface so the design doesn't paint itself
+> into a corner. Group calls / SFU are explicitly out of scope and call out
+> their *new* threats where relevant. Read alongside [01 — Architecture & Crypto
+> Model](../planning/voip/01-architecture-and-crypto-model.md), [02 — Signaling
+> Protocol & State
+> Machine](../planning/voip/02-signaling-protocol-and-state-machine.md), [03 —
+> Infrastructure: TURN/coturn &
+> Networking](../planning/voip/03-infrastructure-turn-and-networking.md), [04 —
+> Server API & Database](../planning/voip/04-server-api-and-database.md), and
+> [05 — Frontend, PWA & WebRTC
+> Client](../planning/voip/05-frontend-pwa-and-webrtc.md).
 
 ---
 
 ## 1. What's different about calls
 
-Chat in argus is **content-confidential and metadata-minimal**: the server forwards opaque MLS ciphertext and learns only `(tenant, conversation, sender, timestamp, size)`. Calls do not change the content story — media is E2EE browser-to-browser via DTLS-SRTP, and the server never holds a media key. **The new risk surface is almost entirely metadata and infrastructure**, not content:
+Chat in argus is **content-confidential and metadata-minimal**: the server
+forwards opaque MLS ciphertext and learns only `(tenant, conversation, sender,
+timestamp, size)`. Calls do not change the content story — media is E2EE
+browser-to-browser via DTLS-SRTP, and the server never holds a media key. **The
+new risk surface is almost entirely metadata and infrastructure**, not content:
 
-- A **TURN relay** sees both peers' IP/port and the encrypted media flow (timing, volume, duration) for every relayed call — by design, since relay-only is the default and (in audio V1) the *only* path.
-- **Signaling** (offer/answer/ICE/hangup) is a new real-time event class that, even when the *payload* is E2EE, leaks **who-calls-whom and when** through routing metadata the server must see to deliver it.
-- Calls are **interactive and synchronous**, so they create an **online-presence oracle** that store-and-forward chat never did: a call only connects if the callee is reachable *right now*. V1's foreground-ring-only model actually *narrows* this oracle — there is no push-wake, so a call only rings a peer who already has the app open.
-- The relay forces the platform's **first public inbound port**, breaking the "tunnel-only, zero published ports" ingress invariant (see [voip-turn.md](./voip-turn.md) / [03](../planning/voip/03-infrastructure-turn-and-networking.md)).
-- **Authenticating the call's sender is a new crypto path, not a reuse.** The platform's MITM defence (binding the DTLS fingerprint to a known peer identity) requires verifying *who sent the call signal*. Today `packages/crypto`'s `decrypt()` returns a bare string and surfaces **no sender identity** — so this needs a **new, crypto-reviewer-gated authenticated-sender decrypt path**. It is a hard **Phase-0 predecessor** of the first call that ever connects (see §4, §5, and [01](../planning/voip/01-architecture-and-crypto-model.md)). Do not describe the MITM defence as "zero new crypto."
+- A **TURN relay** sees both peers' IP/port and the encrypted media flow
+  (timing, volume, duration) for every relayed call — by design, since
+  relay-only is the default and (in audio V1) the *only* path.
+- **Signaling** (offer/answer/ICE/hangup) is a new real-time event class that,
+  even when the *payload* is E2EE, leaks **who-calls-whom and when** through
+  routing metadata the server must see to deliver it.
+- Calls are **interactive and synchronous**, so they create an **online-presence
+  oracle** that store-and-forward chat never did: a call only connects if the
+  callee is reachable *right now*. V1's foreground-ring-only model actually
+  *narrows* this oracle — there is no push-wake, so a call only rings a peer who
+  already has the app open.
+- The relay forces the platform's **first public inbound port**, breaking the
+  "tunnel-only, zero published ports" ingress invariant (see
+  [voip-turn.md](./voip-turn.md) /
+  [03](../planning/voip/03-infrastructure-turn-and-networking.md)).
+- **Authenticating the call's sender is a new crypto path, not a reuse.** The
+  platform's MITM defence (binding the DTLS fingerprint to a known peer
+  identity) requires verifying *who sent the call signal*. Today
+  `packages/crypto`'s `decrypt()` returns a bare string and surfaces **no sender
+  identity** — so this needs a **new, crypto-reviewer-gated authenticated-sender
+  decrypt path**. It is a hard **Phase-0 predecessor** of the first call that
+  ever connects (see §4, §5, and
+  [01](../planning/voip/01-architecture-and-crypto-model.md)). Do not describe
+  the MITM defence as "zero new crypto."
 
-This note enumerates those metadata threats, verifies the design against all 6 non-negotiable invariants, frames the **relay-vs-direct** choice as the user's privacy dial (a V1.1 setting; V1 is relay-only with no toggle), and records residual risk and failure modes.
+This note enumerates those metadata threats, verifies the design against all 6
+non-negotiable invariants, frames the **relay-vs-direct** choice as the user's
+privacy dial (a V1.1 setting; V1 is relay-only with no toggle), and records
+residual risk and failure modes.
 
 ---
 
@@ -70,7 +103,12 @@ This note enumerates those metadata threats, verifies the design against all 6 n
 
 ## 4. STRIDE-ish enumeration — focused on call *metadata*
 
-Content (A1/A2) is handled by DTLS-SRTP + MLS fingerprint binding ([01](../planning/voip/01-architecture-and-crypto-model.md)); SRTP is non-optional in WebRTC and the media key never reaches the server. The table below concentrates where the real exposure is: **metadata** — plus the one *content-adjacent* item (MITM via fingerprint substitution) that depends on the new authenticated-sender path.
+Content (A1/A2) is handled by DTLS-SRTP + MLS fingerprint binding
+([01](../planning/voip/01-architecture-and-crypto-model.md)); SRTP is
+non-optional in WebRTC and the media key never reaches the server. The table
+below concentrates where the real exposure is: **metadata** — plus the one
+*content-adjacent* item (MITM via fingerprint substitution) that depends on the
+new authenticated-sender path.
 
 | Threat (STRIDE) | Vector | Who sees it | Mitigation | Residual |
 |---|---|---|---|---|
@@ -104,13 +142,24 @@ Content (A1/A2) is handled by DTLS-SRTP + MLS fingerprint binding ([01](../plann
 | **5** | **Secrets from Key Vault via Managed Identity, as files** | coturn's static-auth shared secret arrives via the existing `fetch-keyvault-secrets.sh` path as a 0444 tmpfs **file** (fits the existing pattern). No long-lived creds in env. A `turns:` TLS cert, if used, is a Key-Vault-delivered file, not on-box ACME. | ✅ — verify with `infra-reviewer` |
 | **6** | **No admin path to content** | No recording, no transcription, no server-side media. Admin/ops sees only metadata (call count/timing if persisted in V1.1), never media or SDP. | ✅ by design |
 
-**Net:** the design is invariant-compatible **provided** (a) TURN never terminates media crypto, (b) SDP/ICE always travels inside MLS ciphertext, (c) the new authenticated-sender decrypt path passes `crypto-reviewer` before any connecting call, (d) the V1.1 `call_sessions` table ships with RLS, and (e) TURN secrets ride the file-secret path. Each is a hard gate, not a guideline.
+**Net:** the design is invariant-compatible **provided** (a) TURN never
+terminates media crypto, (b) SDP/ICE always travels inside MLS ciphertext, (c)
+the new authenticated-sender decrypt path passes `crypto-reviewer` before any
+connecting call, (d) the V1.1 `call_sessions` table ships with RLS, and (e) TURN
+secrets ride the file-secret path. Each is a hard gate, not a guideline.
 
 ---
 
 ## 6. Relay-default vs. direct-P2P — the user's privacy dial (V1.1)
 
-This is the single most important *user-facing* privacy control. It is a **per-user setting**, default = **relay-only** — but the *toggle* is a **V1.1 feature**. **V1 ships relay-only with no toggle at all**, which is the strictest posture and conveniently sidesteps the IP-to-peer threat entirely for the first release. (The storage — a `call_relay_only boolean not null default true` column on `users` — lands in V1 as its own slice; the credential endpoint then reads it to enforce relay-only shaping server-side from day one. Only the *user-facing toggle UI* is deferred to V1.1.)
+This is the single most important *user-facing* privacy control. It is a
+**per-user setting**, default = **relay-only** — but the *toggle* is a **V1.1
+feature**. **V1 ships relay-only with no toggle at all**, which is the strictest
+posture and conveniently sidesteps the IP-to-peer threat entirely for the first
+release. (The storage — a `call_relay_only boolean not null default true` column
+on `users` — lands in V1 as its own slice; the credential endpoint then reads it
+to enforce relay-only shaping server-side from day one. Only the *user-facing
+toggle UI* is deferred to V1.1.)
 
 | Mode | Who learns your IP | Latency / quality | Bandwidth cost (operator) | Best for |
 |------|--------------------|-------------------|---------------------------|----------|
@@ -118,20 +167,30 @@ This is the single most important *user-facing* privacy control. It is a **per-u
 | **Direct P2P (V1.1 opt-in)** | The **other peer** sees your real (srflx/host) IP | Lowest | Operator pays ~nothing | Power users on a trusted call who want best quality and accept IP exposure |
 
 **Design rules (apply when the toggle lands in V1.1; V1 hard-codes relay-only):**
-- Default **relay-only**: ICE offers **only relay candidates**; host/srflx are suppressed so neither peer nor passive observers near the peer learn the IP.
-- **Conservative AND**: if *either* peer is relay-only, the call is relay-only. A power user opting into direct cannot downgrade a privacy-conscious peer.
-- **Honest UI copy** at opt-in: "Direct calls are faster but the other person will see your IP address (your approximate location)." No dark patterns.
-- The setting fits cleanly as a **`call_relay_only boolean not null default true` column on `users`** (grounding: no settings table exists; single scalar → column, not a new table), inheriting `users` RLS automatically. Default is **`true`** (relay-only).
+- Default **relay-only**: ICE offers **only relay candidates**; host/srflx are
+  suppressed so neither peer nor passive observers near the peer learn the IP.
+- **Conservative AND**: if *either* peer is relay-only, the call is relay-only.
+  A power user opting into direct cannot downgrade a privacy-conscious peer.
+- **Honest UI copy** at opt-in: "Direct calls are faster but the other person
+  will see your IP address (your approximate location)." No dark patterns.
+- The setting fits cleanly as a **`call_relay_only boolean not null default
+  true` column on `users`** (grounding: no settings table exists; single scalar
+  → column, not a new table), inheriting `users` RLS automatically. Default is
+  **`true`** (relay-only).
 
 ---
 
 ## 7. GDPR / EU data-residency
 
-argus is a solo-EU-developer, privacy-first product; the bar is **data minimization by default**, not compliance theater.
+argus is a solo-EU-developer, privacy-first product; the bar is **data
+minimization by default**, not compliance theater.
 
 ### 7.1 GDPR artifact updates — a named Phase-0 bundle
 
-VoIP touches the platform's canonical privacy artifacts. These are **explicit Phase-0 deliverables** ([08 P0-TM](../planning/voip/08-roadmap-and-delivery-slices.md)), not a vague "flag for the ROPA/DPIA." All four ship in this same docs bundle:
+VoIP touches the platform's canonical privacy artifacts. These are **explicit
+Phase-0 deliverables** ([08
+P0-TM](../planning/voip/08-roadmap-and-delivery-slices.md)), not a vague "flag
+for the ROPA/DPIA." All four ship in this same docs bundle:
 
 | Artifact | Action | What VoIP adds |
 |---|---|---|
@@ -143,21 +202,37 @@ VoIP touches the platform's canonical privacy artifacts. These are **explicit Ph
 ### 7.2 Residency, minimization & retention
 
 **Residency**
-- **coturn runs on the same EU VM** (Azure `germanywestcentral` / AWS `eu-central-1` per grounding). No third-party TURN (e.g. Twilio) — that would export 5-tuples/IPs outside the EU and add a processor. Self-hosting keeps **all relay metadata in-region**.
+- **coturn runs on the same EU VM** (Azure `germanywestcentral` / AWS
+  `eu-central-1` per grounding). No third-party TURN (e.g. Twilio) — that would
+  export 5-tuples/IPs outside the EU and add a processor. Self-hosting keeps
+  **all relay metadata in-region**.
 - Any persisted call metadata (V1.1) stays in the EU Postgres; no analytics export.
 
 **Minimization & retention**
-- **IP addresses are personal data under GDPR.** TURN inevitably processes them transiently; the mitigation is **don't log them** (`--no-stdout-log`, no verbose), **don't persist** them, and document the transient processing in `data-residency.md` + `dpia-voip-calling.md`.
-- **Signaling is ephemeral** — emitted to the bus, never written to disk. Nothing to retain in V1.
-- **V1.1 `call_sessions`**: 30-day TTL (Q3) with a dedicated least-privilege prune role + time-windowed RLS policy (follow `0044_messages_prune_role.sql`), **not** a reuse of an existing prune role — per-table auditability. The retention literal must match the ROPA row.
+- **IP addresses are personal data under GDPR.** TURN inevitably processes them
+  transiently; the mitigation is **don't log them** (`--no-stdout-log`, no
+  verbose), **don't persist** them, and document the transient processing in
+  `data-residency.md` + `dpia-voip-calling.md`.
+- **Signaling is ephemeral** — emitted to the bus, never written to disk.
+  Nothing to retain in V1.
+- **V1.1 `call_sessions`**: 30-day TTL (Q3) with a dedicated least-privilege
+  prune role + time-windowed RLS policy (follow `0044_messages_prune_role.sql`),
+  **not** a reuse of an existing prune role — per-table auditability. The
+  retention literal must match the ROPA row.
 
 ### 7.3 DPIA-worthy items (record in `dpia-voip-calling.md`)
 1. Real-time processing of **peer IP addresses** at the TURN relay (even if unlogged).
-2. The **online-presence oracle** — an implicit signal that a data subject is reachable at a given time (bounded in V1 to "app open").
-3. The **direct-P2P opt-in** (V1.1) — peer-to-peer IP disclosure requires informed consent (the honest UI copy in §6 is the consent surface).
-4. **Push-notification wake** (V1.1) — existence/timing observable to the push provider (APNs/FCM sub-processor).
+2. The **online-presence oracle** — an implicit signal that a data subject is
+   reachable at a given time (bounded in V1 to "app open").
+3. The **direct-P2P opt-in** (V1.1) — peer-to-peer IP disclosure requires
+   informed consent (the honest UI copy in §6 is the consent surface).
+4. **Push-notification wake** (V1.1) — existence/timing observable to the push
+   provider (APNs/FCM sub-processor).
 
-**Data-subject rights:** with no durable call log in V1, there is essentially **nothing to export or erase** for calls — the strongest possible posture. In V1.1, the missed-call metadata is the only erasable artifact and is covered by the 30-day TTL.
+**Data-subject rights:** with no durable call log in V1, there is essentially
+**nothing to export or erase** for calls — the strongest possible posture. In
+V1.1, the missed-call metadata is the only erasable artifact and is covered by
+the 30-day TTL.
 
 ---
 
@@ -176,16 +251,29 @@ VoIP touches the platform's canonical privacy artifacts. These are **explicit Ph
 
 ## 9. Explicit NON-goals
 
-These are **out of scope by design**, not omissions. Adding any of them would violate the invariants or the product's privacy promise:
+These are **out of scope by design**, not omissions. Adding any of them would
+violate the invariants or the product's privacy promise:
 
-- **No call recording** — anywhere, server or client-prompted. There is no server-side media path to record from (invariant 1/6).
-- **No lawful-intercept / key-escrow backdoor.** The server holds no media key and cannot be compelled to produce one it never has.
-- **No server-side transcription / speech-to-text / content analysis** — the server is crypto-blind; it cannot see media.
-- **No durable call ledger / CDR in V1** — no who-called-whom history persisted server-side. The V1.1 missed-call hint is short-TTL (30-day) metadata only.
-- **No presence/last-seen service** — none exists today; VoIP does not introduce one. Reachability is revealed only transiently at call time.
+- **No call recording** — anywhere, server or client-prompted. There is no
+  server-side media path to record from (invariant 1/6).
+- **No lawful-intercept / key-escrow backdoor.** The server holds no media key
+  and cannot be compelled to produce one it never has.
+- **No server-side transcription / speech-to-text / content analysis** — the
+  server is crypto-blind; it cannot see media.
+- **No durable call ledger / CDR in V1** — no who-called-whom history persisted
+  server-side. The V1.1 missed-call hint is short-TTL (30-day) metadata only.
+- **No presence/last-seen service** — none exists today; VoIP does not introduce
+  one. Reachability is revealed only transiently at call time.
 - **No video in V1** — audio-first; video is a named V1.1 phase.
-- **No group calls in V1** — SFU is future-only; an SFU is a *new* metadata holder (it sees all participants' flows) and will require its own threat-model addendum.
-- **No native CallKit/ConnectionService integration** — PWA-only; background-receivability limits are an honest constraint, not a feature gap to fake (see [05](../planning/voip/05-frontend-pwa-and-webrtc.md)). If "rings a locked phone" ever becomes a hard requirement, Capacitor is a prerequisite — a decision fork, not a deferral ([09](../planning/voip/09-decision-log-and-open-questions.md) Q4).
+- **No group calls in V1** — SFU is future-only; an SFU is a *new* metadata
+  holder (it sees all participants' flows) and will require its own threat-model
+  addendum.
+- **No native CallKit/ConnectionService integration** — PWA-only;
+  background-receivability limits are an honest constraint, not a feature gap to
+  fake (see [05](../planning/voip/05-frontend-pwa-and-webrtc.md)). If "rings a
+  locked phone" ever becomes a hard requirement, Capacitor is a prerequisite — a
+  decision fork, not a deferral
+  ([09](../planning/voip/09-decision-log-and-open-questions.md) Q4).
 
 ---
 
@@ -207,13 +295,18 @@ These are **out of scope by design**, not omissions. Adding any of them would vi
 | R12 | **Real IP exposed via public `turn.<domain>` DNS** (bypasses Cloudflare proxy) | Medium | Documented trade in [voip-turn.md](./voip-turn.md); a dedicated relay host/IP (ingress Option (d)) is the mitigation, slated to become the default before video | **Accepted** for V1 single-VM; Option (d) is the HA/privacy lever for V1.1 |
 | R13 | **coturn outage = calling outage** for every default user (relay-only) | High | coturn `restart:unless-stopped` + compose healthcheck; uptime/health alert + runbook stub as **Phase-0** deliverables (§11, [08 P0](../planning/voip/08-roadmap-and-delivery-slices.md)) | **Needs-work** — availability is a P0 operational concern, not P3 |
 
-**Block list (must-fix before merge):** R6 (authenticated-sender path, a Phase-0 predecessor of any connecting call), R7, R8, R10 (gate, when the V1.1 table lands), R5 (uniform timeout), R13 (coturn health alert + runbook in Phase-0), and all six §5 invariant gates.
+**Block list (must-fix before merge):** R6 (authenticated-sender path, a Phase-0
+predecessor of any connecting call), R7, R8, R10 (gate, when the V1.1 table
+lands), R5 (uniform timeout), R13 (coturn health alert + runbook in Phase-0),
+and all six §5 invariant gates.
 
 ---
 
 ## 11. Call-reliability & failure modes
 
-Relay-only default means **coturn availability == calling availability** for every default user, and the single shared VM concentrates several failure modes. State them plainly:
+Relay-only default means **coturn availability == calling availability** for
+every default user, and the single shared VM concentrates several failure modes.
+State them plainly:
 
 | Failure | Effect | Mitigation / behavior |
 |---|---|---|
@@ -226,19 +319,31 @@ Relay-only default means **coturn availability == calling availability** for eve
 
 ## 12. Ephemeral relay implementation — security properties (P1-GW)
 
-This section records the precise security properties of the gateway signaling relay delivered in P1-GW so the `security-boundary-auditor` has a single ground-truth reference.
+This section records the precise security properties of the gateway signaling
+relay delivered in P1-GW so the `security-boundary-auditor` has a single
+ground-truth reference.
 
 ### 12.1 Call-authorization map
 
-The gateway validates every `call.signal` frame against an in-memory call-authorization map (`callId → { tenantId, conversationId, callerSub, calleeSub, phase, timers }`). The map is populated by the REST invite (`POST /calls/:friendUserId/invite`) **after** both the friendship gate and the conversation-membership gate pass. Properties:
+The gateway validates every `call.signal` frame against an in-memory
+call-authorization map (`callId → { tenantId, conversationId, callerSub,
+calleeSub, phase, timers }`). The map is populated by the REST invite (`POST
+/calls/:friendUserId/invite`) **after** both the friendship gate and the
+conversation-membership gate pass. Properties:
 
-- **Ephemeral**: the map lives in process memory only. A gateway restart drops all entries — live calls fail cleanly; there are no stale cross-restart entries.
-- **No DB writes**: V1 persists no `call_sessions` row (invariant 3 is not in scope; the table lands in V1.1). Signaling is emitted to the Redis bus only.
-- **Tenant-scoped**: every entry carries `tenantId`; `validateAndRelay` checks it against the socket's verified `auth.tenantId` (never client-supplied).
+- **Ephemeral**: the map lives in process memory only. A gateway restart drops
+  all entries — live calls fail cleanly; there are no stale cross-restart
+  entries.
+- **No DB writes**: V1 persists no `call_sessions` row (invariant 3 is not in
+  scope; the table lands in V1.1). Signaling is emitted to the Redis bus only.
+- **Tenant-scoped**: every entry carries `tenantId`; `validateAndRelay` checks
+  it against the socket's verified `auth.tenantId` (never client-supplied).
 
 ### 12.2 Silent-drop policy (no oracle)
 
-All validation failures in the `call.signal` and `call.release` paths produce a **silent drop** — the frame is discarded and no error frame is sent to the client. This covers:
+All validation failures in the `call.signal` and `call.release` paths produce a
+**silent drop** — the frame is discarded and no error frame is sent to the
+client. This covers:
 
 | Condition | Why silent |
 |---|---|
@@ -248,17 +353,27 @@ All validation failures in the `call.signal` and `call.release` paths produce a 
 | Malformed / invalid envelope shape | Prevents schema oracle |
 | Unauthenticated socket | Auth gate — not an error, silent return (not close) |
 
-Exception: **rate-limit exhaustion** sends `{ event:'error', data:{ message:'rate limited' } }` so the client can back off. This reveals no call state.
+Exception: **rate-limit exhaustion** sends `{ event:'error', data:{
+message:'rate limited' } }` so the client can back off. This reveals no call
+state.
 
 ### 12.3 Fire-and-forget relay (best-effort)
 
-Signaling frames are published to Redis and fanned to peer sockets with **no acknowledgement and no backfill**. If a frame is dropped (Redis down, peer socket gone), the call fails to connect — the **correct fail-closed mode**. The server never queues or retries frames. Rationale: queuing unboundedly would violate the ephemeral model and create a persistence surface; fail-fast is simpler and safer.
+Signaling frames are published to Redis and fanned to peer sockets with **no
+acknowledgement and no backfill**. If a frame is dropped (Redis down, peer
+socket gone), the call fails to connect — the **correct fail-closed mode**. The
+server never queues or retries frames. Rationale: queuing unboundedly would
+violate the ephemeral model and create a persistence surface; fail-fast is
+simpler and safer.
 
 ### 12.4 Crypto-blind relay (invariant 1)
 
-The `envelope` field in a `call.signal` frame is an opaque base64 MLS ciphertext (`CallCipherEnvelopeSchema.ciphertext`). The gateway:
+The `envelope` field in a `call.signal` frame is an opaque base64 MLS ciphertext
+(`CallCipherEnvelopeSchema.ciphertext`). The gateway:
 
-- **Forwards it verbatim** — only the `ciphertext` string crosses the Redis bus; `alg` and `epoch` from the inbound envelope are NOT included in the relayed event (they are routing metadata only, not needed by the peer).
+- **Forwards it verbatim** — only the `ciphertext` string crosses the Redis bus;
+  `alg` and `epoch` from the inbound envelope are NOT included in the relayed
+  event (they are routing metadata only, not needed by the peer).
 - **Never parses the inner signal** (offer/answer/ICE/hangup type is an encrypted discriminant).
 - **Never logs the envelope** — only IDs and metadata are logged.
 
@@ -270,22 +385,47 @@ The `envelope` field in a `call.signal` frame is an opaque base64 MLS ciphertext
 | Activity timeout | 90 s of silence | Both peers silent → `call.end{peer-gone}` |
 | Max duration | 90 min | Hard cap → `call.end{peer-gone}` |
 
-Server-issued `call.end` frames are fanned to the conversation room so both parties receive them. Client-initiated hangup travels **inside** the encrypted `call.signal` (a discriminant the server never reads); `call.release` carries only `{ callId }` and triggers only server-state cleanup — **no fan-out**.
+Server-issued `call.end` frames are fanned to the conversation room so both
+parties receive them. Client-initiated hangup travels **inside** the encrypted
+`call.signal` (a discriminant the server never reads); `call.release` carries
+only `{ callId }` and triggers only server-state cleanup — **no fan-out**.
 
 ---
 
 ## 14. Verification checklist (Definition of Done)
 
-- [x] *(shipped in this docs bundle)* This note lives at `docs/threat-models/voip-calling.md`; `docs/threat-models/vm-ingress.md` revised for the new ingress.
-- [x] *(shipped in this docs bundle)* **GDPR artifact bundle (Phase-0)**: `docs/gdpr/data-residency.md` (coturn relay row), `docs/gdpr/article-30-records.md` (new activity + peer-IP category + APNs/FCM sub-processor + 30-day retention row), `docs/threat-models/metadata-exposure.md` (call-graph / call-timing / relay-peer-IP rows), and **new** `docs/gdpr/dpia-voip-calling.md` (legal basis per activity).
-- [ ] `crypto-reviewer` has signed off the **new authenticated-sender decrypt path** in `packages/crypto` — this gate clears **before the first connecting call** (slice **P0-CRYPTO**).
+- [x] *(shipped in this docs bundle)* This note lives at
+  `docs/threat-models/voip-calling.md`; `docs/threat-models/vm-ingress.md`
+  revised for the new ingress.
+- [x] *(shipped in this docs bundle)* **GDPR artifact bundle (Phase-0)**:
+  `docs/gdpr/data-residency.md` (coturn relay row),
+  `docs/gdpr/article-30-records.md` (new activity + peer-IP category + APNs/FCM
+  sub-processor + 30-day retention row),
+  `docs/threat-models/metadata-exposure.md` (call-graph / call-timing /
+  relay-peer-IP rows), and **new** `docs/gdpr/dpia-voip-calling.md` (legal basis
+  per activity).
+- [ ] `crypto-reviewer` has signed off the **new authenticated-sender decrypt
+  path** in `packages/crypto` — this gate clears **before the first connecting
+  call** (slice **P0-CRYPTO**).
 - [ ] Banned-pattern grep proves no media/SDP/ICE/keys/TURN-creds in any log path.
-- [ ] coturn config reviewed by `infra-reviewer`: minimized logging, deny-internal, quotas, 600s time-limited creds, Key-Vault file secret; **compose healthcheck present**; coturn **uptime/health alert + runbook stub** landed as Phase-0 deliverables.
-- [ ] If/when the V1.1 `call_sessions` exists: `db-migration` skill output shows `tenant_id` + FORCE RLS `TO argus_app` + leading index + 30-day prune role; a `route-meta` controller spec pins guard/status.
-- [ ] Relay-only verified end-to-end (ICE emits relay candidates only); in V1.1 the direct-P2P opt-in shows the honest IP-exposure copy.
-- [ ] Friendship gate + per-socket `call.*` rate limit enforced server-side, with E2E coverage (`context.grantPermissions(['microphone'])` for audio V1; add `'camera'` with video in V1.1).
-- [ ] `crypto-reviewer` confirms no hand-rolled crypto and that any DTLS-fingerprint binding uses the MLS exporter only.
+- [ ] coturn config reviewed by `infra-reviewer`: minimized logging,
+  deny-internal, quotas, 600s time-limited creds, Key-Vault file secret;
+  **compose healthcheck present**; coturn **uptime/health alert + runbook stub**
+  landed as Phase-0 deliverables.
+- [ ] If/when the V1.1 `call_sessions` exists: `db-migration` skill output shows
+  `tenant_id` + FORCE RLS `TO argus_app` + leading index + 30-day prune role; a
+  `route-meta` controller spec pins guard/status.
+- [ ] Relay-only verified end-to-end (ICE emits relay candidates only); in V1.1
+  the direct-P2P opt-in shows the honest IP-exposure copy.
+- [ ] Friendship gate + per-socket `call.*` rate limit enforced server-side,
+  with E2E coverage (`context.grantPermissions(['microphone'])` for audio V1;
+  add `'camera'` with video in V1.1).
+- [ ] `crypto-reviewer` confirms no hand-rolled crypto and that any
+  DTLS-fingerprint binding uses the MLS exporter only.
 
 ---
 
-*Design rationale, comparative survey, and the full slice plan: [`docs/planning/voip/`](../planning/voip/) (00–09). This note is the canonical, in-tree threat model; the planning set is its origin and must be kept in sync when either changes.*
+*Design rationale, comparative survey, and the full slice plan:
+[`docs/planning/voip/`](../planning/voip/) (00–09). This note is the canonical,
+in-tree threat model; the planning set is its origin and must be kept in sync
+when either changes.*

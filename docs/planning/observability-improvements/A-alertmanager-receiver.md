@@ -6,9 +6,12 @@
 
 ## Problem
 
-The Alertmanager receiver is `null`. Every alert — API down, high error rate, p95 spike — fires into a void and is only visible inside the Alertmanager UI. No one is notified.
+The Alertmanager receiver is `null`. Every alert — API down, high error rate,
+p95 spike — fires into a void and is only visible inside the Alertmanager UI. No
+one is notified.
 
-Additionally, there are no alerts for Redis or Postgres being unavailable, meaning the database and cache can silently die without triggering anything.
+Additionally, there are no alerts for Redis or Postgres being unavailable,
+meaning the database and cache can silently die without triggering anything.
 
 ---
 
@@ -16,7 +19,8 @@ Additionally, there are no alerts for Redis or Postgres being unavailable, meani
 
 ### 1. `infra/stack/observability/alertmanager/alertmanager.yml`
 
-Replace the `null` receiver with a webhook receiver that reads the URL from a mounted secret:
+Replace the `null` receiver with a webhook receiver that reads the URL from a
+mounted secret:
 
 ```yaml
 receivers:
@@ -30,7 +34,8 @@ route:
   # ... rest of existing route config
 ```
 
-A Slack incoming webhook URL is the simplest option. PagerDuty, OpsGenie, or any webhook works.
+A Slack incoming webhook URL is the simplest option. PagerDuty, OpsGenie, or any
+webhook works.
 
 ### 2. `compose.prod.yaml`
 
@@ -102,7 +107,9 @@ Add these missing infrastructure alerts:
 
 ## Verification
 
-1. `docker compose exec alertmanager wget -qO- http://localhost:9093/api/v2/receivers` — should show the webhook receiver.
+1. `docker compose exec alertmanager wget -qO-
+   http://localhost:9093/api/v2/receivers` — should show the webhook receiver.
 2. In the Alertmanager UI (grafana.4rgus.com/-/alertmanager), trigger a test alert using the "Test" button.
 3. Confirm a notification appears in the webhook target (Slack, etc.).
-4. Stop Redis temporarily: `docker compose stop redis` — `RedisDown` should fire within 2 minutes and notify.
+4. Stop Redis temporarily: `docker compose stop redis` — `RedisDown` should fire
+   within 2 minutes and notify.

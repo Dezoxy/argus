@@ -1,34 +1,70 @@
 # DPIA — VoIP 1:1 Calling
 
-**Regulation**: GDPR Art. 35 (Data Protection Impact Assessment)
-**Controller**: Argus Secure Messaging (operator entity — fill in legal name)
-**DPO contact**: dpo@[operator-domain] (fill in)
-**Last updated**: 2026-06-24
-**Status**: assessed for **V1 (1:1 audio, relay-only, foreground-ring, single-device, ephemeral)**; V1.1 items (video, push-wake, missed-call ledger, direct-P2P opt-in, multi-device) are pre-assessed as *future* surface and re-confirmed before each ships.
+**Regulation**: GDPR Art. 35 (Data Protection Impact Assessment) **Controller**:
+Argus Secure Messaging (operator entity — fill in legal name) **DPO contact**:
+dpo@[operator-domain] (fill in) **Last updated**: 2026-06-24 **Status**:
+assessed for **V1 (1:1 audio, relay-only, foreground-ring, single-device,
+ephemeral)**; V1.1 items (video, push-wake, missed-call ledger, direct-P2P
+opt-in, multi-device) are pre-assessed as *future* surface and re-confirmed
+before each ships.
 
-> Companion documents: [`../threat-models/voip-calling.md`](../threat-models/voip-calling.md) (call/signaling threat model — source of truth), [`../threat-models/voip-turn.md`](../threat-models/voip-turn.md) (relay infra), [`article-30-records.md`](./article-30-records.md) (ROPA), [`data-residency.md`](./data-residency.md). This DPIA records the **legal basis per processing activity** and the residual-risk acceptance; the threat models carry the full technical analysis.
+> Companion documents:
+> [`../threat-models/voip-calling.md`](../threat-models/voip-calling.md)
+> (call/signaling threat model — source of truth),
+> [`../threat-models/voip-turn.md`](../threat-models/voip-turn.md) (relay
+> infra), [`article-30-records.md`](./article-30-records.md) (ROPA),
+> [`data-residency.md`](./data-residency.md). This DPIA records the **legal
+> basis per processing activity** and the residual-risk acceptance; the threat
+> models carry the full technical analysis.
 
 ---
 
 ## 1. Is a DPIA required?
 
-A DPIA is appropriate (not strictly mandated by the Art. 35(3) high-risk triggers, but warranted) because VoIP introduces **new categories of personal data** (transient peer IP addresses at a relay), a **real-time presence signal**, and the platform's **first public network ingress**. argus is privacy-first by design, so this DPIA documents that the new processing is **minimised and proportionate**, not high-risk. No special-category (Art. 9) data, no profiling, no automated decision-making, no large-scale systematic monitoring is involved.
+A DPIA is appropriate (not strictly mandated by the Art. 35(3) high-risk
+triggers, but warranted) because VoIP introduces **new categories of personal
+data** (transient peer IP addresses at a relay), a **real-time presence
+signal**, and the platform's **first public network ingress**. argus is
+privacy-first by design, so this DPIA documents that the new processing is
+**minimised and proportionate**, not high-risk. No special-category (Art. 9)
+data, no profiling, no automated decision-making, no large-scale systematic
+monitoring is involved.
 
 ## 2. Description of the processing
 
-1:1 calling lets two **accepted friends** place an end-to-end-encrypted audio call. Media is encrypted browser-to-browser (WebRTC DTLS-SRTP); the server and the self-hosted coturn relay are **crypto-blind** (they forward opaque ciphertext and hold no media key). Call **signaling** (SDP/ICE offer/answer) is encrypted inside the existing per-conversation MLS group and relayed as opaque ciphertext over the existing WebSocket gateway. By default (and the only V1 mode) media is forced through the relay so peers never learn each other's IP.
+1:1 calling lets two **accepted friends** place an end-to-end-encrypted audio
+call. Media is encrypted browser-to-browser (WebRTC DTLS-SRTP); the server and
+the self-hosted coturn relay are **crypto-blind** (they forward opaque
+ciphertext and hold no media key). Call **signaling** (SDP/ICE offer/answer) is
+encrypted inside the existing per-conversation MLS group and relayed as opaque
+ciphertext over the existing WebSocket gateway. By default (and the only V1
+mode) media is forced through the relay so peers never learn each other's IP.
 
 **Data flows and what each party sees:**
 - **Call media (audio):** E2EE; visible only to the two endpoints. Server/relay: never.
-- **Signaling (SDP/ICE):** E2EE (MLS); the server routes it as an opaque blob by server-verified `(tenant, sub)`. Server sees: that a signal flowed between two identities, and when.
-- **Relay 5-tuples (peer IPs):** processed transiently in coturn memory during the call; never logged or persisted.
-- **Call-routing metadata:** caller/callee identity + timing, observable to the operator in real time; **no durable record in V1**.
-- **TURN credential minting:** the api derives a 600s HMAC credential per call from a Key-Vault secret; the credential is secret-equivalent and never logged.
+- **Signaling (SDP/ICE):** E2EE (MLS); the server routes it as an opaque blob by
+  server-verified `(tenant, sub)`. Server sees: that a signal flowed between two
+  identities, and when.
+- **Relay 5-tuples (peer IPs):** processed transiently in coturn memory during
+  the call; never logged or persisted.
+- **Call-routing metadata:** caller/callee identity + timing, observable to the
+  operator in real time; **no durable record in V1**.
+- **TURN credential minting:** the api derives a 600s HMAC credential per call
+  from a Key-Vault secret; the credential is secret-equivalent and never logged.
 
 ## 3. Necessity & proportionality
 
-- **Necessity:** real-time calling inherently requires routing signaling between the two parties (call graph) and, for relay-only privacy, relaying media through a server that sees both IPs. These are the minimum needed to deliver the service.
-- **Proportionality / minimisation:** V1 **persists nothing** about calls (no ledger). Relay IPs are transient and unlogged. Push-wake and any durable missed-call metadata are deferred to V1.1, where they are content-free / 30-day-TTL respectively. No recording, transcription, or content analysis exists or can be added without breaking invariants 1 & 6. Self-hosting the relay keeps all metadata in the EU and avoids adding a third-party TURN sub-processor.
+- **Necessity:** real-time calling inherently requires routing signaling between
+  the two parties (call graph) and, for relay-only privacy, relaying media
+  through a server that sees both IPs. These are the minimum needed to deliver
+  the service.
+- **Proportionality / minimisation:** V1 **persists nothing** about calls (no
+  ledger). Relay IPs are transient and unlogged. Push-wake and any durable
+  missed-call metadata are deferred to V1.1, where they are content-free /
+  30-day-TTL respectively. No recording, transcription, or content analysis
+  exists or can be added without breaking invariants 1 & 6. Self-hosting the
+  relay keeps all metadata in the EU and avoids adding a third-party TURN
+  sub-processor.
 
 ## 4. Legal basis per processing activity
 
@@ -56,13 +92,25 @@ A DPIA is appropriate (not strictly mandated by the Art. 35(3) high-risk trigger
 
 ## 6. Data-subject rights
 
-- **Access / portability (Art. 15/20):** with no durable call log in V1, there is **nothing to export** for calls — the strongest posture. V1.1 missed-call metadata, if present, is included in the self-export.
-- **Erasure (Art. 17):** nothing to erase for calls in V1. V1.1 missed-call metadata self-expires at 30 days and is removed on account deletion.
+- **Access / portability (Art. 15/20):** with no durable call log in V1, there
+  is **nothing to export** for calls — the strongest posture. V1.1 missed-call
+  metadata, if present, is included in the self-export.
+- **Erasure (Art. 17):** nothing to erase for calls in V1. V1.1 missed-call
+  metadata self-expires at 30 days and is removed on account deletion.
 - **Rectification:** N/A (no stored call profile).
-- **Objection / restriction:** the user can simply not place/accept calls; unfriending removes the ability to be called.
+- **Objection / restriction:** the user can simply not place/accept calls;
+  unfriending removes the ability to be called.
 
 ## 7. Conclusion
 
-The V1 VoIP processing is **necessary, proportionate, and minimised**: E2EE media the server can't read, no call recording (a permanent non-goal), no durable call records, transient unlogged relay IPs, EU-only residency, and a friendship gate that limits who can call whom. **Residual risk is acceptable** for V1 subject to the hard gates already tracked in [`voip-calling.md`](../threat-models/voip-calling.md) §10 (authenticated-sender path before any connecting call; coturn hardening + availability alert; uniform ring timeout). This DPIA is **re-opened before each V1.1 activity** (video, push-wake, missed-call ledger, direct-P2P consent, multi-device) ships.
+The V1 VoIP processing is **necessary, proportionate, and minimised**: E2EE
+media the server can't read, no call recording (a permanent non-goal), no
+durable call records, transient unlogged relay IPs, EU-only residency, and a
+friendship gate that limits who can call whom. **Residual risk is acceptable**
+for V1 subject to the hard gates already tracked in
+[`voip-calling.md`](../threat-models/voip-calling.md) §10 (authenticated-sender
+path before any connecting call; coturn hardening + availability alert; uniform
+ring timeout). This DPIA is **re-opened before each V1.1 activity** (video,
+push-wake, missed-call ledger, direct-P2P consent, multi-device) ships.
 
 **Sign-off:** _pending human ratification (solo DPO/controller)._

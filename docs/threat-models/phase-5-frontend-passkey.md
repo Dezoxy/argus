@@ -6,9 +6,9 @@
 
 ## 1. Feature & Data Flow
 
-Phase 5 replaces the OIDC redirect with a passkey-first authentication UX and migrates the
-directory picker to argus-id exact-match search. No new server endpoints — all APIs were added
-in Phases 1–4.
+Phase 5 replaces the OIDC redirect with a passkey-first authentication UX and
+migrates the directory picker to argus-id exact-match search. No new server
+endpoints — all APIs were added in Phases 1–4.
 
 ### Auth boot flow (reload/restore)
 ```
@@ -65,8 +65,8 @@ New: GET /conversations/:id/members → returns { userId, argusId, displayName, 
 - **Refresh cookie**: HttpOnly + Secure + SameSite=Strict, scoped to the refresh path. Never
   readable by JS. CSRF protected by `X-Argus-Refresh` header.
 - **PRF output**: used transiently to derive the keystore-unlock key (HKDF). Never persisted.
-- **WebAuthn credential private key**: lives in the authenticator (hardware or platform TPM/Secure
-  Enclave). Never touches the application layer.
+- **WebAuthn credential private key**: lives in the authenticator (hardware or
+  platform TPM/Secure Enclave). Never touches the application layer.
 - **Message keys / keystore**: managed by `packages/crypto` + `keystore.ts`. The server never
   sees plaintext or key material — Phase 5 changes nothing about the E2EE layer.
 
@@ -86,8 +86,9 @@ New: GET /conversations/:id/members → returns { userId, argusId, displayName, 
 
 **Trust boundaries crossed:**
 1. **Browser → API** (HTTPS via Cloudflare Tunnel): bearer + refresh cookie.
-2. **JS context → WebAuthn authenticator**: credential creation/assertion. Client is fully
-   untrusted from the authenticator's view — the authenticator signs the challenge independently.
+2. **JS context → WebAuthn authenticator**: credential creation/assertion.
+   Client is fully untrusted from the authenticator's view — the authenticator
+   signs the challenge independently.
 3. **Client → server for peer resolution**: lookup is scoped to authenticated tenant members;
    directory now requires intentional sharing of one's argus-id (no browsable list).
 
@@ -145,11 +146,12 @@ New: GET /conversations/:id/members → returns { userId, argusId, displayName, 
 | 5 | Secrets from Key Vault | ✅ No new secrets in frontend; signing keys are backend (Phase 1) |
 | 6 | No admin path to content | ✅ Breakglass login screen leads to AdminPanel (metadata only) |
 
-**Tension note:** The PRF-derived key is computed in the browser JS context. There is no hardware
-isolation at the JS layer (unlike the authenticator). An XSS that runs before the keystore is
-unlocked and steals the PRF output could unlock the keystore in that session. Mitigated by:
-memory-only token (10-min window), SameSite=Strict cookie preventing cross-origin request
-exploitation, and CSP headers. This is the accepted residual risk of a PWA architecture.
+**Tension note:** The PRF-derived key is computed in the browser JS context.
+There is no hardware isolation at the JS layer (unlike the authenticator). An
+XSS that runs before the keystore is unlocked and steals the PRF output could
+unlock the keystore in that session. Mitigated by: memory-only token (10-min
+window), SameSite=Strict cookie preventing cross-origin request exploitation,
+and CSP headers. This is the accepted residual risk of a PWA architecture.
 
 ---
 

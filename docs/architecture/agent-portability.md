@@ -1,6 +1,8 @@
 # Agent Portability — Codex, Claude Code, and others
 
-argus is agent-neutral. The **rules** live in one file (`AGENTS.md`); the **hard guarantees** live in git hooks + CI, which run no matter which agent (or human) writes the code.
+argus is agent-neutral. The **rules** live in one file (`AGENTS.md`); the **hard
+guarantees** live in git hooks + CI, which run no matter which agent (or human)
+writes the code.
 
 ## One source of truth
 
@@ -21,7 +23,10 @@ Edit rules in **AGENTS.md only**. Never copy rules into CLAUDE.md — it imports
 | Destructive-command boundary | PreToolUse hooks + permissions (`.claude/settings.json`) | `approval_policy` + `sandbox_mode` (`~/.codex/config.toml`) | ⚠️ different mechanism, same outcome |
 | **Hard enforcement** | — | — | ✅ **lefthook + CI, identical for both** |
 
-The bottom row is the point: secrets scanning, lint, Semgrep, typecheck, tests (pre-commit/pre-push via lefthook) and the full CI security suite gate **every** commit regardless of agent. That's the real guarantee — the per-agent guardrails just catch issues earlier.
+The bottom row is the point: secrets scanning, lint, Semgrep, typecheck, tests
+(pre-commit/pre-push via lefthook) and the full CI security suite gate **every**
+commit regardless of agent. That's the real guarantee — the per-agent guardrails
+just catch issues earlier.
 
 ## Set up Codex
 
@@ -35,11 +40,16 @@ cp .codex/config.toml.example ~/.codex/config.toml   # then merge with any exist
 ln -s "$PWD/.codex/prompts/"*.md ~/.codex/prompts/
 ```
 
-Key Codex settings (in `~/.codex/config.toml`): `approval_policy = "on-request"` and `sandbox_mode = "workspace-write"` with `network_access = false` — together these require human approval before the destructive/networked commands that `AGENTS.md` lists, mirroring Claude Code's deny/ask hooks.
+Key Codex settings (in `~/.codex/config.toml`): `approval_policy = "on-request"`
+and `sandbox_mode = "workspace-write"` with `network_access = false` — together
+these require human approval before the destructive/networked commands that
+`AGENTS.md` lists, mirroring Claude Code's deny/ask hooks.
 
 ## Set up Claude Code
 
-CLAUDE.md, `.claude/agents`, `.claude/skills`, and `.claude/settings.json` are committed. After a fresh clone, open `/hooks` once (or restart) so the mid-session-added hooks activate.
+CLAUDE.md, `.claude/agents`, `.claude/skills`, and `.claude/settings.json` are
+committed. After a fresh clone, open `/hooks` once (or restart) so the
+mid-session-added hooks activate.
 
 ## Both tools, always
 

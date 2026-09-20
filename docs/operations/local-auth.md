@@ -1,8 +1,9 @@
 # Local auth (passkey)
 
-argus login is **passkey-only** — the API mints and verifies its own EdDSA session tokens; there is no
-external IdP. (Zitadel/OIDC was decommissioned in Phase 6 — see
-`docs/threat-models/phase-6-decommission.md`.) This doc covers running auth locally.
+argus login is **passkey-only** — the API mints and verifies its own EdDSA
+session tokens; there is no external IdP. (Zitadel/OIDC was decommissioned in
+Phase 6 — see `docs/threat-models/phase-6-decommission.md`.) This doc covers
+running auth locally.
 
 ## Bring up the stack
 
@@ -24,16 +25,18 @@ restart the API — fine for development. In production the key is delivered fro
 
 ## Two ways to log in locally
 
-1. **Demo mode (no real WebAuthn ceremony)** — the Playwright E2E suite runs this way
-   (`apps/web/playwright.config.ts` sets `VITE_DEMO_MODE=1`). To use it by hand, start the web dev server
-   with `VITE_DEMO_MODE=1 pnpm --filter @argus/web dev`. The client skips the passkey ceremony and the
-   protected API still requires a valid session token — good for UI work, not for exercising the real
-   WebAuthn path.
+1. **Demo mode (no real WebAuthn ceremony)** — the Playwright E2E suite runs
+   this way (`apps/web/playwright.config.ts` sets `VITE_DEMO_MODE=1`). To use it
+   by hand, start the web dev server with `VITE_DEMO_MODE=1 pnpm --filter
+   @argus/web dev`. The client skips the passkey ceremony and the protected API
+   still requires a valid session token — good for UI work, not for exercising
+   the real WebAuthn path.
 
 2. **Real passkey against a seeded invite code** — register the way a real user does:
-   - Create an invite code (admin-minted). With no admin UI session yet, insert one directly against the
-     dev DB, or use the breakglass admin login (`docs/threat-models/breakglass-admin.md`) once its hash is
-     provisioned, then mint a code via the admin panel.
+   - Create an invite code (admin-minted). With no admin UI session yet, insert
+     one directly against the dev DB, or use the breakglass admin login
+     (`docs/threat-models/breakglass-admin.md`) once its hash is provisioned,
+     then mint a code via the admin panel.
    - On `http://localhost:5173`, choose "I have a registration code", enter it, and create a passkey
      (your browser/OS authenticator; `WEBAUTHN_RP_ID=localhost` works for `localhost` origins).
    - Reload stays logged in via the HttpOnly refresh cookie.
@@ -41,8 +44,9 @@ restart the API — fine for development. In production the key is delivered fro
 ## Reset / troubleshooting
 
 - **`make reset`** wipes all data volumes and any local override `.env.local` files.
-- **API returns 401 on every route** → the access token expired or the API restarted (ephemeral dev key);
-  log in again. There is no OIDC env to configure.
-- **Passkey registration fails in the browser** → the WebAuthn RP ID must match the page origin. Locally
-  that is `localhost` (the `make api-dev` default); a non-localhost dev host needs `WEBAUTHN_RP_ID` set to
-  match.
+- **API returns 401 on every route** → the access token expired or the API
+  restarted (ephemeral dev key); log in again. There is no OIDC env to
+  configure.
+- **Passkey registration fails in the browser** → the WebAuthn RP ID must match
+  the page origin. Locally that is `localhost` (the `make api-dev` default); a
+  non-localhost dev host needs `WEBAUTHN_RP_ID` set to match.

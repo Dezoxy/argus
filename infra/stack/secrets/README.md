@@ -1,11 +1,14 @@
 # Key Vault → credential files (Slice 3)
 
-The boot-time step that turns Azure Key Vault secrets into on-VM **credential files**, using the VM's
-**Managed Identity** — no static credentials, nothing committed. This is the "separate fetch step" the
-backup/cleanup units already reference. Threat model: [`docs/threat-models/vm-secrets.md`](../../../docs/threat-models/vm-secrets.md).
+The boot-time step that turns Azure Key Vault secrets into on-VM **credential
+files**, using the VM's **Managed Identity** — no static credentials, nothing
+committed. This is the "separate fetch step" the backup/cleanup units already
+reference. Threat model:
+[`docs/threat-models/vm-secrets.md`](../../../docs/threat-models/vm-secrets.md).
 
-> **Status: build-only.** This provides the script + unit + wiring. Installing/enabling it on the VM (with the
-> real Key Vault name templated in) is the Slice-4 deploy (`az vm run-command`). Nothing here is deployed.
+> **Status: build-only.** This provides the script + unit + wiring.
+> Installing/enabling it on the VM (with the real Key Vault name templated in)
+> is the Slice-4 deploy (`az vm run-command`). Nothing here is deployed.
 
 ## How it works
 
@@ -14,12 +17,14 @@ boot ─▶ argus-secrets.service ─▶ fetch-keyvault-secrets.sh
           IMDS (Managed Identity) → token → Key Vault REST → /run/argus/secrets/<file>  (tmpfs, 0444 root, in a 0700 dir)
 ```
 
-`fetch-keyvault-secrets.sh` gets a Managed-Identity token from IMDS (`169.254.169.254`), reads each secret
-from `https://<vault>.vault.azure.net`, and writes it atomically to `/run/argus/secrets/` (tmpfs, `0444`
-root inside a `0700` root dir — `0444` so the non-root container users can read the bind-mounted Compose
-secrets; the `0700` dir is the confinement boundary). It logs secret **names + status only**, never values,
-and **fails closed** (any error exits non-zero;
-consumers `Requires=` this unit, so they don't start on a missing secret).
+`fetch-keyvault-secrets.sh` gets a Managed-Identity token from IMDS
+(`169.254.169.254`), reads each secret from `https://<vault>.vault.azure.net`,
+and writes it atomically to `/run/argus/secrets/` (tmpfs, `0444` root inside a
+`0700` root dir — `0444` so the non-root container users can read the
+bind-mounted Compose secrets; the `0700` dir is the confinement boundary). It
+logs secret **names + status only**, never values, and **fails closed** (any
+error exits non-zero; consumers `Requires=` this unit, so they don't start on a
+missing secret).
 
 ## Secrets it delivers
 
@@ -37,25 +42,31 @@ consumers `Requires=` this unit, so they don't start on a missing secret).
 | `argus-cleanup-db-password`     | `cleanup-db-password`              | `argus-attachment-cleanup` (`LoadCredential`) — `argus_cleanup` role |
 | `argus-b2-app-key`              | `b2-app-key`                       | `argus-db-backup` + `argus-attachment-cleanup` (`LoadCredential`) |
 
-> `database_url` MUST be the non-bypass **`argus_app`** DSN (`postgres://argus_app:<pw>@postgres:5432/argus`),
-> never the `argus` owner — least privilege so RLS/grants bind even off the `SET LOCAL ROLE` path. The owner
-> password (`argus-postgres-owner-password`) is for init + migrations only.
+> `database_url` MUST be the non-bypass **`argus_app`** DSN
+> (`postgres://argus_app:<pw>@postgres:5432/argus`), never the `argus` owner —
+> least privilege so RLS/grants bind even off the `SET LOCAL ROLE` path. The
+> owner password (`argus-postgres-owner-password`) is for init + migrations
+> only.
 >
-> `argus-session-signing-key` is the Ed25519 PKCS8 PEM key the API uses to sign passkey session JWTs. It is
-> **mandatory** — the fetch fails closed if it's absent, and the API will not boot without it. Generate it
-> ONCE: `openssl genpkey -algorithm ed25519 | openssl pkcs8 -topk8 -nocrypt -outform PEM`.
+> `argus-session-signing-key` is the Ed25519 PKCS8 PEM key the API uses to sign
+> passkey session JWTs. It is **mandatory** — the fetch fails closed if it's
+> absent, and the API will not boot without it. Generate it ONCE: `openssl
+> genpkey -algorithm ed25519 | openssl pkcs8 -topk8 -nocrypt -outform PEM`.
 >
-> `argus-backup-signing-key` is a separate Ed25519 PKCS8 PEM key the nightly DB-backup worker uses to **sign**
-> each backup object so restore can verify provenance (signed backups — BKP-2 follow-up). It is **mandatory**
-> for the same fail-closed reason. After creating it, derive and commit its **public** half to
-> `infra/backup/backup-verify.pub` (restore reads the verify key from git, not the bucket). See
-> [`infra/backup/README.md`](../../backup/README.md) §"Backup signing key".
+> `argus-backup-signing-key` is a separate Ed25519 PKCS8 PEM key the nightly
+> DB-backup worker uses to **sign** each backup object so restore can verify
+> provenance (signed backups — BKP-2 follow-up). It is **mandatory** for the
+> same fail-closed reason. After creating it, derive and commit its **public**
+> half to `infra/backup/backup-verify.pub` (restore reads the verify key from
+> git, not the bucket). See [`infra/backup/README.md`](../../backup/README.md)
+> §"Backup signing key".
 
 ### Deploy-time secrets (fetched by `deploy.sh`, NOT delivered to the running stack)
 
-The CD rollout (`infra/stack/deploy/deploy.sh`, Slice 4) fetches two extra secrets via the Managed Identity,
-uses them, and drops them — they are **never** written to `/run/argus/secrets` (least privilege: the running
-stack never holds a GitHub token or the DB owner DSN):
+The CD rollout (`infra/stack/deploy/deploy.sh`, Slice 4) fetches two extra
+secrets via the Managed Identity, uses them, and drops them — they are **never**
+written to `/run/argus/secrets` (least privilege: the running stack never holds
+a GitHub token or the DB owner DSN):
 
 | Key Vault secret name          | Used for                                                              |
 | ------------------------------ | -------------------------------------------------------------------- |
@@ -64,8 +75,9 @@ stack never holds a GitHub token or the DB owner DSN):
 
 ## Populate the vault (one-time, by you)
 
-The VM's Managed Identity has **Key Vault Secrets User** (read-only) from `infra/azure/terraform`. You set the
-values out-of-band — they never touch the repo:
+The VM's Managed Identity has **Key Vault Secrets User** (read-only) from
+`infra/azure/terraform`. You set the values out-of-band — they never touch the
+repo:
 
 ```bash
 KV="$(terraform -chdir=infra/azure/terraform output -raw key_vault_name)"
@@ -97,7 +109,8 @@ az keyvault secret set --vault-name "$KV" --name argus-ghcr-token            --v
 az keyvault secret set --vault-name "$KV" --name argus-migration-database-url --value 'postgres://argus:<owner-pw>@postgres:5432/argus'
 ```
 
-Set values **without a trailing newline** (the fetch strips one defensively, but `az ... --value` is exact).
+Set values **without a trailing newline** (the fetch strips one defensively, but
+`az ... --value` is exact).
 
 ## Install + enable (Slice-4 deploy does this)
 
@@ -119,8 +132,9 @@ Requires=argus-secrets.service
 After=argus-secrets.service
 ```
 
-and the Compose stack runs with the secrets dir pointed at the delivered files (the tunnel token is one of
-those files — cloudflared reads it via `TUNNEL_TOKEN_FILE`, so no token is exported into the process env):
+and the Compose stack runs with the secrets dir pointed at the delivered files
+(the tunnel token is one of those files — cloudflared reads it via
+`TUNNEL_TOKEN_FILE`, so no token is exported into the process env):
 
 ```bash
 export ARGUS_SECRETS_DIR=/run/argus/secrets
@@ -136,5 +150,6 @@ journalctl -u argus-secrets --no-pager   # names + status only — never a value
 ls -l /run/argus/secrets                 # 0444 root:root files in a 0700 root dir, on tmpfs
 ```
 
-Rotation: update the value in Key Vault, `systemctl restart argus-secrets` (re-runs the fetch, atomic
-overwrite), then restart the consuming service. Automated rotate-on-change is a later enhancement.
+Rotation: update the value in Key Vault, `systemctl restart argus-secrets`
+(re-runs the fetch, atomic overwrite), then restart the consuming service.
+Automated rotate-on-change is a later enhancement.

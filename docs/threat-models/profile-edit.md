@@ -7,9 +7,16 @@
 
 ## 1. What this feature does
 
-Allows an authenticated user to update their own `displayName` (a nickname validated by the hardened, shared `displayNameSchema` — see §7) and `avatarSeed` (a short non-PII token used client-side to pick a deterministic generated avatar via DiceBear). Neither field is sensitive. The feature replaces the old Zitadel-driven "display name collision retry" logic; names are now free nicknames, no longer unique per tenant.
+Allows an authenticated user to update their own `displayName` (a nickname
+validated by the hardened, shared `displayNameSchema` — see §7) and `avatarSeed`
+(a short non-PII token used client-side to pick a deterministic generated avatar
+via DiceBear). Neither field is sensitive. The feature replaces the old
+Zitadel-driven "display name collision retry" logic; names are now free
+nicknames, no longer unique per tenant.
 
-**Custom photo upload is currently disabled** in the UI (see §8): the avatar is always generated client-side from a non-PII seed, so no user-supplied image ever enters the app.
+**Custom photo upload is currently disabled** in the UI (see §8): the avatar is
+always generated client-side from a non-PII seed, so no user-supplied image ever
+enters the app.
 
 ---
 
@@ -36,13 +43,18 @@ IF NEW.argus_id IS DISTINCT FROM OLD.argus_id THEN
 END IF;
 ```
 
-This fires for ALL UPDATE statements on the `users` table, including `ON CONFLICT DO UPDATE` paths. `PUT /users/me` never includes `argus_id` in its SET clause, so the trigger never fires in normal operation.
+This fires for ALL UPDATE statements on the `users` table, including `ON
+CONFLICT DO UPDATE` paths. `PUT /users/me` never includes `argus_id` in its SET
+clause, so the trigger never fires in normal operation.
 
 ---
 
 ## 4. Display name uniqueness removal
 
-Migration 0038 drops `users_tenant_display_name_idx` (the unique index that made display names unique per tenant). Display names are now free nicknames — two users can share the same name. Identity is argus-id only. The collision-retry loop in `user.service.ts provisionFromToken()` is removed.
+Migration 0038 drops `users_tenant_display_name_idx` (the unique index that made
+display names unique per tenant). Display names are now free nicknames — two
+users can share the same name. Identity is argus-id only. The collision-retry
+loop in `user.service.ts provisionFromToken()` is removed.
 
 ---
 
@@ -71,14 +83,18 @@ Never log `displayName` or `avatarSeed` values in audit events.
 
 ## 7. Hardened display-name policy
 
-`displayName` is the only user-controlled free-text identity field, so it is validated by a single shared schema — `displayNameSchema` in `@argus/contracts` — enforced identically on the web form (`ProfileEdit`) and the API (`ZodValidationPipe(UpdateProfileSchema)`). The policy:
+`displayName` is the only user-controlled free-text identity field, so it is
+validated by a single shared schema — `displayNameSchema` in `@argus/contracts`
+— enforced identically on the web form (`ProfileEdit`) and the API
+(`ZodValidationPipe(UpdateProfileSchema)`). The policy:
 
 - **Trim**, then **collapse internal whitespace** runs to a single space.
 - **Length 2–32 characters.**
 - **Strict Latin allow-list**: letters `A–Za–z`, digits `0–9`, space, and `. _ - '` only.
 - **Reserved sentinels** (e.g. `breakglass-admin`) rejected, case-insensitively.
 
-Rationale — the allow-list is a *positive* filter, so by construction it rejects entire classes of abuse without enumerating them:
+Rationale — the allow-list is a *positive* filter, so by construction it rejects
+entire classes of abuse without enumerating them:
 
 | Attack | Why it fails |
 |--------|--------------|
@@ -90,12 +106,31 @@ Rationale — the allow-list is a *positive* filter, so by construction it rejec
 | Control characters / newlines | Not in the allow-list |
 | Length abuse / UI overflow | Capped at 32 |
 
-**Residual:** within-ASCII look-alikes (`rn` vs `m`, `0` vs `O`, `l` vs `1`) are still possible — full single-script/confusable enforcement is deferred. The canonical, non-spoofable identity remains the immutable `argus-id`; display names are a convenience label only. Auto-generated `<Adjective> <Animal>` handles always satisfy this policy (guarded by a test in `handle-words.spec.ts`).
+**Residual:** within-ASCII look-alikes (`rn` vs `m`, `0` vs `O`, `l` vs `1`) are
+still possible — full single-script/confusable enforcement is deferred. The
+canonical, non-spoofable identity remains the immutable `argus-id`; display
+names are a convenience label only. Auto-generated `<Adjective> <Animal>`
+handles always satisfy this policy (guarded by a test in
+`handle-words.spec.ts`).
 
 ---
 
 ## 8. Avatar upload deferral
 
-Custom avatar **photo upload is disabled** in the UI. The "Upload photo" control now shows a "coming soon" notice instead of opening a file picker; the avatar is always generated client-side (DiceBear). Custom photos were only ever stored client-side (the server holds at most a non-PII `avatarSeed`, never image bytes), so removing the entry point means **no _new_ user-supplied image can be added through the UI**. A custom photo persisted on a device *before* this change still loads from client storage and renders (sanitised by `safeAvatarSrc` — raster-data-URI allow-list + 120 KB cap, `apps/web/src/features/chat/seed.ts`); fully purging those would require clearing the persisted `avatar` on load. None of this is ever sent to or stored on the server.
+Custom avatar **photo upload is disabled** in the UI. The "Upload photo" control
+now shows a "coming soon" notice instead of opening a file picker; the avatar is
+always generated client-side (DiceBear). Custom photos were only ever stored
+client-side (the server holds at most a non-PII `avatarSeed`, never image
+bytes), so removing the entry point means **no _new_ user-supplied image can be
+added through the UI**. A custom photo persisted on a device *before* this
+change still loads from client storage and renders (sanitised by `safeAvatarSrc`
+— raster-data-URI allow-list + 120 KB cap,
+`apps/web/src/features/chat/seed.ts`); fully purging those would require
+clearing the persisted `avatar` on load. None of this is ever sent to or stored
+on the server.
 
-Security effect: eliminates the client-side image-decode/compression/canvas *intake* surface and any EXIF/metadata-in-photo exposure for new images until a properly reviewed upload pipeline (content scanning, metadata stripping, size/type enforcement) is designed. `avatarSeed` and the `PUT /me` schema are unchanged; this is a UI-only restriction, reversible when the feature is built.
+Security effect: eliminates the client-side image-decode/compression/canvas
+*intake* surface and any EXIF/metadata-in-photo exposure for new images until a
+properly reviewed upload pipeline (content scanning, metadata stripping,
+size/type enforcement) is designed. `avatarSeed` and the `PUT /me` schema are
+unchanged; this is a UI-only restriction, reversible when the feature is built.

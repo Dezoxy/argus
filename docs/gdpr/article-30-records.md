@@ -17,7 +17,9 @@
 | Processor (blob storage) | Backblaze B2 — EU (eu-central-003) |
 | Processor (error tracking) | GlitchTip — self-hosted on same VM |
 
-> **No external identity processor.** OIDC/Zitadel was decommissioned (#223, `phase-6-decommission.md`); authentication is now in-process passkey (WebAuthn) — there is no third-party or sub-processor for identity.
+> **No external identity processor.** OIDC/Zitadel was decommissioned (#223,
+> `phase-6-decommission.md`); authentication is now in-process passkey
+> (WebAuthn) — there is no third-party or sub-processor for identity.
 
 ---
 
@@ -53,11 +55,22 @@
 | Call peer IP address (VoIP) | Users | Source IP/port 5-tuple processed **transiently in memory** by the self-hosted coturn relay during a call | High (personal data; **never logged or persisted**) |
 | Call metadata (VoIP, V1.1) | Users | Caller/callee UUIDs, conversation ID, started/answered/ended timestamps — metadata only, no content, no SDP/keys | Low — **dormant in V1** (no `call_sessions` table ships until V1.1) |
 
-**Note on call peer IP**: relay 5-tuples are inherent to running a TURN relay and are **transient only** — coturn runs `simple-log` (no verbose), logs no credentials, and its logs are excluded from the long-term Loki store. No IP is written to the database. The relay is crypto-blind (relays opaque DTLS-SRTP, holds no media key). See `docs/threat-models/voip-turn.md`.
+**Note on call peer IP**: relay 5-tuples are inherent to running a TURN relay
+and are **transient only** — coturn runs `simple-log` (no verbose), logs no
+credentials, and its logs are excluded from the long-term Loki store. No IP is
+written to the database. The relay is crypto-blind (relays opaque DTLS-SRTP,
+holds no media key). See `docs/threat-models/voip-turn.md`.
 
-**Note on push subscriptions**: the full endpoint URL is a capability URL and must be treated as a credential. It is never returned in exports (only the first 40 chars are exported for identification). It is never logged.
+**Note on push subscriptions**: the full endpoint URL is a capability URL and
+must be treated as a credential. It is never returned in exports (only the first
+40 chars are exported for identification). It is never logged.
 
-**Note on legacy email / IdP columns**: the `users.email`, `users.external_identity_id`, and `tenant_invites.invitee_email` columns are retained in the schema but were **nulled out** by migration `0039_decommission_enterprise.sql`. Under passkey auth no email is collected at registration, and invites are **bearer-only** (the redeem path reads no email hint). These columns hold no personal data going forward.
+**Note on legacy email / IdP columns**: the `users.email`,
+`users.external_identity_id`, and `tenant_invites.invitee_email` columns are
+retained in the schema but were **nulled out** by migration
+`0039_decommission_enterprise.sql`. Under passkey auth no email is collected at
+registration, and invites are **bearer-only** (the redeem path reads no email
+hint). These columns hold no personal data going forward.
 
 ---
 
@@ -70,7 +83,8 @@
 | GlitchTip (self-hosted error tracking) | Stack traces, error metadata (no content, no tokens) | Same VM, EU, no third-party transfer |
 | Browser push services — Apple (APNs), Google (FCM), Mozilla autopush | **Content-free** push wake-ups (a `{type}` tag only — no caller, conversation, message text, or SDP). Selected per the subscriber's browser. Covers existing message-notification push; the VoIP **call-wake** branch is **V1.1** (V1 is foreground-ring only, sends no push). | Web Push protocol (RFC 8030); payloads carry no personal content. **Third-country note:** Apple/Google operate these services globally; argus minimizes by sending content-free pushes only. Tracked here as the named sub-processors for transparency. |
 
-No message content, call content, or media keys are transferred to third countries. Push wake-ups are content-free metadata only.
+No message content, call content, or media keys are transferred to third
+countries. Push wake-ups are content-free metadata only.
 
 ---
 
@@ -93,13 +107,29 @@ No message content, call content, or media keys are transferred to third countri
 
 ## 6. Technical and organisational security measures (Art. 30(1)(g))
 
-- **End-to-end encryption**: all message content is encrypted on-device using MLS before reaching the server. The server is crypto-blind.
-- **End-to-end encrypted calling (VoIP)**: 1:1 call media is encrypted browser-to-browser with WebRTC DTLS-SRTP; the self-hosted coturn relay forwards opaque ciphertext and holds no media key. Call signaling (SDP/ICE) rides inside MLS ciphertext. No call content or media key is ever accessible to the server or relay; no call recording exists. Relay peer-IPs are transient and unlogged.
-- **Encryption at rest**: Azure managed disk encryption (AES-256) for the VM volume; Backblaze server-side encryption for blobs.
+- **End-to-end encryption**: all message content is encrypted on-device using
+  MLS before reaching the server. The server is crypto-blind.
+- **End-to-end encrypted calling (VoIP)**: 1:1 call media is encrypted
+  browser-to-browser with WebRTC DTLS-SRTP; the self-hosted coturn relay
+  forwards opaque ciphertext and holds no media key. Call signaling (SDP/ICE)
+  rides inside MLS ciphertext. No call content or media key is ever accessible
+  to the server or relay; no call recording exists. Relay peer-IPs are transient
+  and unlogged.
+- **Encryption at rest**: Azure managed disk encryption (AES-256) for the VM
+  volume; Backblaze server-side encryption for blobs.
 - **Encryption in transit**: TLS 1.2+ enforced via Cloudflare Tunnel (no public ports).
-- **Access control**: per-tenant PostgreSQL Row-Level Security enforced for all tenant-scoped tables. No cross-tenant query path exists.
-- **Secrets management**: secrets delivered from Azure Key Vault via Managed Identity as credential files — never in environment variables or source code.
-- **Authentication**: passkey (WebAuthn) — the API mints and verifies its own EdDSA session tokens (no external IdP); access tokens are re-verified on every request (`auth.service.ts`).
-- **Audit logging**: security-relevant events (login, device registration, invite actions, admin actions) are logged with actor sub, event type, and IDs — never content. Retention is bounded to 90 days and enforced by the `argus-audit-prune` worker.
-- **Vulnerability management**: automated scanning via Semgrep, OSV, Trivy, Checkov, gitleaks, 42Crunch, CodeQL on every PR; nightly DAST.
-- **Erasure**: self-service account deletion (Art. 17) available via `DELETE /me`; messages are pseudonymized (sender → NULL), blobs deleted best-effort.
+- **Access control**: per-tenant PostgreSQL Row-Level Security enforced for all
+  tenant-scoped tables. No cross-tenant query path exists.
+- **Secrets management**: secrets delivered from Azure Key Vault via Managed
+  Identity as credential files — never in environment variables or source code.
+- **Authentication**: passkey (WebAuthn) — the API mints and verifies its own
+  EdDSA session tokens (no external IdP); access tokens are re-verified on every
+  request (`auth.service.ts`).
+- **Audit logging**: security-relevant events (login, device registration,
+  invite actions, admin actions) are logged with actor sub, event type, and IDs
+  — never content. Retention is bounded to 90 days and enforced by the
+  `argus-audit-prune` worker.
+- **Vulnerability management**: automated scanning via Semgrep, OSV, Trivy,
+  Checkov, gitleaks, 42Crunch, CodeQL on every PR; nightly DAST.
+- **Erasure**: self-service account deletion (Art. 17) available via `DELETE
+  /me`; messages are pseudonymized (sender → NULL), blobs deleted best-effort.
