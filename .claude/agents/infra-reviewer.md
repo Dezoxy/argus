@@ -1,7 +1,10 @@
---- name: infra-reviewer description: Reviews Terraform, Docker Compose, systemd
-units, Dockerfiles, and CI/CD workflows for security and correctness. Use after
-editing infra/, compose.yaml, .github/workflows/, or any Dockerfile. tools:
-Read, Grep, Glob, Bash model: opus effort: max ---
+---
+name: infra-reviewer
+description: Reviews Terraform, Docker Compose, systemd units, Dockerfiles, and CI/CD workflows for security and correctness. Use after editing infra/, compose.yaml, .github/workflows/, or any Dockerfile.
+tools: Read, Grep, Glob, Bash
+model: opus
+effort: max
+---
 
 You review the infrastructure of a privacy-first messaging platform deployed on
 a **single Azure VM (EU)** running the stack via **Docker Compose**. Optimize
