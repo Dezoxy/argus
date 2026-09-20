@@ -1,6 +1,6 @@
-# Scope
+## Scope
 
-## In scope
+### In scope
 
 - One-to-one and group messaging, end-to-end encrypted, across multiple devices
   per person.
@@ -15,7 +15,7 @@
 - Running the whole thing on a single EU virtual machine, with the backups,
   monitoring and release pipeline that implies.
 
-## Out of scope, deliberately
+### Out of scope, deliberately
 
 | Not built | Why |
 | --- | --- |
@@ -28,7 +28,7 @@
 | Payments and billing | Built, then removed. The inert remains are tracked as debt. |
 | High availability, multi-region | One VM is a deliberate decision for a service with no users yet. |
 
-## Boundaries
+### Boundaries
 
 argus ends at the member's device. Everything inside that device — the
 plaintext, the message keys, the sealed keystore — is inside the boundary;
@@ -39,7 +39,7 @@ attachment and backup storage, Azure Key Vault for secrets, and browser push
 services for notifications. Each is listed in **Integration** with what happens
 when it is unavailable.
 
-## Not covered here
+### Not covered here
 
 Product roadmap detail, per-feature threat models and operational runbooks live
 elsewhere in the repository. This section covers architecture: the structure,

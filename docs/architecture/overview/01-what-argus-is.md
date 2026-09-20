@@ -1,4 +1,4 @@
-# What argus is, and what it guarantees
+## What argus is, and what it guarantees
 
 argus is a private messenger. You join only by redeeming a code an
 administrator minted for you, and from then on you sign in with a passkey —
@@ -15,7 +15,7 @@ server, read its disks and took its backups, they would obtain ciphertext.
 
 ![Context view: who uses argus and which outside services it depends on](embed:SystemContext)
 
-## What it does not protect
+### What it does not protect
 
 **Metadata.** The server must know who to deliver a message to, so it knows who
 is talking to whom, when, and roughly how much. That is protected by access
@@ -25,7 +25,7 @@ promise, and it is written down as a risk rather than glossed over.
 If you need to hide *that* you are talking to someone, and not only *what* you
 said, argus is not the right tool.
 
-## What you lose if you lose your devices
+### What you lose if you lose your devices
 
 Everything. There is no password reset and no way for the operator to restore
 your history, because building one would mean the server holding something that
@@ -34,7 +34,7 @@ could open your messages — which is precisely what the guarantee above forbids
 The answer is to register a second device before you need it. That is not a
 workaround; it is the recovery mechanism.
 
-## Who uses it
+### Who uses it
 
 - **Members** send messages, join groups, share encrypted attachments and make
   1:1 audio calls.
@@ -45,13 +45,13 @@ workaround; it is the recovery mechanism.
 - **Operators** watch dashboards and error reports, reaching them through a
   separate identity gate rather than through an argus account.
 
-## What happens when you send a message
+### What happens when you send a message
 
 Six steps, and every one the server performs is on bytes it cannot interpret.
 
 ![Message flow view: sending one message, end to end](embed:MessageFlow)
 
-## How to read the rest
+### How to read the rest
 
 **Pick the path for your question rather than reading straight through.** Each
 one is short, embeds the diagrams that answer it, and links to the document

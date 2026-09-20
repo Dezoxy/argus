@@ -1,10 +1,10 @@
-# For operators
+## For operators
 
 A reading path for someone running this: how a change reaches the machine,
 what watches it, what maintains it, and what to do when the machine is gone.
 Four stops.
 
-## How a change reaches the machine
+### How a change reaches the machine
 
 A version tag builds both images, scans them, generates a bill of materials and
 signs them. The machine pulls by digest and **verifies the signature before
@@ -17,7 +17,7 @@ release. There is no SSH — the rollout runs through the cloud control plane.
 
 - [Deployment](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/deployment/deployment-architecture.md)
 
-## What watches it
+### What watches it
 
 Twelve containers watch six. Metrics, logs, traces, profiles and errors all
 land in stores an operator reaches through Grafana, behind an identity gate at
@@ -32,7 +32,7 @@ the machine stops, so does everything that would tell you.
 - [Observability](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/observability/observability-architecture.md)
 - [TD-004](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/risks/technical-debt.md): the missing off-host check
 
-## What maintains it
+### What maintains it
 
 Four scheduled jobs run as native systemd units rather than containers,
 reaching the database over the container's local socket because no database
@@ -47,7 +47,7 @@ use.
 
 - [Data](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/data/data-architecture.md): retention, per class
 
-## When the machine is gone
+### When the machine is gone
 
 Recovery is a rebuild and a restore, not a failover — that is a decision, not
 an oversight. The stack is deliberately cloud-agnostic and the experiment box

@@ -1,11 +1,11 @@
-# For the CTO
+## For the CTO
 
 A reading path for someone judging whether the design holds: what is exposed,
 how the promise is enforced rather than asserted, what data exists in the
 clear, where it runs, and what fails together. Five stops, each with the
 decision behind it.
 
-## What is exposed, and where each way in is authenticated
+### What is exposed, and where each way in is authenticated
 
 There are three ways in and they are gated differently. Members and
 administrators arrive through Cloudflare over an outbound-only tunnel — **no
@@ -25,7 +25,7 @@ it.
 - [ADR 6: expose no inbound port except the call relay](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/decisions/0006-expose-no-inbound-port-except-the-relay.md)
 - [ADR 3: authenticate with passkeys only](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/decisions/0003-authenticate-with-passkeys-only.md)
 
-## How the promise is enforced rather than asserted
+### How the promise is enforced rather than asserted
 
 The server being unable to read messages is a property of where the keys live,
 not a policy someone follows. Every cryptographic operation happens on the
@@ -42,7 +42,7 @@ to run that attack.
 - [ADR 4: store no recoverable secret on the server](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/decisions/0004-store-no-recoverable-secret-on-the-server.md)
 - [QA-01](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/requirements/quality-attributes.md): a full host compromise must not disclose message content
 
-## What is in the clear, and what is not
+### What is in the clear, and what is not
 
 The honest split. Message bodies are opaque to the server. **Everything needed
 to route them is not**: display names, argus-ids, group membership, timings,
@@ -56,7 +56,7 @@ from client input.
 - [Data](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/data/data-architecture.md): every store, its classification, residency and retention
 - [RISK-001](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/risks/architecture-risks.md): metadata exposure, accepted and unmitigated in kind
 
-## Where it runs, and what fails together
+### Where it runs, and what fails together
 
 One virtual machine in an EU region runs everything — application, database,
 relay, and the twelve containers that watch them. They share a host and a
@@ -77,7 +77,7 @@ data — which is why both are modelled rather than one being labelled
 - [ADR 5: run on one VM with Docker Compose](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/decisions/0005-run-on-one-vm-with-docker-compose.md)
 - [RISK-004](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/risks/architecture-risks.md): the VM is a single point of failure
 
-## What is unproven
+### What is unproven
 
 Backups are encrypted to a key the machine does not hold, written to
 write-once storage that nobody — not the operator, not the provider — can

@@ -1,4 +1,4 @@
-# Glossary
+## Glossary
 
 Terms used throughout these documents, in the sense argus uses them.
 

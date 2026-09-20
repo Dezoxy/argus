@@ -1,10 +1,10 @@
-# For engineers
+## For engineers
 
 A reading path for someone about to change this code: what the pieces are,
 how the two flows that matter actually work, and the rules a change has to
 satisfy. Four stops.
 
-## The pieces, and which ones are not what they look like
+### The pieces, and which ones are not what they look like
 
 Two applications, two datastores, a relay and an ingress. Three things are
 easy to misread:
@@ -21,7 +21,7 @@ easy to misread:
 
 - [ADR 2: use MLS through the ts-mls library](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/decisions/0002-use-mls-through-ts-mls.md)
 
-## Sending a message
+### Sending a message
 
 Six steps. The thing to keep in mind while changing any of them: the server's
 entire job is to store and forward an envelope it cannot open. A feature that
@@ -29,7 +29,7 @@ needs the server to understand content is not a feature that can be built here.
 
 ![Message flow view: sending one message, end to end](embed:MessageFlow)
 
-## Starting a call
+### Starting a call
 
 Signalling travels as ciphertext over the **existing message socket** rather
 than a separate channel, and media never goes peer-to-peer: relay-only
@@ -38,7 +38,7 @@ neither party learns the other's address.
 
 ![Call setup view: establishing a 1:1 audio call](embed:CallSetup)
 
-## What a change has to satisfy
+### What a change has to satisfy
 
 The six invariants in [`AGENTS.md`](https://github.com/Dezoxy/secmes/blob/main/AGENTS.md)
 are the hard ones — a change that violates one is wrong even if it works. In

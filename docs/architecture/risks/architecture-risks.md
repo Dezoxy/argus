@@ -1,4 +1,4 @@
-# Architecture risks
+## Architecture risks
 
 Known ways this architecture can hurt, with what is already done about each and
 what exposure remains. A risk that is fully mitigated is closed and says so; a
@@ -14,7 +14,7 @@ risk that is accepted says that too, rather than pretending to be managed.
 | RISK-006 | Provider-side configuration — B2 bucket CORS, lifecycle rules, Object Lock retention — is applied by hand and is not in version control. | Moderate. Manual settings drift. | Runbooks describe the settings; a deploy-time check fails closed when the CSP and the bucket name disagree. | A wrong Object Lock retention is unforgiving: in Compliance mode nobody, including the provider, can shorten it. A mis-set value is paid for in storage for the full period. | Open |
 | RISK-007 | Dependency vulnerabilities go unaddressed because the security gate is permanently red. | Observed. The OSV scan had failed on `main` continuously, reporting 17 packages affected by 41 advisories. | Cleared: every advisory had a fix within the same major, applied as advisory floors in `pnpm-workspace.yaml` plus one dev-dependency bump. Nothing was ignored or deferred. | The gate is only as good as the next scan. It stays green by being fixed promptly, not by being silenced: `osv-scanner.toml` still allow-lists nothing, so a new advisory fails CI again. | Closed |
 
-## The honest summary
+### The honest summary
 
 The content-privacy story is strong and structural. The **availability** story is
 weak and known: one VM, no failover, and a restore path that has never been

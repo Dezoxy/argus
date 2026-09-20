@@ -1,6 +1,6 @@
-# Current state and where it is going
+## Current state and where it is going
 
-## Where it is now
+### Where it is now
 
 argus is **feature-complete and not yet in production**. That sentence needs
 both halves.
@@ -22,7 +22,7 @@ What is missing is not features. It is:
 - **Two external gates are open**: an independent cryptographic review and a
   penetration test. Neither can be self-served.
 
-## What the architecture would need next
+### What the architecture would need next
 
 In the order the risks argue for, not in the order of appeal. Clearing the
 dependency advisories was the first of these and is done: the `security`
@@ -36,7 +36,7 @@ satisfiable.
 | Arm the Azure track | — | A tagged release reaches the VM through the existing two gates, and the AWS box becomes what it claims to be: an experiment. |
 | Independent crypto review and pen test | [QA-01](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/requirements/quality-attributes.md) | Both reports received and their findings resolved. |
 
-## What is deliberately not on this list
+### What is deliberately not on this list
 
 - **High availability.** One VM is a decision ([ADR 5](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/decisions/0005-run-on-one-vm-with-docker-compose.md)),
   not an oversight. Clustering would be the wrong answer to a service with no

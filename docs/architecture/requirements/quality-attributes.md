@@ -1,4 +1,4 @@
-# Quality attributes
+## Quality attributes
 
 Measurable requirements, each written as a scenario rather than an adjective.
 "Secure" is not a requirement; "a full host compromise does not disclose message
@@ -17,7 +17,7 @@ evidence is a claim, not a result.
 | QA-05 | The attachment storage provider, or anyone who obtains that bucket, reads its contents. | They obtain ciphertext only. | Attachments are encrypted in the browser before upload; the API only mints presigned URLs. |
 | QA-06 | The VM is lost entirely. | Service is restored from backup rather than failed over. Recovery point is at most one nightly cycle. | Partial. The restore **procedure** was drilled on 2026-06-14 against PG16 — dump to a fresh cluster, verifying data, schema, every RLS policy and per-role grant, and it surfaced a real `pg_read_all_data` / `GRANTED BY` gap since fixed. What is unproven is the restore against the **actual production backup objects** in the armed environment, and the recovery **time**, which has never been measured. |
 
-## The one that is weakest
+### The one that is weakest
 
 QA-06. Backup coverage is good and the anti-tamper story is unusually strong,
 but an untested restore is a hypothesis. Until a restore is performed into a

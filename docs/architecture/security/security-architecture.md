@@ -1,4 +1,4 @@
-# Security architecture
+## Security architecture
 
 How the system is defended, in one place. [Trust boundaries](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/security/trust-boundaries.md)
 covers where control changes hands; this covers the controls themselves.
@@ -8,7 +8,7 @@ The six invariants a change must not violate live in
 binding rules, not aspirations, and a change that breaks one is wrong even if
 it works.
 
-## What is being defended, and from whom
+### What is being defended, and from whom
 
 | Asset | Protected from | By |
 | --- | --- | --- |
@@ -19,7 +19,7 @@ it works.
 | Backups | The storage provider, ransomware, a compromised host | `age` encryption to a key not on the host, Object Lock, a credential without delete, Ed25519 signatures |
 | Runtime secrets | Anything reading the filesystem or process table | Key Vault via Managed Identity, delivered as tmpfs credential files, never environment variables |
 
-## Authentication
+### Authentication
 
 **Members and administrators**: passkeys only. No password exists, so none can
 be phished, reused or leaked. Joining requires an invite code an admin minted.
@@ -36,7 +36,7 @@ exists.
 jobs reach the database over the container's local socket, not over a
 credentialed network path.
 
-## Authorization
+### Authorization
 
 Authorization is checked at two layers, deliberately.
 
@@ -52,7 +52,7 @@ the control: it is enforced by the database rather than by application code, so
 a missed `WHERE` clause cannot leak across tenants — the database refuses
 rather than the query being careful.
 
-## Secrets
+### Secrets
 
 No secret is committed, and none reaches an environment variable. The delivery
 path — Key Vault to Managed Identity to tmpfs credential file — is a boundary
@@ -70,7 +70,7 @@ described as solved.
 A non-secret value may use environment configuration — an S3 access-key **id**
 rides in every presigned URL and is not a secret. The matching secret may not.
 
-## Exposure
+### Exposure
 
 The machine answers on the call-relay ports and nothing else. There is no 22,
 no 80, no 443. HTTP arrives only through an outbound tunnel the machine itself
@@ -80,7 +80,7 @@ CI asserts the shape this depends on: no Compose service publishes a host port,
 and exactly one service uses host networking. Those are executable assertions,
 not conventions.
 
-## Sensitive data in telemetry
+### Sensitive data in telemetry
 
 No signal may carry message content. Logs carry identifiers and metadata;
 traces carry spans, not payloads; error reports carry stack traces. Presigned
@@ -90,7 +90,7 @@ This is the invariant most likely to be broken by an ordinary, well-meant
 change — a debug line added during an incident — which is why it is enforced by
 review and by the pre-commit scanners rather than left to memory.
 
-## What this does not cover
+### What this does not cover
 
 - **Per-feature threat models** live in [`docs/security/threat-models/`](https://github.com/Dezoxy/secmes/blob/main/docs/security/threat-models/),
   one per feature, written before the code.
