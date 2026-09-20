@@ -85,7 +85,7 @@ activating things already designed.
 
 - 🟡 **Track 4 slice 2 implemented** (2026-06-21,
   [#290](https://github.com/Dezoxy/secmes/pull/290)) — the **threat-model note**
-  (`docs/threat-models/message-retention.md`), written before the code slices.
+  (`docs/security/threat-models/message-retention.md`), written before the code slices.
   Carries a `security-architect` + `crypto-reviewer` sign-off (both
   **PASS_WITH_CONDITIONS** — the design is validated against the code; the
   conditions are binding on slices 3–5 and recorded in the note's §7). No code.

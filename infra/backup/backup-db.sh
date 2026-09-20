@@ -11,7 +11,7 @@
 # lifecycle delete defers to Object Lock — it can never remove a still-locked backup. A partial/corrupt or
 # orphaned object is therefore left in place (it is age-ciphertext garbage, leaks nothing); the lifecycle rule
 # reaps it after the window, and the restore runbook skips it (size floor + timestamp pairing). See
-# infra/b2/README.md (operator runbook) and docs/threat-models/db-backup.md.
+# infra/b2/README.md (operator runbook) and docs/security/threat-models/db-backup.md.
 #
 # Security model:
 #   - Connects to Postgres as the least-privilege `argus_backup` role (migration 0015): READ-ONLY across all
@@ -38,7 +38,7 @@
 #     in-RAM property while transitively binding both objects by digest. Restore (slice 3) verifies the
 #     signature + the digests before decrypting, so a holder of the (delete-less) B2 key cannot substitute a
 #     forged dump. The signing key never enters env/argv (`openssl … -inkey <file>`). Honest limit: the signing
-#     key is on this host to sign nightly, so host-root can still forge — see docs/threat-models/db-backup.md
+#     key is on this host to sign nightly, so host-root can still forge — see docs/security/threat-models/db-backup.md
 #     §invariant-4. Standard primitives only (Ed25519 + SHA-256 via openssl/coreutils) — no hand-rolled crypto.
 #   - Logs object keys / sizes / counts / key fingerprints ONLY — never a secret, never a presigned URL, never plaintext.
 #

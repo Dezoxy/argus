@@ -74,7 +74,7 @@ interface BundleManifestFile {
 // value the SRI `integrity="sha384-…"` attrs carry) plus one deterministic build digest. Lets an auditor (and
 // the future security page, roadmap G7) verify "what bytes is my browser running". This is a CHECKSUM over
 // PUBLIC static artifacts — not message/key crypto and not a protocol — so it intentionally lives here, not in
-// `packages/crypto` (see docs/threat-models/code-delivery-integrity.md §4). No secrets enter the manifest;
+// `packages/crypto` (see docs/security/threat-models/code-delivery-integrity.md §4). No secrets enter the manifest;
 // `.json` is outside the PWA precache glob, so it stays network-fetched (always fresh).
 function bundleIntegrityManifestPlugin(): Plugin {
   return {
@@ -189,7 +189,7 @@ export default defineConfig({
     // spec's fix is import-map integrity, not yet broadly supported + collides with our inline-script CSP). That
     // gap is now CLOSED at the SW layer (CDI-1): the inline-sw-integrity post-build step bakes the sha384 map
     // into dist/sw.js and the SW fetch handler verifies those chunks. See sw.ts + scripts/inline-sw-integrity.mjs
-    // and docs/threat-models/code-delivery-integrity.md §6.
+    // and docs/security/threat-models/code-delivery-integrity.md §6.
     sri(),
     // Published bundle hash (#43): emits dist/bundle-manifest.json. Hashes assets read back from disk in
     // writeBundle, so it is order-independent of sri / vite-plugin-pwa.

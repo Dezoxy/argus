@@ -94,10 +94,10 @@ The *only* server changes the pivot needs; no invariant is relaxed.
   are settled in the Phase-1 `security-architect` pass before code.** Add the
   shape to `@argus/contracts`; pin route posture in a controller spec; refresh
   `openapi.json` + 42Crunch; threat-model note
-  `docs/threat-models/native-refresh-pop.md` before code.
+  `docs/security/threat-models/native-refresh-pop.md` before code.
 - **Contract hygiene.** Add/extend controller specs pinning `@Public`-vs-guard
   posture + status contract; refresh `apps/api/openapi.json`; run the 42Crunch
-  audit (target 90+). Write `docs/threat-models/native-push.md` mirroring
+  audit (target 90+). Write `docs/security/threat-models/native-push.md` mirroring
   `web-push.md`; append a T1 origin-allowlist note to `passkey-auth.md`.
 
 **Verification:** `security-boundary-auditor` (RLS, no token logging, no IDs in

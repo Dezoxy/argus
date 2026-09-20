@@ -10,7 +10,7 @@
 # (the attachment worker cannot set MDWE because AWS CLI v2 maps W+X memory; this worker runs no such binary).
 [Unit]
 Description=argus — prune expired audit events + auth sessions (retention enforcement)
-Documentation=https://github.com/Dezoxy/secmes/blob/main/docs/threat-models/audit-logging.md
+Documentation=https://github.com/Dezoxy/secmes/blob/main/docs/security/threat-models/audit-logging.md
 # The worker runs `docker compose exec` against the postgres container, so it needs the Docker daemon up —
 # order after it (and pull it up if idle) so a timer firing after a reboot, before Docker is ready, doesn't
 # fail. If Docker is genuinely down the exec fails and OnFailure= alerts.

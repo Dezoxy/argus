@@ -46,7 +46,7 @@ rules:
     severity: ERROR
     message: >
       In apps/api/src/auth the ONLY sanctioned vetted-crypto module is @noble/hashes/argon2 (the breakglass
-      admin-password hash; see docs/threat-models/breakglass-admin.md §invariant-4). Any other @noble/* or
+      admin-password hash; see docs/security/threat-models/breakglass-admin.md §invariant-4). Any other @noble/* or
       @hpke/* import here is hand-rolled crypto — route it through packages/crypto.
     paths:
       include: ['apps/api/src/auth/**']

@@ -187,7 +187,7 @@ export class KeyDirectoryService {
     });
 
     // Audit each successful claim (separate tx) so pool-drain attempts are detectable. Per-resource
-    // rate-limiting is deferred to checkpoint 46; see docs/threat-models/key-directory.md §3/§6.
+    // rate-limiting is deferred to checkpoint 46; see docs/security/threat-models/key-directory.md §3/§6.
     if (claimed) {
       await this.audit.record(auth.tenantId, {
         eventType: 'keydir.key_package_claimed',

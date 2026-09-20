@@ -10,7 +10,7 @@ x-json-log-labels: &json-log-labels
 # over compose.yaml (which is local-dev only and carries throwaway creds + MinIO + dev source mounts):
 #   docker compose -f compose.prod.yaml up -d
 #
-# Topology (see docs/threat-models/vm-ingress.md):
+# Topology (see docs/security/threat-models/vm-ingress.md):
 #   users ─HTTPS─▶ Cloudflare edge (TLS + WAF + rate-limit) ─tunnel─▶ cloudflared ─▶ caddy:8080
 #                  caddy serves the PWA + proxies /api,/ws → api:3000
 #   api ─▶ postgres / redis (internal Docker network, NO published ports) ; api ─▶ Backblaze B2 (egress)
@@ -26,9 +26,9 @@ x-json-log-labels: &json-log-labels
 # cloudflared tunnel token (TUNNEL_TOKEN_FILE → /run/secrets/tunnel_token; cloudflared >=2025.4.0 reads
 # --token-file / TUNNEL_TOKEN_FILE). No secret is delivered via a container env var, so none surfaces in
 # `docker inspect`. Slice 3 populates all of these from Key Vault via the VM's Managed Identity (systemd); see
-# docs/planning/roadmap/01-phase-0-platform-foundation.md (Phase 0 #8), docs/architecture/deploy.md, and .env.prod.example.
+# docs/planning/phases/01-phase-0-platform-foundation.md (Phase 0 #8), docs/architecture/deploy.md, and .env.prod.example.
 # AUTH: login is passkey-only — the API mints/verifies its own EdDSA session tokens (no external IdP).
-# Zitadel/OIDC was decommissioned in Phase 6 (docs/threat-models/phase-6-decommission.md).
+# Zitadel/OIDC was decommissioned in Phase 6 (docs/security/threat-models/phase-6-decommission.md).
 
 services:
   postgres:
@@ -116,7 +116,7 @@ services:
     # The API also listens on :9090 (METRICS_PORT) for the Prometheus scrape (checkpoint 47). NO published
     # port for it — /metrics is UNAUTHENTICATED by design and its entire authz story is "internal network
     # only": never add a `9090:` host-port mapping here, and never route it through Caddy. Prometheus (Slice B)
-    # scrapes api:9090 over the internal network. See docs/threat-models/observability.md.
+    # scrapes api:9090 over the internal network. See docs/security/threat-models/observability.md.
     image: ${ARGUS_API_IMAGE:-argus-api:local}
     restart: unless-stopped
     environment:
@@ -138,7 +138,7 @@ services:
       # The DSN is delivered as a mounted file (sentry_dsn Docker secret, sourced from Key Vault as
       # argus-sentry-dsn). The fetch script seeds an EMPTY file on first boot; the api stays disabled
       # until the operator provisions the DSN in Key Vault after the GlitchTip UI is up (see .env.prod.example).
-      # Events are default-deny scrubbed before send (docs/threat-models/error-tracking.md).
+      # Events are default-deny scrubbed before send (docs/security/threat-models/error-tracking.md).
       SENTRY_DSN_FILE: /run/secrets/sentry_dsn
       SENTRY_RELEASE: ${IMAGE_TAG:-}
       # --- Secrets are delivered as FILES, never env (invariant #5) ---
@@ -176,7 +176,7 @@ services:
       # Access app's AUD tag are public, like FRONTEND_ORIGIN). When BOTH are set, the API verifies the
       # Cf-Access-Jwt-Assertion signature on /auth/breakglass/* and /admin/* (defense in depth behind the
       # Caddy edge gate). Unset/empty = no-op (dev / before the Access app is created). See .env.prod.example
-      # + docs/architecture/deploy.md + docs/threat-models/admin-access-gating.md.
+      # + docs/architecture/deploy.md + docs/security/threat-models/admin-access-gating.md.
       CF_ACCESS_TEAM_DOMAIN: ${CF_ACCESS_TEAM_DOMAIN:-}
       CF_ACCESS_AUD: ${CF_ACCESS_AUD:-}
       # Distributed tracing (Track 2) — non-secret internal addresses, safe in env (invariant #5).
@@ -294,7 +294,7 @@ services:
   #     model and making every abuse log point at the Docker gateway. Host networking is the standard
   #     way to run coturn in containers. The NSG (infra/azure/terraform + infra/aws/terraform) is the
   #     sole port gate; compose ports: are never used for coturn. compose-guard asserts zero ports AND
-  #     exactly one host-network service (coturn). See docs/threat-models/vm-ingress.md + voip-turn.md.
+  #     exactly one host-network service (coturn). See docs/security/threat-models/vm-ingress.md + voip-turn.md.
   #   entrypoint wrapper — resolves external-ip from IMDS (AWS IMDSv2 → Azure IMDS → env override) and
   #     injects the HMAC shared secret from the Docker secret file; turnserver has no *_FILE env support.
   # DO NOT force-recreate coturn during routine deploys — a recreate drops every active relayed call.
@@ -351,7 +351,7 @@ services:
   # visualises them (behind Cloudflare Access on grafana.4rgus.com); Alertmanager routes alerts. Pin images
   # (Dependabot-tracked); verify tags before first deploy. Config files are bind-mounted read-only from the
   # repo tree deploy.sh stages into /opt/argus. NO published ports — only Grafana is reachable, via Caddy +
-  # Access. Threat model: docs/threat-models/observability.md.
+  # Access. Threat model: docs/security/threat-models/observability.md.
   prometheus:
     <<: *json-log-labels
     image: prom/prometheus:v3.6.0
@@ -448,7 +448,7 @@ services:
   # Loki — centralized log store (roadmap #47b). INTERNAL ONLY (no published port, no auth — same posture as
   # Prometheus), queried by Grafana over the internal network. Non-root (image default uid 10001), read-only
   # FS + tmpfs, filesystem storage on a named volume; 7-day retention. Verify/refresh the image tag at arming.
-  # Threat model: docs/threat-models/centralized-logs.md.
+  # Threat model: docs/security/threat-models/centralized-logs.md.
   loki:
     <<: *json-log-labels
     image: grafana/loki:3.5.1
@@ -475,7 +475,7 @@ services:
   # /var/lib/docker/containers — NO Docker socket (a socket mount is daemon-root-equivalent). Runs as uid 0
   # ONLY to read the root:root 0640 logs; cap_drop:[ALL] + read-only rootfs + the read-only log mount + no
   # socket bound it (it can read logs and nothing more). Pushes to Loki over the internal network; no published
-  # port. The config scrubs secret-shaped values as defense-in-depth. See docs/threat-models/centralized-logs.md.
+  # port. The config scrubs secret-shaped values as defense-in-depth. See docs/security/threat-models/centralized-logs.md.
   alloy:
     <<: *json-log-labels
     image: grafana/alloy:v1.16.3
@@ -514,7 +514,7 @@ services:
   # Grafana Tempo — distributed trace backend (Track 2). OTLP receivers on :4317 (gRPC) and :4318 (HTTP),
   # internal-only (no published ports). Grafana queries http://tempo:3200; the api sends spans to
   # http://tempo:4318 (OTEL_EXPORTER_OTLP_ENDPOINT above). 72-h block retention — traces are more
-  # ephemeral than logs. Threat model: docs/threat-models/structured-logging-and-tracing.md.
+  # ephemeral than logs. Threat model: docs/security/threat-models/structured-logging-and-tracing.md.
   tempo:
     <<: *json-log-labels
     image: grafana/tempo:2.9.0
@@ -635,7 +635,7 @@ services:
   # Access + GlitchTip's own auth. glitchtip-db never has a published port.
   # GlitchTip (Django) has no `_FILE` env support — secrets are read from files via the entrypoint wrapper.
   # DSN is provisioned post-arming (OPTIONAL secret argus-sentry-dsn); api is a no-op until then.
-  # See docs/threat-models/error-tracking.md.
+  # See docs/security/threat-models/error-tracking.md.
 
   glitchtip-db:
     <<: *json-log-labels
@@ -838,7 +838,7 @@ secrets:
     # Phase 3 Breakglass admin: JSON Argon2id hash blob for the emergency admin login. OPTIONAL — seeded
     # EMPTY until the operator runs `pnpm --filter @argus/api generate-admin-hash` and stores the result
     # in Key Vault as argus-admin-bootstrap-hash. Empty = /auth/breakglass/login returns 503; everything
-    # else is unaffected. See docs/threat-models/breakglass-admin.md.
+    # else is unaffected. See docs/security/threat-models/breakglass-admin.md.
     file: ${ARGUS_SECRETS_DIR:-./secrets}/admin_bootstrap_hash
   vapid_private_key:
     # VAPID private key for Web Push (OPTIONAL — seeded EMPTY until argus-vapid-private-key is provisioned in

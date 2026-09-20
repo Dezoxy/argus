@@ -7,7 +7,7 @@ import { z } from 'zod';
  * and the server MUST NOT log or attempt to interpret, any plaintext.
  * Only the fields below ever reach the backend in the clear — none of them
  * reveal message content. Never add a field that could carry plaintext or key
- * material here without a threat-model review under docs/threat-models/.
+ * material here without a threat-model review under docs/security/threat-models/.
  */
 
 export const CipherEnvelopeSchema = z.object({
@@ -781,7 +781,7 @@ export type MeExport = z.infer<typeof MeExportSchema>;
 // Wire format for 1:1 E2EE calling. Specified ONCE, COMPLETE — including the V1.1 variants
 // (`call.renegotiate`, `media.video`, ICE-restart) — so the V1→V1.1 transition needs no contract
 // migration. In V1 (audio-only) clients never EMIT the V1.1 shapes; a V1 client that RECEIVES one
-// ignores it (forward-compatible). See docs/threat-models/voip-calling.md and
+// ignores it (forward-compatible). See docs/security/threat-models/voip-calling.md and
 // docs/planning/voip/{02,04}.
 //
 // INVARIANT: the inner CallSignal (SDP/ICE/type) is E2EE and travels INSIDE

@@ -102,7 +102,7 @@ const tdStrict = new TextDecoder('utf-8', { fatal: true });
  * (genuine) blob under another name. NOTE: this reads the field; it does not by itself prove
  * authenticity against an adversary who can mint a self-signed KeyPackage for an arbitrary name —
  * cross-device identity authenticity is the key-directory + out-of-band fingerprint job (checkpoint 20,
- * see docs/threat-models/key-directory.md). Throws on a non-Basic credential (v1 issues Basic only) or
+ * see docs/security/threat-models/key-directory.md). Throws on a non-Basic credential (v1 issues Basic only) or
  * malformed identity bytes.
  */
 export function deviceIdentity(keys: DeviceKeys): string {
@@ -294,7 +294,7 @@ export interface GroupMember {
  *
  * ⚠️ Scope: proves *intra-group* sender authenticity ("signed by the holder of leaf N's key").
  * Whether leaf N belongs to the expected real-world user is the key-directory + out-of-band
- * fingerprint job (`docs/threat-models/key-directory.md`).
+ * fingerprint job (`docs/security/threat-models/key-directory.md`).
  */
 export interface AuthenticatedMessage {
   plaintext: string;
@@ -537,14 +537,14 @@ export class Conversation {
    * ⚠️ IDENTITY BINDING: this wrapper does NOT verify that `memberPublicPackage` belongs to the
    * intended peer — ts-mls' default `validateCredential` accepts any Basic credential. A malicious
    * server that mediates KeyPackage exchange could substitute keys (MITM). The caller MUST verify the
-   * KeyPackage out-of-band (fingerprint) per docs/threat-models/key-directory.md. Not reachable at
+   * KeyPackage out-of-band (fingerprint) per docs/security/threat-models/key-directory.md. Not reachable at
    * checkpoint 17 (no key directory yet); MUST-WIRE before checkpoint 19 mediates KeyPackage exchange.
    *
    * 2-PARTY SCOPE: the adder is the only existing member, so it applies the commit locally (the
    * returned `newState`) while the new member joins via the Welcome. Group chat (3+ members) and PCS
    * self-updates additionally require fanning out `commit.commit` to existing members + a
    * handshake-processing path to apply it — deferred with group chat (backlog B1). See
-   * docs/threat-models/mls-integration.md §5–6.
+   * docs/security/threat-models/mls-integration.md §5–6.
    */
   async addMember(memberPublicPackage: KeyPackage): Promise<ConversationInvite> {
     return this.run(async () => {
@@ -782,7 +782,7 @@ export class Conversation {
     if (result.kind !== 'applicationMessage') {
       // Do NOT advance state for a message this method doesn't handle (e.g. a handshake/commit).
       // Application messages only; handshake processing is a separate path for group chat / PCS
-      // self-updates (see docs/threat-models/mls-integration.md §5–6).
+      // self-updates (see docs/security/threat-models/mls-integration.md §5–6).
       throw new Error(`expected applicationMessage, got "${result.kind}"`);
     }
     // F6: decryptSenderData returns undefined when the SenderData AEAD MAC fails (wrong epoch

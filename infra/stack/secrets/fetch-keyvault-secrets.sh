@@ -4,7 +4,7 @@
 # Runs as a boot-time systemd oneshot (argus-secrets.service), BEFORE the Compose stack + the backup/cleanup
 # units. It is the "separate fetch step" the backup/cleanup units already reference: it materialises
 # /run/argus/secrets/* from Key Vault. The stack + workers then read those files (compose Docker secrets /
-# *_FILE env / systemd LoadCredential). See infra/stack/secrets/README.md + docs/threat-models/vm-secrets.md.
+# *_FILE env / systemd LoadCredential). See infra/stack/secrets/README.md + docs/security/threat-models/vm-secrets.md.
 #
 # Security model:
 #   - NO static credentials. The access token is minted by a platform machine identity scoped to
@@ -58,7 +58,7 @@ SECRETS=(
   "argus-glitchtip-secret-key=glitchtip_secret_key"
   # Phase 1 session tokens: Ed25519 signing key (PKCS8 PEM). Operator must generate and store this in Key Vault
   # before the first production deployment — an absent or empty key makes the API unbootable.
-  # See docs/threat-models/session-tokens.md §invariant-4 for key generation instructions.
+  # See docs/security/threat-models/session-tokens.md §invariant-4 for key generation instructions.
   "argus-session-signing-key=session_signing_key"
   # Signed DB backups (BKP-2 follow-up): Ed25519 signing key (PKCS8 PEM), delivered to the backup worker via
   # systemd LoadCredential. MANDATORY by design: a missing signing key hard-fails boot here rather than
@@ -66,7 +66,7 @@ SECRETS=(
   # whole-stack boot to a backup-only secret — acceptable because populate-keyvault.sh provisions it in the
   # same pass as every other mandatory secret, so they are never independently missing. Run populate-keyvault.sh
   # BEFORE deploying this change (idempotent skip-if-exists — no --rotate needed).
-  # Precedent for Ed25519-signing-outside-packages/crypto: docs/threat-models/session-tokens.md §invariant-4.
+  # Precedent for Ed25519-signing-outside-packages/crypto: docs/security/threat-models/session-tokens.md §invariant-4.
   "argus-backup-signing-key=backup-signing-key"
   # VoIP TURN relay (VoIP V1, PR 6/14 — P0-IS). All three MUST be in Key Vault before deploying this change:
   #   argus-turn-shared-secret — provisioned by populate-keyvault.sh (generated HMAC secret, 32 chars).
@@ -93,13 +93,13 @@ OPTIONAL_SECRETS=(
   # Phase 3 Breakglass admin: Argon2id hash (JSON) for the emergency admin login. Seeded EMPTY until
   # the operator provisions it (`pnpm --filter @argus/api generate-admin-hash > /tmp/hash.json`, then
   # store the contents in Key Vault as argus-admin-bootstrap-hash). Absent = 503 on
-  # /auth/breakglass/login only; the rest of the API is unaffected. See docs/threat-models/breakglass-admin.md.
+  # /auth/breakglass/login only; the rest of the API is unaffected. See docs/security/threat-models/breakglass-admin.md.
   "argus-admin-bootstrap-hash=admin_bootstrap_hash"
   # VESTIGIAL (BKP-1 remediation): the backup/cleanup workers now connect to Postgres in-container over
   # local trust (docker compose exec), so these DB passwords are no longer consumed by anything. Kept here as
   # OPTIONAL (not mandatory) so an operator can safely delete them from Key Vault without bricking boot; the
   # role logins are password-less (deploy.sh 5b). Retire fully (and drop the KV secrets + populate-keyvault
-  # lines) in a follow-up. See docs/threat-models/db-backup.md §7.
+  # lines) in a follow-up. See docs/security/threat-models/db-backup.md §7.
   "argus-backup-db-password=backup-db-password"
   "argus-cleanup-db-password=cleanup-db-password"
   # Web push: VAPID private key. OPTIONAL — seeded empty until the operator provisions it in Key Vault.

@@ -81,7 +81,7 @@ export class BreakglassController {
    * Emergency admin login — validates the breakglass username + password (Argon2id), mints an
    * admin-role session, and sets an HttpOnly refresh cookie. Constant-time path: timing is
    * identical whether the username exists or not. Locks after 5 failures for 15 minutes.
-   * See docs/threat-models/breakglass-admin.md.
+   * See docs/security/threat-models/breakglass-admin.md.
    */
   @Post('login')
   @Public()

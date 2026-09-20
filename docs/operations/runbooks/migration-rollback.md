@@ -128,7 +128,7 @@ with a corrected image.
 > checkpoint above is what keeps that window to minutes instead of hours; if you
 > didn't take one, the most recent backup is last night's. Continuous PITR (WAL
 > archiving) is the enterprise-grade upgrade, noted in
-> `docs/threat-models/db-backup.md`.
+> `docs/security/threat-models/db-backup.md`.
 
 1. **Quiesce every DB writer — not just the API.** Stopping `api` alone isn't
    enough: the VM's systemd timers (attachment-cleanup, audit-prune, and the

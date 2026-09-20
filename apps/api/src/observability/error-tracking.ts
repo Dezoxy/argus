@@ -4,7 +4,7 @@ import * as Sentry from '@sentry/node';
 
 /**
  * Server-side error tracking (#48) — `@sentry/node`, DSN-GATED and DEFAULT-DENY scrubbed. See
- * docs/threat-models/error-tracking.md. The server stays crypto-blind on this path too: a shipped event
+ * docs/security/threat-models/error-tracking.md. The server stays crypto-blind on this path too: a shipped event
  * carries only error type/message/stack + route-TEMPLATE + opaque ids — NEVER message plaintext, MLS/session
  * /device keys, passphrases, auth tokens, full Authorization headers, cookies, request/response bodies, query
  * strings, or presigned URLs (invariant #2).

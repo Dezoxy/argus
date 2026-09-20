@@ -16,7 +16,7 @@ The six non-negotiable invariants in `AGENTS.md` (crypto-blind server, no secret
 logging, RLS on every tenant table, no hand-rolled crypto, secrets via Key
 Vault/Managed Identity, no admin path to content). Architecture:
 `docs/architecture/secure_messaging_platform_plan.md`. Existing decisions:
-`docs/threat-models/`.
+`docs/security/threat-models/`.
 
 ## Focus
 - E2EE trust boundaries and crypto-blind server design
@@ -28,7 +28,7 @@ Vault/Managed Identity, no admin path to content). Architecture:
 
 ## Rules
 - Read-only analysis. Do not edit files or implement code.
-- Read the relevant docs/threat-models and code before opining; cite file:line.
+- Read the relevant docs/security/threat-models and code before opining; cite file:line.
 - Name trade-offs explicitly (security, complexity, cost, migration pain) and
   make one decisive recommendation.
 - When reviewing a design or roadmap step, prioritize findings Critical / High /

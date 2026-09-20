@@ -18,4 +18,4 @@ A lightweight, written threat model done *before* coding. Keep it to one page.
 6. **Residual risk** — what remains and why it's acceptable for this phase.
 
 ## Output
-Write the note to `docs/threat-models/<feature>.md` and summarize the must-fix mitigations. If the feature conflicts with an invariant (e.g. a requested admin "read messages" feature vs. E2EE), stop and surface the conflict for an explicit product decision before coding.
+Write the note to `docs/security/threat-models/<feature>.md` and summarize the must-fix mitigations. If the feature conflicts with an invariant (e.g. a requested admin "read messages" feature vs. E2EE), stop and surface the conflict for an explicit product decision before coding.

@@ -3,7 +3,7 @@
 > **Status:** all 14 steps + F1–F6 follow-ups are **complete** and merged (PRs
 > #87–#146). This document stays the **canonical detail + standing rules** for
 > `apps/web`; it is anchored in the roadmap as checkpoint **`#44a`**
-> (`docs/planning/roadmap/README.md`, Phase 5). Update both together.
+> (`docs/planning/phases/README.md`, Phase 5). Update both together.
 
 > **For agentic workers:** Implement this plan task-by-task using the repo's
 > agent instructions and the tools available in your environment. Steps use
@@ -761,7 +761,7 @@ performance visibility.
 **Files:**
 
 - Modify: `apps/web/vite.config.ts`
-- Create: `docs/threat-models/frontend-observability.md`
+- Create: `docs/security/threat-models/frontend-observability.md`
 
 - [x] Add bundle size visibility.
 - [x] Keep route-level lazy loading where it reduces initial load without
@@ -782,7 +782,7 @@ pnpm --filter @argus/web build
 **Commit:**
 
 ```bash
-git add apps/web/vite.config.ts docs/threat-models/frontend-observability.md docs/planning/frontend-plan.md
+git add apps/web/vite.config.ts docs/security/threat-models/frontend-observability.md docs/planning/frontend-plan.md
 git commit -m "docs(web): document frontend hosting safety"
 ```
 

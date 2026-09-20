@@ -9,7 +9,7 @@ import {
   type OpenMetricsContentType,
 } from 'prom-client';
 
-// Prometheus instrumentation for the API (checkpoint 47, Slice A). Threat model: docs/threat-models/
+// Prometheus instrumentation for the API (checkpoint 47, Slice A). Threat model: docs/security/threat-models/
 // observability.md. CRITICAL: metrics describe traffic SHAPE only — counts, latencies, process stats. They
 // MUST NOT carry message content, keys, tokens, PII, raw paths, IDs, or query strings (invariants #1/#2).
 // Labels are a fixed low-cardinality set: HTTP method, the matched ROUTE TEMPLATE (e.g. /conversations/:id/

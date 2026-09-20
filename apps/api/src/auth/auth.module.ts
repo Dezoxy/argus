@@ -27,7 +27,7 @@ import { WebAuthnService } from './webauthn.service.js';
   providers: [
     // Phase 1 — self-minted session keys. Loaded once (SESSION_KEY_PAIR); both derived from the same
     // pair to avoid generating mismatched ephemeral keys in dev.
-    // See docs/threat-models/session-tokens.md §invariant-4 for the exception boundary.
+    // See docs/security/threat-models/session-tokens.md §invariant-4 for the exception boundary.
     { provide: SESSION_KEY_PAIR, useFactory: loadSessionKeys },
     {
       provide: SESSION_SIGNING_KEY,

@@ -4,7 +4,7 @@ The boot-time step that turns Azure Key Vault secrets into on-VM **credential
 files**, using the VM's **Managed Identity** — no static credentials, nothing
 committed. This is the "separate fetch step" the backup/cleanup units already
 reference. Threat model:
-[`docs/threat-models/vm-secrets.md`](../../../docs/threat-models/vm-secrets.md).
+[`docs/security/threat-models/vm-secrets.md`](../../../docs/security/threat-models/vm-secrets.md).
 
 > **Status: build-only.** This provides the script + unit + wiring.
 > Installing/enabling it on the VM (with the real Key Vault name templated in)

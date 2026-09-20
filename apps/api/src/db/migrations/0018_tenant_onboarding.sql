@@ -7,7 +7,7 @@
 --   2. users.role: admin / member distinction within a tenant.
 --   3. tenant_invites: admin-issued single-use invite tokens (hash-at-rest).
 --
--- See docs/threat-models/tenant-onboarding.md.
+-- See docs/security/threat-models/tenant-onboarding.md.
 
 -- ─── 1. user_tenant_index ────────────────────────────────────────────────────
 -- No RLS: this is a routing table, not tenant-scoped data. argus_app gets

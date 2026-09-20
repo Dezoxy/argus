@@ -4,7 +4,7 @@ import { randomInt } from 'node:crypto';
 // tenant. Family-friendly + positive. These set the POOL size only — uniqueness is GUARANTEED at the DB
 // (unique (tenant_id, display_name)) + regenerate-on-conflict in UserService, not by these lists.
 // TODO(scale): if a tenant approaches the 40k ceiling, add a numeric suffix or extend the lists (see
-// docs/threat-models/pseudonymous-identity.md §6). Both lists are asserted unique + length-200 in the spec.
+// docs/security/threat-models/pseudonymous-identity.md §6). Both lists are asserted unique + length-200 in the spec.
 
 export const HANDLE_ADJECTIVES = [
   'Able',

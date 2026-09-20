@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # argus — VM rollout, executed as root ON THE VM by `az vm run-command` (no SSH, no open port). cd.yml bundles
 # the exact-SHA repo infra files, ships them through the Azure control plane, unpacks them, and runs this from
-# the unpacked tree. Idempotent + fail-closed. See docs/architecture/deploy.md + docs/threat-models/vm-cd.md.
+# the unpacked tree. Idempotent + fail-closed. See docs/architecture/deploy.md + docs/security/threat-models/vm-cd.md.
 #
 # Sequence: install/refresh the secret-fetch unit → fetch secrets (Managed Identity → /run/argus/secrets) →
 # log in to GHCR + pull the signed images → bring up data services → run DB MIGRATIONS as the owner BEFORE
@@ -920,7 +920,7 @@ fi
 #         the keyId (B2_CORS_KEY_ID) is NON-secret env (like S3_ACCESS_KEY_ID), the key is the KV secret.
 #         Idempotent: read current, write only on drift, re-verify. Activated only when B2_CORS_KEY_ID is set
 #         (unset ⇒ feature not provisioned yet ⇒ skip with a log, mirroring the SKIP_* knobs — NOT a silent
-#         apply failure). See docs/threat-models/b2-cors-convergence.md. ---
+#         apply failure). See docs/security/threat-models/b2-cors-convergence.md. ---
 B2_CORS_KEY_ID="${B2_CORS_KEY_ID:-}"
 # ATTACHMENT_BUCKET is defined and bound to $S3_BUCKET pre-rollout near the top of this script (CSP-1) — by the
 # time the CORS-key restriction check below runs, it equals the bucket the API actually presigns against.

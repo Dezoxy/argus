@@ -31,7 +31,7 @@ the *only* asset with a non-trivial RPO — everything else is either in object
 storage, in Key Vault, or reproducible from git/Terraform. PITR (WAL archiving →
 restore-to-any-second) is the upgrade that takes the DB RPO to seconds; it is
 out of scope for the beta and noted in
-[db-backup.md](../../threat-models/db-backup.md).
+[db-backup.md](../../security/threat-models/db-backup.md).
 
 ## 2. What lives where (recovery-source map)
 
@@ -179,7 +179,7 @@ Recover the newest *authentic* version:
 
 This runbook orchestrates already-threat-modeled components; it introduces no
 new asset or trust boundary, so it adds no net-new threat model. The governing
-analysis is [db-backup.md](../../threat-models/db-backup.md) (client-side
+analysis is [db-backup.md](../../security/threat-models/db-backup.md) (client-side
 encryption, WORM Object Lock, signed backups, the freshness/anti-rollback
 anchor). Two recovery-time invariants to hold:
 

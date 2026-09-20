@@ -90,7 +90,7 @@ Hard rules. A change that violates one is wrong even if it "works".
 - `make docs` passes: no broken link, unindexed document, malformed ADR,
   view register disagreeing with `views.dsl`, or cited requirement ID no
   document defines. Model or ADR touched: `make check` too.
-- Security-relevant change: a short threat-model note under `docs/threat-models/`.
+- Security-relevant change: a short threat-model note under `docs/security/threat-models/`.
 - No secrets; no banned log patterns.
 
 ## Pull request flow

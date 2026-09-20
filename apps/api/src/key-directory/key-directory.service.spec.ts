@@ -171,7 +171,7 @@ describe.skipIf(!DB_URL)('KeyDirectoryService', () => {
     expect(afterNoop - afterEffective).toBe(0); // the no-op added none
   });
 
-  // ST-1 (docs/threat-models/session-tokens.md): a tenant-revoked member holding an unexpired access
+  // ST-1 (docs/security/threat-models/session-tokens.md): a tenant-revoked member holding an unexpired access
   // token must not mutate the key directory during the token's ≤10-min window. Every mutation resolves
   // the caller through requireUser (status = 'active'), so a revoked caller is rejected before any write.
   describe('revoked caller cannot mutate the key directory (ST-1)', () => {

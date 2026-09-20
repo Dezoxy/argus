@@ -1,6 +1,6 @@
 -- 0033_webauthn — WebAuthn passkey tables + users.email nullable + DEFAULT_TENANT_ID bootstrap.
 -- Phase 2 of the private-messenger redesign (private-messenger-redesign-plan.md:203-259).
--- Threat models: docs/threat-models/passkey-auth.md, docs/threat-models/registration-and-tenancy.md.
+-- Threat models: docs/security/threat-models/passkey-auth.md, docs/security/threat-models/registration-and-tenancy.md.
 
 -- webauthn_credentials: one row per registered passkey. FORCE RLS + leading tenant_id index (invariant #3).
 -- credential_id is globally unique (NOT tenant-scoped) — the authenticate step resolves a credential

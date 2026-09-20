@@ -144,7 +144,7 @@ an unapproved run cannot execute `az vm run-command`.
 >
 > Files: `packages/contracts/src/index.ts`, `apps/api/src/realtime/realtime.gateway.ts`,
 > `apps/web/src/lib/ws.ts`, `apps/web/src/features/chat/useLiveConversations.ts` (+ gateway/ws/classifier
-> specs), and threat-model notes in `docs/threat-models/realtime-delivery.md` / `metadata-exposure.md`.
+> specs), and threat-model notes in `docs/security/threat-models/realtime-delivery.md` / `metadata-exposure.md`.
 
 **Problem.** `apps/api/src/realtime/realtime.gateway.ts` fans out over Redis
 pub/sub (`redis-realtime-bus.ts`), which is fire-and-forget: a frame dropped on

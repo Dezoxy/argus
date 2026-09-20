@@ -106,7 +106,7 @@ UX affordance (spinner) for group ops. Does not block 1:1 messaging.
 This is the **DTLS-fingerprint MITM defense** for VoIP and a hard prerequisite
 for any connecting call (web *or* native). Today `decrypt()` returns a bare
 string with no sender identity. It is shared with the existing VoIP plan
-(`docs/threat-models/voip-calling.md`, R6).
+(`docs/security/threat-models/voip-calling.md`, R6).
 
 **Tasks**
 - Land the authenticated-sender decrypt path in `packages/crypto`.
@@ -147,7 +147,7 @@ capability probe*, not a three-vendor parity proof, and is
 **Exit criteria**
 - Wrap/unwrap round-trips behind a biometric gate; the wrapping key is provably
   non-exportable; the StrongBox/TEE tier is recorded per device class. Captured
-  in the new `docs/threat-models/native-keystore-unlock.md`.
+  in the new `docs/security/threat-models/native-keystore-unlock.md`.
 - Web keeps PRF **unchanged** — do **not** touch `prf.ts` / the web keystore.
 
 ### 4b — WebRTC relay + CallKit locked-device ring

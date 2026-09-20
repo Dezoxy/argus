@@ -39,7 +39,7 @@ export class AuthService {
    *
    * Single path (Phase 6): the only accepted token is our self-minted argus EdDSA JWT, verified with
    * our own key under strict iss/aud/alg. Any other token is rejected. The Zitadel JWKS fallback was
-   * removed when OIDC was decommissioned — see docs/threat-models/phase-6-decommission.md.
+   * removed when OIDC was decommissioned — see docs/security/threat-models/phase-6-decommission.md.
    */
   async verify(token: string): Promise<MaybeUnboundAuth> {
     let payload: Record<string, unknown>;

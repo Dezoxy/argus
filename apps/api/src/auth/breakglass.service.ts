@@ -1,5 +1,5 @@
 // Breakglass admin authentication — server-auth infrastructure.
-// See docs/threat-models/breakglass-admin.md for the full security analysis.
+// See docs/security/threat-models/breakglass-admin.md for the full security analysis.
 // @noble/hashes Argon2id is a pre-cleared exception to invariant #4 (same as jose for sessions);
 // permitted exclusively inside apps/api/src/auth/. See breakglass-admin.md §invariant-4.
 import { readFileSync } from 'node:fs';

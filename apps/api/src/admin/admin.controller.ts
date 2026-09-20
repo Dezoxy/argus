@@ -59,7 +59,7 @@ class AdminAuditResponseDto {
 // AdminGuard: verifies the Argus bearer JWT + session revocation + role='admin' in the tenant.
 // CF Access is NOT required here — regular admin users access this surface via the in-app settings
 // panel (Settings → Admin) without having gone through the breakglass CF Access flow.
-// See docs/threat-models/admin-access-gating.md.
+// See docs/security/threat-models/admin-access-gating.md.
 @UseGuards(AdminGuard)
 @Controller('admin')
 export class AdminController {

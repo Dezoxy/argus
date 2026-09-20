@@ -4,7 +4,7 @@
 //   read -rs BGPASS && printf '%s' "$BGPASS" | pnpm --filter @argus/api generate-admin-hash > /tmp/admin_hash.json
 //   export ADMIN_BOOTSTRAP_HASH_FILE=/tmp/admin_hash.json
 // WARNING: do NOT use  echo -n "password" |  — that exposes the password in process listings and shell history.
-// @noble/hashes is a pre-cleared invariant #4 exception; see docs/threat-models/breakglass-admin.md §invariant-4.
+// @noble/hashes is a pre-cleared invariant #4 exception; see docs/security/threat-models/breakglass-admin.md §invariant-4.
 import { randomBytes } from 'node:crypto';
 
 import { argon2idAsync } from '@noble/hashes/argon2.js';

@@ -657,7 +657,7 @@ state machine never transitions backward.
 > **CSPRNG only (invariant: no `Math.random`).** The signaling `nonce` uses
 > `crypto.randomUUID()` / `crypto.getRandomValues()`, consistent with the
 > crypto-review criteria and the existing CSPRNG audit
-> (`docs/threat-models/csprng-audit.md`). The `callId` is **server-minted**
+> (`docs/security/threat-models/csprng-audit.md`). The `callId` is **server-minted**
 > (§2.1) — the server uses a CSPRNG UUID, the client never generates it.
 
 ---
@@ -675,10 +675,10 @@ checklist. The four named files and what VoIP does to each:
 
 | File | Action | What VoIP adds |
 |---|---|---|
-| `docs/gdpr/data-residency.md` | **Revise** | Add a **coturn relay** row: relayed SRTP transits the EU VM; relay is the V1 default, so all default-user media touches it. No media content is decrypted or stored; only ephemeral relay allocations. |
-| `docs/gdpr/article-30-records.md` | **Revise** | New **processing activity** ("1:1 calling — signaling relay + TURN media relay"); new **personal-data category** (relay-observed peer IPs at the TURN allocation; call-graph/timing metadata); **APNs/FCM as sub-processor** (V1.1 push-wake); **retention row** = 30 days for the V1.1 `call_sessions` ledger (Q3 ruling). |
-| `docs/threat-models/metadata-exposure.md` | **Extend** | New rows: **call-graph** (server infers "A called B"), **call-timing** (start/duration via `call.invite`→`call.hangup` and `call.ice` cadence), **relay-peer-IP** (coturn sees both peers' transport addresses at allocation time). |
-| `docs/gdpr/dpia-voip-calling.md` | **Create** | New DPIA: **legal basis per activity** (signaling relay, TURN media relay, V1.1 push-wake, V1.1 metadata ledger), necessity/proportionality of relay-default, and the residual call-graph risk accepted under invariant 6. |
+| `docs/compliance/data-residency.md` | **Revise** | Add a **coturn relay** row: relayed SRTP transits the EU VM; relay is the V1 default, so all default-user media touches it. No media content is decrypted or stored; only ephemeral relay allocations. |
+| `docs/compliance/article-30-records.md` | **Revise** | New **processing activity** ("1:1 calling — signaling relay + TURN media relay"); new **personal-data category** (relay-observed peer IPs at the TURN allocation; call-graph/timing metadata); **APNs/FCM as sub-processor** (V1.1 push-wake); **retention row** = 30 days for the V1.1 `call_sessions` ledger (Q3 ruling). |
+| `docs/security/threat-models/metadata-exposure.md` | **Extend** | New rows: **call-graph** (server infers "A called B"), **call-timing** (start/duration via `call.invite`→`call.hangup` and `call.ice` cadence), **relay-peer-IP** (coturn sees both peers' transport addresses at allocation time). |
+| `docs/compliance/dpia-voip-calling.md` | **Create** | New DPIA: **legal basis per activity** (signaling relay, TURN media relay, V1.1 push-wake, V1.1 metadata ledger), necessity/proportionality of relay-default, and the residual call-graph risk accepted under invariant 6. |
 
 ---
 
@@ -787,7 +787,7 @@ is the signaling subset.
 | **P0 — authenticated-sender crypto** | V1 (Phase-0) | New `decryptAuthenticated()` + exporter-secret fingerprint binding in `packages/crypto`. **Hard predecessor of the first connecting call.** | `crypto-reviewer` pass; unit tests; csprng audit clean. |
 | **P0 — GDPR artifacts** | V1 (Phase-0) | The four-file bundle in §9 (revise `data-residency.md` + `article-30-records.md`, extend `metadata-exposure.md`, create `dpia-voip-calling.md`). | Phase-0 DoD checklist. |
 | **S1 — contracts** | V1 | Full `CallSignalSchema`, `CallEnvelopeSchema`, `CallSignalFrameSchema` in `@argus/contracts` (+ server-local mirror) with unit tests. Includes V1.1 variants for wire stability; V1 never emits them. | typecheck, test. |
-| **S2 — gateway relay** | V1 | `CallSignalEvent` on `RealtimeBus` (both impls); inbound `call.signal` handler with membership authz + rate limit + no-persist fan-out; **threat-model note** `docs/threat-models/call-signaling.md`. | gateway spec pinning authz; `security-boundary-auditor` pass. |
+| **S2 — gateway relay** | V1 | `CallSignalEvent` on `RealtimeBus` (both impls); inbound `call.signal` handler with membership authz + rate limit + no-persist fan-out; **threat-model note** `docs/security/threat-models/call-signaling.md`. | gateway spec pinning authz; `security-boundary-auditor` pass. |
 | **S3 — audio happy path** | V1 | `media-devices.ts` (audio), `useCall.ts` (idle→connected→ended), wire `ChatHeader` audio button, basic in-call UI. **Relay-only.** | E2E with granted mic (demo fake path). |
 | **S4 — establishment glare** | V1 | `resolveInviteGlare` tiebreak (§5.2), idempotency/replay unit tests. | E2E for glare; replay tests. |
 | **S5 — ICE-restart + reconnection** | **V1.1** | `reconnecting` state, `restartIce()`, `call.renegotiate(iceRestart)`. | E2E reconnect. |
@@ -806,7 +806,7 @@ Carried into [./06-threat-model-and-privacy.md](./06-threat-model-and-privacy.md
    `msgSeq` + fan-out timing let the server infer "a call happened, between
    these two members, for this long." Acceptable under invariant 6
    (metadata-only) but stated explicitly in
-   `docs/threat-models/metadata-exposure.md` (§9); consider whether `call.ice`
+   `docs/security/threat-models/metadata-exposure.md` (§9); consider whether `call.ice`
    cadence leaks anything beyond "call in progress."
 2. **Ring-spam / DoS.** A peer could fire repeated `call.invite`s. Rate-limit
    inbound `call.signal` per `(senderUserId, conversationId)` at the gateway

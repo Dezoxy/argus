@@ -2,11 +2,11 @@
 
 > **Status:** planning. This file is the **source of truth** for the VoIP threat
 > model. Per the engineering contract (`AGENTS.md` → Definition of Done), a
-> security-relevant feature requires a note under `docs/threat-models/`.
+> security-relevant feature requires a note under `docs/security/threat-models/`.
 > **Before any VoIP code lands, copy or symlink this file to
-> `docs/threat-models/voip-calling.md`** (and link it back here) so the boundary
+> `docs/security/threat-models/voip-calling.md`** (and link it back here) so the boundary
 > auditor and the 6-invariant gate have a canonical target. The existing
-> `docs/threat-models/vm-ingress.md` must also be revised — VoIP introduces the
+> `docs/security/threat-models/vm-ingress.md` must also be revised — VoIP introduces the
 > platform's first-ever public inbound port, which that note currently asserts
 > does not exist.
 >
@@ -173,7 +173,7 @@ and conveniently sidesteps the IP-to-peer threat entirely for the first release.
   → column, not a new table), inheriting `users` RLS automatically. Default is
   **`true`** (relay-only). *(Canonical column name per [08
   P0-SET](./08-roadmap-and-delivery-slices.md) and
-  `docs/threat-models/voip-calling.md` §6: `call_relay_only`.)*
+  `docs/security/threat-models/voip-calling.md` §6: `call_relay_only`.)*
 
 ---
 
@@ -190,10 +190,10 @@ vague "flag for the ROPA/DPIA." Name and ship all four:
 
 | Artifact | Action | What VoIP adds |
 |---|---|---|
-| `docs/gdpr/data-residency.md` | **Revise** | Add a **coturn relay** row: relay processes peer IP/port transiently, runs on the EU VM, never logs or persists IPs, no third-party TURN/egress out of region. |
-| `docs/gdpr/article-30-records.md` | **Revise** | Add VoIP as a **new processing activity**; add **peer IP address** as a personal-data category; add **APNs/FCM** as a sub-processor (V1.1 push-wake only); add the **retention row = 30 days** for the V1.1 `call_sessions` missed-call metadata ([09](./09-decision-log-and-open-questions.md) Q3). |
-| `docs/threat-models/metadata-exposure.md` | **Extend** | Add rows for **call-graph** (who-calls-whom via signaling routing), **call-timing/duration/frequency**, and **relay peer-IP** exposure — cross-referencing this note. |
-| `docs/gdpr/dpia-voip-calling.md` | **Create** | New DPIA recording the **legal basis per processing activity** (signaling routing, transient relay IP processing, V1.1 push-wake, V1.1 direct-P2P consent) and the DPIA-worthy items in §7.3. |
+| `docs/compliance/data-residency.md` | **Revise** | Add a **coturn relay** row: relay processes peer IP/port transiently, runs on the EU VM, never logs or persists IPs, no third-party TURN/egress out of region. |
+| `docs/compliance/article-30-records.md` | **Revise** | Add VoIP as a **new processing activity**; add **peer IP address** as a personal-data category; add **APNs/FCM** as a sub-processor (V1.1 push-wake only); add the **retention row = 30 days** for the V1.1 `call_sessions` missed-call metadata ([09](./09-decision-log-and-open-questions.md) Q3). |
+| `docs/security/threat-models/metadata-exposure.md` | **Extend** | Add rows for **call-graph** (who-calls-whom via signaling routing), **call-timing/duration/frequency**, and **relay peer-IP** exposure — cross-referencing this note. |
+| `docs/compliance/dpia-voip-calling.md` | **Create** | New DPIA recording the **legal basis per processing activity** (signaling routing, transient relay IP processing, V1.1 push-wake, V1.1 direct-P2P consent) and the DPIA-worthy items in §7.3. |
 
 ### 7.2 Residency, minimization & retention
 
@@ -318,13 +318,13 @@ State them plainly:
 
 ## 12. Verification checklist (Definition of Done)
 
-- [ ] This note copied/linked to `docs/threat-models/voip-calling.md`;
-  `docs/threat-models/vm-ingress.md` revised for the new ingress.
-- [ ] **GDPR artifact bundle (Phase-0)** complete: `docs/gdpr/data-residency.md`
-  (coturn relay row), `docs/gdpr/article-30-records.md` (new activity + peer-IP
+- [ ] This note copied/linked to `docs/security/threat-models/voip-calling.md`;
+  `docs/security/threat-models/vm-ingress.md` revised for the new ingress.
+- [ ] **GDPR artifact bundle (Phase-0)** complete: `docs/compliance/data-residency.md`
+  (coturn relay row), `docs/compliance/article-30-records.md` (new activity + peer-IP
   category + APNs/FCM sub-processor + 30-day retention row),
-  `docs/threat-models/metadata-exposure.md` (call-graph / call-timing /
-  relay-peer-IP rows), and **new** `docs/gdpr/dpia-voip-calling.md` (legal basis
+  `docs/security/threat-models/metadata-exposure.md` (call-graph / call-timing /
+  relay-peer-IP rows), and **new** `docs/compliance/dpia-voip-calling.md` (legal basis
   per activity).
 - [ ] `crypto-reviewer` has signed off the **new authenticated-sender decrypt
   path** in `packages/crypto` (it surfaces sender identity for the fingerprint

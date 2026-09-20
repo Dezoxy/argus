@@ -67,7 +67,7 @@ fi
 # that to our PRIVATE IP before the peer ACL runs, and turnserver.conf denies all of 10/8 (SSRF
 # guard), so the legitimate hairpin is refused with 403 unless we explicitly allow our own private
 # IP. We pair it with an explicit deny of our own PUBLIC IP to close self-public loopback
-# amplification (see docs/threat-models/voip-turn.md). allowed-peer-ip overrides denied-peer-ip for
+# amplification (see docs/security/threat-models/voip-turn.md). allowed-peer-ip overrides denied-peer-ip for
 # that exact /32; every other private range stays denied. Safety rests on no-tcp-relay (UDP only,
 # our own IP only). Resolved here, never hardcoded in the bind-mounted conf.
 PUB_IP="${EXT_IP%%/*}" # external-ip may be "pub" or "pub/priv"; the public half is before any "/"

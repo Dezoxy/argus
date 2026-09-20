@@ -28,7 +28,7 @@ resource "azurerm_subnet" "this" {
 }
 
 resource "azurerm_network_security_group" "this" {
-  # checkov:skip=CKV_AZURE_77: TURN relay requires UDP from the internet (0.0.0.0/0 on 3478, 5349, 49160-49260). coturn is a dumb DTLS-SRTP forwarder — it never sees plaintext or keys. Source restriction is not possible for a public relay. See docs/threat-models/voip-turn.md §Threat — Spoofing the origin.
+  # checkov:skip=CKV_AZURE_77: TURN relay requires UDP from the internet (0.0.0.0/0 on 3478, 5349, 49160-49260). coturn is a dumb DTLS-SRTP forwarder — it never sees plaintext or keys. Source restriction is not possible for a public relay. See docs/security/threat-models/voip-turn.md §Threat — Spoofing the origin.
   name                = "${var.prefix}-nsg"
   location            = azurerm_resource_group.this.location
   resource_group_name = azurerm_resource_group.this.name
@@ -39,7 +39,7 @@ resource "azurerm_network_security_group" "this" {
   # TURNS on 5349 (TLS), and allocates relay ports from the narrow 49160-49260/udp range.
   # The HTTP/WS origin (Caddy/api) has NO inbound rule and remains tunnel-only.
   # Source is 0.0.0.0/0: TURN peers are arbitrary internet clients; no source restriction is possible.
-  # See docs/threat-models/voip-turn.md §Threat — Spoofing the origin.
+  # See docs/security/threat-models/voip-turn.md §Threat — Spoofing the origin.
   security_rule {
     name                       = "allow-turn-3478-udp"
     priority                   = 100

@@ -16,7 +16,7 @@ jobs:
     # tests skip via describe.skipIf(!DATABASE_URL) — a gap that let tenant-isolation tests drift.
     services:
       postgres:
-        # SUP-1: digest-pinned (see docs/threat-models/supply-chain-ci.md). Keep in sync with dast.yml.
+        # SUP-1: digest-pinned (see docs/security/threat-models/supply-chain-ci.md). Keep in sync with dast.yml.
         image: postgres:16-alpine@sha256:e013e867e712fec275706a6c51c966f0bb0c93cfa8f51000f85a15f9865a28cb
         # CI-throwaway local DB: trust auth → no password literal to commit. `argus` is the service
         # superuser; the app code drops to the non-bypass `argus_app` role per transaction.
@@ -32,7 +32,7 @@ jobs:
           --health-timeout 3s
           --health-retries 12
       redis:
-        # SUP-1: digest-pinned (see docs/threat-models/supply-chain-ci.md). Keep in sync with dast.yml.
+        # SUP-1: digest-pinned (see docs/security/threat-models/supply-chain-ci.md). Keep in sync with dast.yml.
         image: redis:8-alpine@sha256:09160599abd229764c0fb44cb6be640294e1d360a54b19985ab4843dcf2d90f1
         ports:
           - 6379:6379
@@ -121,7 +121,7 @@ jobs:
   # Invariant #3 guard: the prod stack must publish NO host ports — cloudflared's outbound tunnel is the only
   # ingress, and every data service (postgres/redis/api/prometheus/grafana/alertmanager) stays on the
   # internal Docker network. A stray `ports:` mapping (e.g. exposing redis or /metrics) would breach it; this
-  # fails the build mechanically (see docs/threat-models/observability.md + vm-ingress.md).
+  # fails the build mechanically (see docs/security/threat-models/observability.md + vm-ingress.md).
   compose-guard:
     runs-on: ubuntu-latest
     permissions:
@@ -142,7 +142,7 @@ jobs:
           echo "compose.prod.yaml: no published host ports OK"
       - name: Assert exactly one host-network service (coturn)
         # coturn uses network_mode:host (required for correct src-IP visibility — see compose.prod.yaml
-        # and docs/threat-models/vm-ingress.md). Any other host-network service is an unreviewed
+        # and docs/security/threat-models/vm-ingress.md). Any other host-network service is an unreviewed
         # deviation from the zero-published-ports invariant and must fail CI.
         run: |
           set -euo pipefail

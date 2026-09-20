@@ -8,6 +8,6 @@
 --
 -- No index: this column is read per-user via the existing PK lookup only.
 --
--- See docs/threat-models/voip-calling.md.
+-- See docs/security/threat-models/voip-calling.md.
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS call_relay_only boolean NOT NULL DEFAULT TRUE;

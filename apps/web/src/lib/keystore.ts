@@ -23,7 +23,7 @@ import type { AttachmentRef } from './message-envelope';
 // PRF secret is already uniformly-random 256 bits, so it seals every store directly via sealWithKey/
 // openWithKey. The SAME key seals the device, the one-time KeyPackage pool, and the per-conversation group
 // state / message log / pending commit. There is NO recovery: a lost passkey (or a wiped browser keystore)
-// is a fresh start — the admin mints a new registration code. See docs/threat-models/prf-keystore-unlock.md
+// is a fresh start — the admin mints a new registration code. See docs/security/threat-models/prf-keystore-unlock.md
 // + device-keystore.md.
 
 // Renamed from 'secmes-keystore' during the pre-launch rebrand. Safe to rename now: the web client is
@@ -863,7 +863,7 @@ export class DeviceKeystore {
    * 200-per-device cap) and self-healing (each dead package is consumed on claim). On account-switch the
    * abandoned device belongs to a DIFFERENT user, so the signed-in session has no authority to revoke it.
    * The server-side, device-scoped revoke lands with the claim/Welcome lifecycle in Slice 3 — see
-   * docs/threat-models/device-provisioning.md §6.
+   * docs/security/threat-models/device-provisioning.md §6.
    */
   async clearDevice(): Promise<void> {
     await this.db.delete(STORE, SELF);
@@ -1063,7 +1063,7 @@ export class DeviceKeystore {
     // Check the identity embedded in the decrypted KeyPackage, not just the caller-supplied metadata, so a
     // stored blob under this name can't silently hand back another identity's keys. This is a confusion
     // check, not full authenticity: proving a device is really `identity`'s is the key-directory +
-    // fingerprint job (checkpoint 20, docs/threat-models/key-directory.md).
+    // fingerprint job (checkpoint 20, docs/security/threat-models/key-directory.md).
     if (deviceIdentity(keys) !== identity) {
       throw new Error('device identity does not match the requested identity');
     }

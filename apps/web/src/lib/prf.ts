@@ -3,7 +3,7 @@
 // and packages/crypto importUnlockKey). The salt is NON-SECRET and app-wide — the real key separation is the
 // per-passkey PRF key INSIDE the authenticator, which the server never sees. The salt MUST be identical for
 // every ceremony (registration + every login) or the keystore becomes permanently unopenable; it is a
-// hardcoded constant for exactly that reason. See docs/threat-models/prf-keystore-unlock.md.
+// hardcoded constant for exactly that reason. See docs/security/threat-models/prf-keystore-unlock.md.
 //
 // @simplewebauthn v13 caveats (verified against the installed source — the bundled DOM types are PRF-unaware
 // and the library passes `extensions` through to the native call VERBATIM, never base64url-decoding the eval

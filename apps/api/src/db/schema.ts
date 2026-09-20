@@ -253,7 +253,7 @@ export const auditEvents = pgTable('audit_events', {
 
 // Phase 2 — WebAuthn passkey credentials. One row per registered passkey. FORCE RLS, see 0033.
 // credential_id is stored as raw bytes (bytea); encode/decode at the service boundary.
-// See docs/threat-models/passkey-auth.md.
+// See docs/security/threat-models/passkey-auth.md.
 export const webauthnCredentials = pgTable('webauthn_credentials', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').notNull(),
@@ -270,7 +270,7 @@ export const webauthnCredentials = pgTable('webauthn_credentials', {
 });
 
 // Phase 2 — ephemeral ceremony state. No-RLS routing table; access gated by ceremony_id UUID.
-// Delete-on-use (DELETE…RETURNING) in service code. See docs/threat-models/registration-and-tenancy.md §T5.
+// Delete-on-use (DELETE…RETURNING) in service code. See docs/security/threat-models/registration-and-tenancy.md §T5.
 export const webauthnChallenges = pgTable('webauthn_challenges', {
   ceremonyId: uuid('ceremony_id').primaryKey().defaultRandom(),
   challengeHash: text('challenge_hash').notNull(), // hex of 32 raw CSPRNG challenge bytes (not a hash)
@@ -284,7 +284,7 @@ export const webauthnChallenges = pgTable('webauthn_challenges', {
 // Canonical pair ordering: userLowId = least(a, b), userHighId = greatest(a, b) — one row per pair.
 // Accepted-only model: pending requests TTL'd; decline/cancel = hard DELETE (no rejection ledger).
 // DDL, RLS (FORCE), indexes, and grants live in 0042_friendships.sql.
-// See docs/threat-models/contact-list-recovery.md §R-friends.
+// See docs/security/threat-models/contact-list-recovery.md §R-friends.
 export const friendships = pgTable('friendships', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').notNull(),
@@ -298,7 +298,7 @@ export const friendships = pgTable('friendships', {
 });
 
 // Phase 3 — breakglass admin credential. Argon2id-hashed password + lockout state. FORCE RLS, see 0037.
-// See docs/threat-models/breakglass-admin.md.
+// See docs/security/threat-models/breakglass-admin.md.
 export const adminCredentials = pgTable('admin_credentials', {
   id: uuid('id').primaryKey().defaultRandom(),
   tenantId: uuid('tenant_id').notNull(),

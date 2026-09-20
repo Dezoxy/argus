@@ -22,7 +22,7 @@ vi.mock('../db/index.js', () => ({
 import { withRouting } from '../db/index.js';
 
 // Phase 6: the only accepted token is our self-minted argus EdDSA JWT. The Zitadel JWKS fallback was
-// removed with OIDC — see docs/threat-models/phase-6-decommission.md.
+// removed with OIDC — see docs/security/threat-models/phase-6-decommission.md.
 describe('AuthService.verify', () => {
   let svc: AuthService;
   let argusSignKey: CryptoKey;

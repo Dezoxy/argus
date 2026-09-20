@@ -5,7 +5,7 @@
 -- the proof against D1's published signature public key and emits a WS nudge to D2. The trust
 -- decision is 100% client-side (D1 fingerprint comparison + proof-of-possession). Invariant #1 holds.
 -- 15-minute expires_at bounds the enrollment window; expired rows are GC'd async.
--- See docs/threat-models/multi-device-enrollment.md T1–T4.
+-- See docs/security/threat-models/multi-device-enrollment.md T1–T4.
 
 -- FKs below reference devices (tenant_id, id). PostgreSQL requires the referenced column set to
 -- match a unique constraint exactly; the existing devices_tenant_user_id_uidx covers (tenant_id, user_id, id)

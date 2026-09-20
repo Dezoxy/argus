@@ -92,7 +92,7 @@ review and by the pre-commit scanners rather than left to memory.
 
 ## What this does not cover
 
-- **Per-feature threat models** live in [`docs/threat-models/`](https://github.com/Dezoxy/secmes/blob/main/docs/threat-models/),
+- **Per-feature threat models** live in [`docs/security/threat-models/`](https://github.com/Dezoxy/secmes/blob/main/docs/security/threat-models/),
   one per feature, written before the code.
 - **The toolchain** that enforces the above — CI gates, pre-commit hooks,
   scanners — is [`security_toolchain.md`](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/security_toolchain.md).

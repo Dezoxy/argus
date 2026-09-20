@@ -14,7 +14,7 @@ import type { Request } from 'express';
 // copy. Caddy already 404s these paths when the header is absent (the edge boundary); THIS guard verifies the
 // JWT's SIGNATURE + iss/aud/expiry so a forged header can't reach the admin logic even on a future topology
 // where something else can reach the origin. `jose` is the cleared invariant-#4 exception (same as session
-// tokens). See docs/threat-models/admin-access-gating.md.
+// tokens). See docs/security/threat-models/admin-access-gating.md.
 //
 // Env-gated, mirroring the breakglass ADMIN_BOOTSTRAP_HASH_FILE / Sentry-DSN degraded-mode pattern: when
 // CF_ACCESS_TEAM_DOMAIN + CF_ACCESS_AUD are BOTH set, the guard enforces; when unset (local dev, un-armed

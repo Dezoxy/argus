@@ -76,7 +76,7 @@ drift, then re-verifies. Idempotent and self-healing — a manual console change
 is reverted on the next deploy. A convergence failure **fails the deploy**
 (after the app is already healthy, so it never blocks a good rollout). Threat
 model:
-[`docs/threat-models/b2-cors-convergence.md`](../../docs/threat-models/b2-cors-convergence.md).
+[`docs/security/threat-models/b2-cors-convergence.md`](../../docs/security/threat-models/b2-cors-convergence.md).
 
 ### The CORS app key (you must provision it once)
 
@@ -167,7 +167,7 @@ Run them from your workstation (the VM has no `b2` CLI).
 > Object Lock** — it can never delete a still-locked object, so it can't become
 > a back-door deletion path.
 
-### The knobs (decided in the BKP-2 threat model — `docs/threat-models/db-backup.md`)
+### The knobs (decided in the BKP-2 threat model — `docs/security/threat-models/db-backup.md`)
 
 | Knob | Value |
 | --- | --- |

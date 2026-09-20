@@ -8,7 +8,7 @@
 --   2. lets the unique index build even where legacy names duplicated within a tenant (NULLs are DISTINCT).
 -- Each user is then healed to a fresh generated handle on their next login (provisionFromToken coalesces a
 -- NULL display_name to a new handle). New users are unique by construction. Runs on the migrate owner
--- connection (RLS-bypassing), so it spans all tenants. See docs/threat-models/pseudonymous-identity.md.
+-- connection (RLS-bypassing), so it spans all tenants. See docs/security/threat-models/pseudonymous-identity.md.
 update users set display_name = null;
 
 -- display_name stays NULLABLE; (tenant_id, display_name) is tenant-scoped, consistent with FORCE RLS.

@@ -6,7 +6,7 @@
 // via import() and CANNOT carry an SRI integrity= attribute (a browser-platform gap), so a chunk swapped on
 // the CDN/cache leg would otherwise run INSIDE the crypto boundary. The <script>/<link> tags in index.html
 // are already SRI-protected (vite-plugin-sri3); this covers the dynamic-import chunks they can't.
-// See docs/threat-models/code-delivery-integrity.md.
+// See docs/security/threat-models/code-delivery-integrity.md.
 //
 // These helpers are pure and DOM-free so they unit-test without a real ServiceWorkerGlobalScope.
 
@@ -37,7 +37,7 @@ export function expectedHashFor(
 export async function sha384Base64(bytes: ArrayBuffer): Promise<string> {
   // This is a CHECKSUM over PUBLIC static build artifacts (the same sha384 the SRI integrity= attrs and
   // bundle-manifest.json carry), NOT message/key crypto and NOT a protocol. Per
-  // docs/threat-models/code-delivery-integrity.md §4 / review 01-crypto-core.md:50 the SHA-384 build-SRI use
+  // docs/security/threat-models/code-delivery-integrity.md §4 / review 01-crypto-core.md:50 the SHA-384 build-SRI use
   // is pre-cleared as a non-E2EE primitive. No keys, plaintext, or secrets touch it.
   const digest = await crypto.subtle.digest('SHA-384', bytes); // nosemgrep: argus-crypto-only-in-crypto-package
 

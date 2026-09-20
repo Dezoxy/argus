@@ -118,7 +118,7 @@ reappear in the Decision Log below tagged accordingly.
 | **D10** | V1 | **Do NOT derive an MLS-exporter media key.** MLS *authenticates* the fingerprint (D1); it does not *supply* the SRTP key. Add a ~5-line `Conversation.exportKey()` shim only when the SFU/group phase starts. | For 1:1 P2P, DTLS-SRTP already gives a fresh forward-secret per-call key end-to-end; an exporter-derived key adds no confidentiality the relay can't already be excluded from, plus real plumbing (`RTCRtpScriptTransform`). Simple-first. | The exporter capability stays unwired (it exists in `ts-mls` 1.6.2 — confirmed in grounding — but argus doesn't re-export it). The future group path (SFrame-via-MLS, RFC 9605 + draft-barnes-sframe-mls) depends on this shim — designed-for, not built. Revisitable as Q5. | [01 §4](./01-architecture-and-crypto-model.md), [07](./07-comparative-survey.md) |
 | **D11** | future | **Off-main-thread frame crypto is the target when E2EE-above-transport arrives** (group phase): SFrame in a Web Worker via Encoded Transforms. | Universal practice across all web E2EE call systems. Main-thread frame crypto janks the UI. | V1/V1.1 (plain DTLS-SRTP, no frame crypto) need none of this — but the client architecture must stay worker-portable so a later phase doesn't require a rewrite. | [05 §2](./05-frontend-pwa-and-webrtc.md), [07](./07-comparative-survey.md) |
 | **D12** | V1 | **Glare handling = WebRTC perfect-negotiation for renegotiation + a deterministic `callId`-comparison tiebreak for simultaneous mutual invites.** | Perfect negotiation is the MDN-blessed standard for mid-call renegotiation glare. Simultaneous *invites* have no PC yet → a lowercase-`callId` comparison (reusing the `canonicalPair` ordering convention) picks a deterministic winner with no server arbitration. | The establishment-glare loser auto-accepts the winner's call (both already expressed intent). Confirmed un-weaponizable by the threat model. | [02 §5](./02-signaling-protocol-and-state-machine.md) |
-| **D13** | **V1.1** | **Retention = a 30-day hard ceiling on `call_sessions`** (Q3 ruling). Dedicated `argus_call_prune` role, window-scoped RLS, separate TTL worker slice. | A missed-call list rarely needs more than 30 days; less metadata retained is strictly better for a privacy-first product, while still a comfortable floor for abuse forensics. Reuses the `0044` pattern; metadata-only table has no backfill/epoch coupling, so the prune worker ships as soon as the boundary migration lands. | 30 days is the literal baked into the window-scoped prune policy **and** the ROPA retention row (`docs/gdpr/article-30-records.md`). Never lengthen past the message ceiling without a threat-model update. Whole row is V1.1 (it depends on D5's table). | [04 §5](./04-server-api-and-database.md), [06 §7](./06-threat-model-and-privacy.md) |
+| **D13** | **V1.1** | **Retention = a 30-day hard ceiling on `call_sessions`** (Q3 ruling). Dedicated `argus_call_prune` role, window-scoped RLS, separate TTL worker slice. | A missed-call list rarely needs more than 30 days; less metadata retained is strictly better for a privacy-first product, while still a comfortable floor for abuse forensics. Reuses the `0044` pattern; metadata-only table has no backfill/epoch coupling, so the prune worker ships as soon as the boundary migration lands. | 30 days is the literal baked into the window-scoped prune policy **and** the ROPA retention row (`docs/compliance/article-30-records.md`). Never lengthen past the message ceiling without a threat-model update. Whole row is V1.1 (it depends on D5's table). | [04 §5](./04-server-api-and-database.md), [06 §7](./06-threat-model-and-privacy.md) |
 | **D14** | **V1.1** | **Web Push wake = a new content-free `call` branch in the existing SW push handler.** No caller identity, no `callId`, no SDP in the payload — just a type. Drives the **wake-banner** (Android) and **tap-to-join banner** (iOS), never a "ring." | Invariant 2 (content-free push already exists for messages). The PWA learns who/what only after reconnecting and pulling call state over WS. | iOS limits make this best-effort only (L4) — and it is explicitly **not** a ring on a locked phone. `INVITE_TTL` (~45s) sizes a cold-PWA wake + WS reconnect budget. Push reliability on iOS is an accepted-risk Open Question (Q4). V1.1 because V1 is foreground-only. | [02 §7](./02-signaling-protocol-and-state-machine.md), [05 §5.4](./05-frontend-pwa-and-webrtc.md) |
 | **D15** | V1 (+ V1.1) | **Abuse controls: friendship gate (D6) + per-socket WS rate limit on `call.*` frames (extend `allowSubscribe`) + per-caller invite cooldown + coturn quotas** (`total-quota`, `user-quota`, `max-bps`) + deny-RFC1918 on the relay. | Calling is a notification amplifier and TURN is an abuse magnet. WS signaling frames bypass the HTTP throttler, so they need their own bucket. Block is covered transitively by unfriend (hard-DELETE) in V1. | The WS/cooldown/quota controls ship in V1 with calling itself. Quota *tuning* is flagged **needs-work** (real numbers need real usage). A dedicated block list is Enterprise-optional. | [03 §9](./03-infrastructure-turn-and-networking.md), [04 §8](./04-server-api-and-database.md), [06 §9](./06-threat-model-and-privacy.md) |
 
@@ -134,13 +134,13 @@ P0-TM](./08-roadmap-and-delivery-slices.md), [06
 
 | # | Artifact | Action | What VoIP adds |
 |---|---|---|---|
-| 1 | `docs/gdpr/data-residency.md` | **Revise** | Add a **coturn relay** row: relay traffic (SRTP + 5-tuple/IP metadata) processed on the single EU VM, in-region, no third-party processor. |
-| 2 | `docs/gdpr/article-30-records.md` | **Revise** | New **processing activity** ("1:1 voice calling"); new **personal-data category** (peer IP addresses seen by the relay; call-graph metadata); **sub-processor** rows for APNs/FCM *(V1.1, when push lands)*; **retention** row = **30 days** for `call_sessions` *(V1.1)*. |
-| 3 | `docs/threat-models/metadata-exposure.md` | **Extend** | New rows: **call-graph** (who-calls-whom), **call-timing** (when/how-long), **relay-peer-IP** (the relay operator sees both peers' IPs under relay-only). |
-| 4 | `docs/gdpr/dpia-voip-calling.md` | **Create** | Per-activity **legal basis** for voice calling (legitimate interest / contract performance), necessity & proportionality of relay-only default, the iOS-receivability limitation, and the residual presence-oracle risk (Q2/R5). |
+| 1 | `docs/compliance/data-residency.md` | **Revise** | Add a **coturn relay** row: relay traffic (SRTP + 5-tuple/IP metadata) processed on the single EU VM, in-region, no third-party processor. |
+| 2 | `docs/compliance/article-30-records.md` | **Revise** | New **processing activity** ("1:1 voice calling"); new **personal-data category** (peer IP addresses seen by the relay; call-graph metadata); **sub-processor** rows for APNs/FCM *(V1.1, when push lands)*; **retention** row = **30 days** for `call_sessions` *(V1.1)*. |
+| 3 | `docs/security/threat-models/metadata-exposure.md` | **Extend** | New rows: **call-graph** (who-calls-whom), **call-timing** (when/how-long), **relay-peer-IP** (the relay operator sees both peers' IPs under relay-only). |
+| 4 | `docs/compliance/dpia-voip-calling.md` | **Create** | Per-activity **legal basis** for voice calling (legitimate interest / contract performance), necessity & proportionality of relay-only default, the iOS-receivability limitation, and the residual presence-oracle risk (Q2/R5). |
 
-> Note: `docs/threat-models/voip-calling.md` (the feature threat-model note) and
-> the `docs/threat-models/vm-ingress.md` revision are **separate** Phase-0
+> Note: `docs/security/threat-models/voip-calling.md` (the feature threat-model note) and
+> the `docs/security/threat-models/vm-ingress.md` revision are **separate** Phase-0
 > prerequisites (§4.1 P1) — they are the *security* note; the four above are the
 > *GDPR/metadata* artifacts. Both bundles gate code.
 
@@ -204,7 +204,7 @@ client slices), not after.
   on restart, no abuse trail).
 
 **Chair ruling — B (30 days).** Baked into the window-scoped prune-policy
-literal **and** the ROPA retention row (`docs/gdpr/article-30-records.md`,
+literal **and** the ROPA retention row (`docs/compliance/article-30-records.md`,
 artifact #2). Never exceed the message ceiling without a threat-model update.
 **Decision owner:** product + `security-architect`, **before the V1.1 `0045`
 migration** (the interval is baked into the policy literal).
@@ -317,8 +317,8 @@ affected decision is revisited.
 
 1. **The security threat-model note ships before code.** Copy/link
    [06](./06-threat-model-and-privacy.md) to
-   `docs/threat-models/voip-calling.md` and revise
-   `docs/threat-models/vm-ingress.md` (which currently asserts the tunnel is the
+   `docs/security/threat-models/voip-calling.md` and revise
+   `docs/security/threat-models/vm-ingress.md` (which currently asserts the tunnel is the
    *only* ingress — false the moment coturn ships). This is **separate from**
    the four GDPR/metadata artifacts in §2 (both bundles gate).
    ([06](./06-threat-model-and-privacy.md), [03 §12

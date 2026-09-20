@@ -1,7 +1,7 @@
 -- 0039_decommission_enterprise — drop the SSO config table; data-minimisation null-out of all stored
 -- email; purge legacy non-argus routing subjects.
 -- Phase 6 of the private-messenger redesign (private-messenger-redesign-plan.md:342-359).
--- Threat model: docs/threat-models/phase-6-decommission.md.
+-- Threat model: docs/security/threat-models/phase-6-decommission.md.
 --
 -- Forward-only, owner-applied. INERT columns are intentionally LEFT in place (a later dedicated
 -- migration can drop them once nothing depends on the shape): tenants.plan_tier / member_limit /

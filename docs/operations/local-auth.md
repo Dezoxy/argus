@@ -2,7 +2,7 @@
 
 argus login is **passkey-only** — the API mints and verifies its own EdDSA
 session tokens; there is no external IdP. (Zitadel/OIDC was decommissioned in
-Phase 6 — see `docs/threat-models/phase-6-decommission.md`.) This doc covers
+Phase 6 — see `docs/security/threat-models/phase-6-decommission.md`.) This doc covers
 running auth locally.
 
 ## Bring up the stack
@@ -35,7 +35,7 @@ restart the API — fine for development. In production the key is delivered fro
 2. **Real passkey against a seeded invite code** — register the way a real user does:
    - Create an invite code (admin-minted). With no admin UI session yet, insert
      one directly against the dev DB, or use the breakglass admin login
-     (`docs/threat-models/breakglass-admin.md`) once its hash is provisioned,
+     (`docs/security/threat-models/breakglass-admin.md`) once its hash is provisioned,
      then mint a code via the admin panel.
    - On `http://localhost:5173`, choose "I have a registration code", enter it, and create a passkey
      (your browser/OS authenticator; `WEBAUTHN_RP_ID=localhost` works for `localhost` origins).

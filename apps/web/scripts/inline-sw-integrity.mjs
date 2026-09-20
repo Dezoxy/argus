@@ -5,7 +5,7 @@
 // emits sw.js late in its own closeBundle, after every other plugin hook — so a deterministic post-build pass
 // is the only reliable ordering. The map MUST be inlined, never runtime-fetched: a runtime fetch would let an
 // attacker who swapped a chunk also serve a matching manifest (the CDI-3 self-defeat).
-// See docs/threat-models/code-delivery-integrity.md.
+// See docs/security/threat-models/code-delivery-integrity.md.
 /* global process, console */
 import { readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';

@@ -1,7 +1,7 @@
 -- 0004_key_directory — devices + key_packages (roadmap 19). Stores PUBLIC MLS key material only
 -- (base64 text, opaque to the crypto-blind server — no private keys, no plaintext). The server binds
 -- each KeyPackage to the authenticated uploader; client-side fingerprint verification is the MITM
--- defense (docs/threat-models/key-directory.md). KeyPackages are one-time-use (claimed, never reused).
+-- defense (docs/security/threat-models/key-directory.md). KeyPackages are one-time-use (claimed, never reused).
 
 create table if not exists devices (
   id                   uuid primary key default gen_random_uuid(),

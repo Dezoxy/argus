@@ -3,7 +3,7 @@
 // NO DOCKER SOCKET: a socket mount is daemon-root-equivalent (even `:ro` doesn't restrict API calls), which
 // would breach the stack's hardening. Instead Alloy file-tails /var/lib/docker/containers (mounted read-only).
 // Those json logs are root:root 0640, so Alloy runs as uid 0 to read them — bounded by cap_drop:[ALL] +
-// read-only rootfs + the read-only log mount + no socket (see docs/threat-models/centralized-logs.md).
+// read-only rootfs + the read-only log mount + no socket (see docs/security/threat-models/centralized-logs.md).
 //
 // App logs are IDs/metadata only by discipline; the scrub stage below masks secret-shaped values as
 // defense-in-depth (invariant #2) before anything persists in Loki.
@@ -39,7 +39,7 @@ loki.source.file "containers" {
   // exactly the startup logs needed to debug a failed rollout, lost on EVERY deploy. Capturing those
   // (recurring, high value) outweighs avoiding a ONE-TIME first-arming backfill of pre-existing logs — and
   // that backfill is already bounded by Loki's reject_old_samples (7d) + retention (7d) + the ingestion rate
-  // limit, and is small on a freshly-provisioned VM. See docs/threat-models/centralized-logs.md §6.
+  // limit, and is small on a freshly-provisioned VM. See docs/security/threat-models/centralized-logs.md §6.
   tail_from_end = false
 }
 

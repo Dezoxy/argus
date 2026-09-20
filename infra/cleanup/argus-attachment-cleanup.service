@@ -7,7 +7,7 @@
 # already dropped below.)
 [Unit]
 Description=argus — reap expired encrypted attachments (Backblaze B2 + DB)
-Documentation=https://github.com/Dezoxy/secmes/blob/main/docs/threat-models/encrypted-attachments.md
+Documentation=https://github.com/Dezoxy/secmes/blob/main/docs/security/threat-models/encrypted-attachments.md
 After=network-online.target
 Wants=network-online.target
 # The worker runs `docker compose exec` against the postgres container, so it needs the Docker daemon up —

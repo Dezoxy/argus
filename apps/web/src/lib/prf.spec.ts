@@ -6,7 +6,7 @@ import { unlockKeyFromResponse, withPrfSalt } from './prf';
 // WebAuthn response is POSTed verbatim to the server's verify endpoint. `unlockKeyFromResponse` MUST strip
 // `clientExtensionResults.prf` from the response object (in place, before the caller POSTs it) while still
 // returning the derived key. A reorder/refactor that drops the strip would silently re-leak the secret —
-// these tests fail loudly if that happens. See docs/threat-models/prf-keystore-unlock.md (T1).
+// these tests fail loudly if that happens. See docs/security/threat-models/prf-keystore-unlock.md (T1).
 
 // A 32-byte ArrayBuffer, matching what a real authenticator returns in prf.results.first.
 function prfResults(): ArrayBuffer {

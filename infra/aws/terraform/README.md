@@ -6,7 +6,7 @@ Arc** managed identity (no static credential). It is parallel to the live
 `infra/azure/` Azure stack and **touches neither** the production VM nor its Key
 Vault. No real user data.
 
-See [`docs/threat-models/cross-cloud-secret-fetch.md`](../../../docs/threat-models/cross-cloud-secret-fetch.md)
+See [`docs/security/threat-models/cross-cloud-secret-fetch.md`](../../../docs/security/threat-models/cross-cloud-secret-fetch.md)
 for the security model + residual risks.
 
 ## Real deploy (promoting off the experiment)
