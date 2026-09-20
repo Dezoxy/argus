@@ -84,6 +84,7 @@ docs/                  # architecture, planning/roadmap, operations, threat mode
 scripts/               # repo guards (CSP, dockerignore/secret sync, log labels, PWA build verify)
                        #   + the docs-consistency gate and the architecture PDF builder
 .claude/ .agents/      # agent skills (byte-identical mirrors), subagents, hooks, permissions
+                       #   + .claude/rules/ecc/ — vendored TypeScript/React rule sets
 Makefile               # local stack (up/migrate/api-dev) + architecture (check/docs/view/export/pdf)
 .design-sync/          # durable inputs that sync the real UI primitives into the design tool
 .github/workflows/     # CI (build/test); security (Semgrep/Checkov/gitleaks/CodeQL/DAST/42Crunch); CD (gated)
