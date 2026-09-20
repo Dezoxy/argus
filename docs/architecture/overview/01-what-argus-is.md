@@ -13,6 +13,8 @@ That guarantee is not a promise about the operator's good behaviour. It is a
 property of how the system is built. If someone gained complete control of the
 server, read its disks and took its backups, they would obtain ciphertext.
 
+![Context view: who uses argus and which outside services it depends on](embed:SystemContext)
+
 ## What it does not protect
 
 **Metadata.** The server must know who to deliver a message to, so it knows who
@@ -43,20 +45,30 @@ workaround; it is the recovery mechanism.
 - **Operators** watch dashboards and error reports, reaching them through a
   separate identity gate rather than through an argus account.
 
+## What happens when you send a message
+
+Six steps, and every one the server performs is on bytes it cannot interpret.
+
+![Message flow view: sending one message, end to end](embed:MessageFlow)
+
 ## How to read the rest
 
-Each document that follows owns its own facts, and the others link to it rather
-than repeating it.
+**Pick the path for your question rather than reading straight through.** Each
+one is short, embeds the diagrams that answer it, and links to the document
+that owns each fact.
 
-- **Scope** says what is deliberately in and out.
-- **Glossary** explains the terms that follow.
-- **Principles** and **Constraints** are the rules the design had to satisfy.
-- **Quality attributes** are the measurable claims, each with its evidence — or
-  an admission that there is none yet.
-- **Trust boundaries**, **Data**, **Integration**, **Deployment**,
-  **Reliability** and **Observability** each cover one concern.
-- **Risks**, **Technical debt** and the **Roadmap** say what is wrong and what
-  happens next.
+- **For stakeholders** — should this exist, and what does it promise?
+- **For the CTO** — does the design hold, and what is unproven?
+- **For engineers** — what are the pieces, and what must a change satisfy?
+- **For operators** — how does a change land, what watches it, what happens
+  when the machine is gone?
+
+After the paths come the registers, each owning its own facts: **Scope** and
+**Glossary**; **Principles** and **Constraints**; **Quality attributes**, each
+with its evidence or an admission there is none; **Assumptions**; then **Trust
+boundaries**, **Data**, **Integration**, **Deployment**, **Reliability** and
+**Observability**; and finally **Risks**, **Technical debt** and the
+**Roadmap**.
 
 The decision records explain *why* each significant choice was made, including
 the alternatives that were rejected and what each choice cost.
