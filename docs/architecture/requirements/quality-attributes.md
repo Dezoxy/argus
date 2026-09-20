@@ -15,7 +15,7 @@ evidence is a claim, not a result.
 | QA-03 | An attacker phishes a member's credential or reuses a password from another breach. | Neither is possible: no password exists and passkeys are origin-bound. | Structural — there is no password to steal. See [ADR 3](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/decisions/0003-authenticate-with-passkeys-only.md). |
 | QA-04 | The VM's public address is port-scanned. | Only the call-relay ports answer. No unauthenticated HTTP service is reachable. | CI asserts no Compose service publishes a host port and that coturn is the only host-network service; the firewall's only inbound Allow rules are TURN. |
 | QA-05 | The attachment storage provider, or anyone who obtains that bucket, reads its contents. | They obtain ciphertext only. | Attachments are encrypted in the browser before upload; the API only mints presigned URLs. |
-| QA-06 | The VM is lost entirely. | Service is restored from backup rather than failed over. Recovery point is at most one nightly cycle. | Backups are taken, encrypted and Object-Locked. **A full restore has not been exercised.** A successful backup is not a restore test. |
+| QA-06 | The VM is lost entirely. | Service is restored from backup rather than failed over. Recovery point is at most one nightly cycle. | Partial. The restore **procedure** was drilled on 2026-06-14 against PG16 — dump to a fresh cluster, verifying data, schema, every RLS policy and per-role grant, and it surfaced a real `pg_read_all_data` / `GRANTED BY` gap since fixed. What is unproven is the restore against the **actual production backup objects** in the armed environment, and the recovery **time**, which has never been measured. |
 
 ## The one that is weakest
 

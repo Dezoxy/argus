@@ -1,6 +1,8 @@
 # Trust boundaries
 
-Where control changes hands, and what is checked at each crossing. The
+Where control changes hands, and what is checked at each crossing.
+[Security architecture](security-architecture.md) covers the controls
+themselves — what is defended, from whom, and by what. The
 [AccessPaths](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/README.md#view-register) view draws the three entry paths; this
 document says what each boundary actually enforces.
 

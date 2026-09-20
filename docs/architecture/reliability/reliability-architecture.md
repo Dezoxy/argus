@@ -44,7 +44,7 @@ Nightly, and unusually well defended for a project this size:
 | Objective | Target | Evidence |
 | --- | --- | --- |
 | Recovery point | At most one nightly cycle — up to roughly 24 hours of data. | The timer runs nightly with `Persistent=true`, so a missed run is caught up after downtime. |
-| Recovery time | Not measured. | **No restore drill has been performed.** |
+| Recovery time | Not measured. | The 2026-06-14 drill proved the procedure, not the duration. A timed drill needs the armed environment. |
 
 That second row is the honest state of this document. Backup *coverage* is
 strong; backup *validity* is untested. A successful upload proves the pipeline

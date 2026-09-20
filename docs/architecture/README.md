@@ -8,27 +8,37 @@ read a message.
 The binding rules every change must satisfy — the six security invariants —
 live in [`AGENTS.md`](../../AGENTS.md), not here.
 
+## Status
+
+**Feature-complete; not deployed.** The application is built end to end —
+invite-and-passkey registration, 1:1 and group messaging over MLS, encrypted
+attachments, multi-device sync, 1:1 audio calls, an admin surface and GDPR
+export and deletion. The production infrastructure exists as code.
+
+What is not done is operational: the Azure rollout switch is off, so the
+environment described as production is **not running**; the environment that
+runs is an experiment holding no real data. Two external gates — an independent
+cryptographic review and a penetration test — are open, and the database
+restore has never been run against the real backup objects.
+
+[Roadmap](roadmap/roadmap.md) has the order those are worth doing in.
+
 ## Reading paths
 
-**Stakeholder, non-technical.** [What argus is](overview/01-what-argus-is.md),
-then [Scope](overview/02-scope.md), then the SystemContext view, then
-[Risks](risks/architecture-risks.md). Skip the rest.
+Each path is a short document in [`overview/`](overview/) that embeds the
+diagrams answering its question and links out to whichever register owns each
+fact. Pick one rather than reading straight through.
 
-**CTO.** SystemContext and Containers, then AccessPaths and AzureDeployment,
-then [Reliability](reliability/reliability-architecture.md) for what recovery
-actually looks like, then [Risks](risks/architecture-risks.md) and
-[Technical debt](risks/technical-debt.md). The decisions worth arguing with are
-[ADR 1](decisions/0001-keep-the-server-crypto-blind.md),
-[ADR 4](decisions/0004-store-no-recoverable-secret-on-the-server.md) and
-[ADR 5](decisions/0005-run-on-one-vm-with-docker-compose.md).
+| Path | For someone asking | Stops |
+| --- | --- | --- |
+| [For stakeholders](overview/03-for-stakeholders.md) | Should this exist, and what does it promise? | 4 |
+| [For the CTO](overview/04-for-the-cto.md) | Does the design hold, and what is unproven? | 5 |
+| [For engineers](overview/05-for-engineers.md) | What are the pieces, and what must a change satisfy? | 4 |
+| [For operators](overview/06-for-operators.md) | How does a change land, what watches it, what if the machine is gone? | 4 |
 
-**Engineer.** Containers, MessageFlow and CallSetup, then
-[Data](data/data-architecture.md) and
-[Trust boundaries](security/trust-boundaries.md), then the ADRs.
-
-**Operator.** AzureDeployment and AwsDeployment, then Delivery, Observability
-and Maintenance, then [Reliability](reliability/reliability-architecture.md)
-alongside the runbooks in [`docs/operations/`](../operations/).
+Start at [What argus is](overview/01-what-argus-is.md) if you want the promise
+first, or [Scope](overview/02-scope.md) for what is deliberately excluded.
+[Glossary](overview/07-glossary.md) covers the vocabulary.
 
 ## View register
 
@@ -52,6 +62,12 @@ question is a diagram, not documentation. `make docs` fails when this table and
 **Visual verification:** every view was exported and inspected as a rendered
 PNG, not only parsed. All use `autoLayout`; there are no maintained
 coordinates and no post-export retouching.
+
+**Every view is embedded in a reading path**, so it appears in the
+Documentation tab and the PDF next to the question it answers rather than in a
+trailing appendix. An `![alt](embed:Key)` must stay on one line — the PDF
+builder matches one embed per line, and a wrapped one silently drops the view
+into the appendix while the build still succeeds.
 
 **A gap the register should admit:** there is no component-level view of the API.
 It is a single NestJS process with a dozen modules, and no one has yet needed
@@ -83,11 +99,16 @@ by symlink from [`overview/`](overview/).
 | --- | --- |
 | [What argus is](overview/01-what-argus-is.md) | The guarantee, in plain language, and what it does not cover |
 | [Scope](overview/02-scope.md) | What is in, what is deliberately out, and why |
-| [Glossary](overview/03-glossary.md) | Terms, in the sense argus uses them |
+| [For stakeholders](overview/03-for-stakeholders.md) | Reading path: what it promises, and what could go wrong |
+| [For the CTO](overview/04-for-the-cto.md) | Reading path: exposure, enforcement, what is in the clear, what is unproven |
+| [For engineers](overview/05-for-engineers.md) | Reading path: the pieces, the two flows, the rules a change must satisfy |
+| [For operators](overview/06-for-operators.md) | Reading path: delivery, observability, maintenance, recovery |
+| [Glossary](overview/07-glossary.md) | Terms, in the sense argus uses them |
 | [Principles](principles/architecture-principles.md) | `P-NN` — the rules of thumb, and where each does not apply |
 | [Constraints](requirements/constraints.md) | `C-NN` — fixed conditions the design had to satisfy |
 | [Quality attributes](requirements/quality-attributes.md) | `QA-NN` — measurable claims, each with its evidence or an admission there is none |
 | [Assumptions](requirements/assumptions.md) | `A-NN` — what is taken as true, and what breaks if it is not |
+| [Security architecture](security/security-architecture.md) | What is defended, from whom, and by what — authn, authz, secrets, exposure, telemetry |
 | [Trust boundaries](security/trust-boundaries.md) | Where control changes hands and what is checked |
 | [Data](data/data-architecture.md) | What is stored, how sensitive, where, and for how long |
 | [Integration](integration/integration-architecture.md) | Every external system and its failure behaviour |
@@ -121,6 +142,26 @@ The model lives in [`model/`](model/), pulled together by
 architecture-base so a colour means the same thing in every workspace built from
 it; [`styles.dsl`](model/styles.dsl) only maps argus's five layers onto that
 palette.
+
+## Not documented here
+
+Deliberate omissions, so they read as choices rather than gaps.
+
+- **No component view of the API.** It is one NestJS process with a dozen
+  modules; nobody has needed the internal picture enough to maintain one.
+- **No network view.** The access-path and deployment views already answer the
+  connectivity questions, and a third would duplicate them.
+- **No dates on the roadmap.** They are not known, and invented dates are worse
+  than none.
+- **No runbooks.** Execution procedures live in
+  [`docs/operations/`](../operations/); this tree explains the design, and
+  links to them rather than restating them.
+- **No API or schema reference.** The OpenAPI spec and the migrations are the
+  contract; duplicating them here would create a second source of truth that
+  goes stale.
+- **Per-feature threat models** live in [`docs/threat-models/`](../threat-models/),
+  one per feature, written before the code. This tree covers the
+  system-level boundaries only.
 
 ## Keeping this true
 

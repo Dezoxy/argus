@@ -8,7 +8,11 @@ pre-commit:
       glob: '*.{ts,tsx}'
       run: pnpm exec eslint {staged_files}
     prettier:
-      glob: '*.{ts,tsx,json,md,yml,yaml}'
+      # No 'md': .prettierignore excludes **/*.md ("markdown is prose — not worth
+      # prettier churn"), so prettier can never check one. Passing them anyway had
+      # one observable effect: prettier errors on an explicitly-named symlink, and
+      # docs/architecture/overview/ is a folder of symlinks by design.
+      glob: '*.{ts,tsx,json,yml,yaml}'
       run: pnpm exec prettier --check {staged_files}
     semgrep:
       glob: '*.{ts,tsx}'
