@@ -1,18 +1,21 @@
 # Load-testing procedure
 
-> **Roadmap checkpoint 50 (Resilience).** A repeatable load test that validates the API + realtime gateway
-> hold their SLOs at the target concurrency. This page carries the **ready-to-run scripts inline** — copy them
-> out and run them. There is no committed `infra/loadtest/` tree and **no new dependency**: the load generator
-> is [k6](https://k6.io) via its official Docker image.
+> **Roadmap checkpoint 50 (Resilience).** A repeatable load test that validates
+> the API + realtime gateway hold their SLOs at the target concurrency. This
+> page carries the **ready-to-run scripts inline** — copy them out and run them.
+> There is no committed `infra/loadtest/` tree and **no new dependency**: the
+> load generator is [k6](https://k6.io) via its official Docker image.
 
-> **Status — harness built, at-scale run gated on arming.** Locally this runs as a low-VU **smoke** check (the
-> mechanism below is validated against `make up`). The **at-scale run to target concurrency** needs the *armed*
-> deployment — run it at go-live and record the result in [§6](#6-results-log).
+> **Status — harness built, at-scale run gated on arming.** Locally this runs as
+> a low-VU **smoke** check (the mechanism below is validated against `make up`).
+> The **at-scale run to target concurrency** needs the *armed* deployment — run
+> it at go-live and record the result in [§6](#6-results-log).
 
 ## 1. Targets & pass/fail (proposed — override)
 
-The first deploy is a ~2 vCPU / 4 GiB box (`t3.medium` default; `c7i-flex.large`) running the **whole** stack
-(Postgres + Redis + API + observability), so the target is deliberately conservative for the beta:
+The first deploy is a ~2 vCPU / 4 GiB box (`t3.medium` default;
+`c7i-flex.large`) running the **whole** stack (Postgres + Redis + API +
+observability), so the target is deliberately conservative for the beta:
 
 | Dimension | Target | Rationale |
 | --- | --- | --- |
@@ -27,24 +30,30 @@ The first deploy is a ~2 vCPU / 4 GiB box (`t3.medium` default; `c7i-flex.large`
 - `http_req_failed` **< 1 %**
 - WS connect+auth+subscribe success **> 99 %**
 
-**Rate limits to stay under** (so the test measures capacity, not the throttler —
-[rate-limit.constants.ts](../../apps/api/src/rate-limit/rate-limit.constants.ts)): global **120 req/min per
-user** (so each token paces ≤ ~2 req/s — the seed mints enough tokens to spread load), and **120 new-room
-subscribes/min per socket** (each socket subscribes once). The edge (Cloudflare/Caddy) adds per-IP caps; run the
-load generator from inside the trust boundary, or raise the edge cap for the test source.
+**Rate limits to stay under** (so the test measures capacity, not the throttler
+—
+[rate-limit.constants.ts](../../apps/api/src/rate-limit/rate-limit.constants.ts)):
+global **120 req/min per user** (so each token paces ≤ ~2 req/s — the seed mints
+enough tokens to spread load), and **120 new-room subscribes/min per socket**
+(each socket subscribes once). The edge (Cloudflare/Caddy) adds per-IP caps; run
+the load generator from inside the trust boundary, or raise the edge cap for the
+test source.
 
 ## 2. How the auth works (why a load test can mint its own tokens)
 
-The API verifies a **self-minted EdDSA JWT** (`iss=argus`, `aud=argus-api`, 10-min TTL) with the key from
-`SESSION_SIGNING_KEY_FILE`, and derives the tenant from a `user_tenant_index` row keyed by the token `sub`
-([auth.service.ts](../../apps/api/src/auth/auth.service.ts)). It does **not** call out to any OIDC provider and
-does **not** check `auth_sessions` at verify time. So if the load test **shares the API's signing key file**, it
-can mint valid tokens offline — no browser, no passkey ceremony.
+The API verifies a **self-minted EdDSA JWT** (`iss=argus`, `aud=argus-api`,
+10-min TTL) with the key from `SESSION_SIGNING_KEY_FILE`, and derives the tenant
+from a `user_tenant_index` row keyed by the token `sub`
+([auth.service.ts](../../apps/api/src/auth/auth.service.ts)). It does **not**
+call out to any OIDC provider and does **not** check `auth_sessions` at verify
+time. So if the load test **shares the API's signing key file**, it can mint
+valid tokens offline — no browser, no passkey ceremony.
 
-Because the server is **crypto-blind**, the seed can also create conversations + memberships **directly in the
-DB** with synthetic data: the gateway's `subscribe` only checks `conversation_members`, and a stored message is
-opaque ciphertext metadata. No MLS group state is needed server-side to exercise the real connect → auth →
-subscribe path.
+Because the server is **crypto-blind**, the seed can also create conversations +
+memberships **directly in the DB** with synthetic data: the gateway's
+`subscribe` only checks `conversation_members`, and a stored message is opaque
+ciphertext metadata. No MLS group state is needed server-side to exercise the
+real connect → auth → subscribe path.
 
 ## 3. Seed: a dedicated load-test tenant + N tokens
 
@@ -147,9 +156,10 @@ DATABASE_URL="postgres://argus:argus_local_dev@localhost:5432/argus" \
 
 ## 4. The k6 script
 
-Save as **`apps/api/messaging-load.js`** (next to the seed, so k6 and the tokens file share a directory). Two
-scenarios run concurrently: **authed REST reads** and **authed WS connect→subscribe** (the concurrency
-ceiling). Tune `BASE_URL` / `WS_URL` for the target.
+Save as **`apps/api/messaging-load.js`** (next to the seed, so k6 and the tokens
+file share a directory). Two scenarios run concurrently: **authed REST reads**
+and **authed WS connect→subscribe** (the concurrency ceiling). Tune `BASE_URL` /
+`WS_URL` for the target.
 
 ```js
 import http from 'k6/http';
@@ -239,29 +249,37 @@ docker run --rm -w /work \
   grafana/k6 run messaging-load.js
 ```
 
-k6 prints `http_req_duration` percentiles, `http_req_failed`, and `ws_session_ok`; a threshold breach exits
-non-zero. Re-run while **raising `TARGET`** until p95 crosses 1 s — that crossing is the box's concurrency knee.
+k6 prints `http_req_duration` percentiles, `http_req_failed`, and
+`ws_session_ok`; a threshold breach exits non-zero. Re-run while **raising
+`TARGET`** until p95 crosses 1 s — that crossing is the box's concurrency knee.
 
 ### Optional extension — message-relay throughput
 
-The scenarios above measure the capacity ceiling (open authenticated sockets + auth/DB throughput). To also
-measure **fan-out**, add a scenario that `POST`s synthetic ciphertext to `/conversations/:id/messages` (body per
-the `SendMessage` schema in `@argus/contracts`: `clientMessageId`, base64 `ciphertext`, `alg`, `epoch`) while a
-peer VU is subscribed, and assert the `message` frame arrives. Synthetic bytes are fine — the server is
-crypto-blind. This is the natural addition for the at-scale run at arming.
+The scenarios above measure the capacity ceiling (open authenticated sockets +
+auth/DB throughput). To also measure **fan-out**, add a scenario that `POST`s
+synthetic ciphertext to `/conversations/:id/messages` (body per the
+`SendMessage` schema in `@argus/contracts`: `clientMessageId`, base64
+`ciphertext`, `alg`, `epoch`) while a peer VU is subscribed, and assert the
+`message` frame arrives. Synthetic bytes are fine — the server is crypto-blind.
+This is the natural addition for the at-scale run at arming.
 
 ## 5. Safety
 
-- **Dedicated load-test tenant only** (`…00ff`). Never run the seed or the test against a tenant with real user
-  data. The seed refuses `NODE_ENV=production` outright; it is loopback-only unless you set
-  `LOADTEST_ALLOW_REMOTE=1`, which is **only** for a dedicated load-test/staging DB at arming — never production.
-- **Tokens are bearer credentials.** `apps/api/loadtest-tokens.json` and `apps/api/loadtest-signing.pem` are
-  short-lived scratch files — keep them out of git (see [§7](#7-gitignore)) and **delete them after the run**
-  (also remove `apps/api/seed-loadtest.ts` and `apps/api/messaging-load.js`). They are never logged.
-- **Re-running is idempotent:** the seed clears the load-test tenant's rows before re-seeding, so synthetic
-  data never accumulates. (`make reset` wipes the whole local DB if you want a fully clean slate.) Tokens
-  expire in 10 minutes regardless; re-seed for a fresh run.
-- The **at-scale run is gated on arming** — locally this is a low-VU smoke check that the harness works.
+- **Dedicated load-test tenant only** (`…00ff`). Never run the seed or the test
+  against a tenant with real user data. The seed refuses `NODE_ENV=production`
+  outright; it is loopback-only unless you set `LOADTEST_ALLOW_REMOTE=1`, which
+  is **only** for a dedicated load-test/staging DB at arming — never production.
+- **Tokens are bearer credentials.** `apps/api/loadtest-tokens.json` and
+  `apps/api/loadtest-signing.pem` are short-lived scratch files — keep them out
+  of git (see [§7](#7-gitignore)) and **delete them after the run** (also remove
+  `apps/api/seed-loadtest.ts` and `apps/api/messaging-load.js`). They are never
+  logged.
+- **Re-running is idempotent:** the seed clears the load-test tenant's rows
+  before re-seeding, so synthetic data never accumulates. (`make reset` wipes
+  the whole local DB if you want a fully clean slate.) Tokens expire in 10
+  minutes regardless; re-seed for a fresh run.
+- The **at-scale run is gated on arming** — locally this is a low-VU smoke check
+  that the harness works.
 
 ## 6. Results log
 
@@ -271,8 +289,9 @@ crypto-blind. This is the natural addition for the at-scale run at arming.
 
 ## 7. .gitignore
 
-The scratch artifacts live under `apps/api/`; the repo ignores them (added with this checkpoint). These bare
-patterns match the files at any depth, and the signing key is already covered by the existing `*.pem` rule:
+The scratch artifacts live under `apps/api/`; the repo ignores them (added with
+this checkpoint). These bare patterns match the files at any depth, and the
+signing key is already covered by the existing `*.pem` rule:
 
 ```
 loadtest-tokens.json   # bearer tokens (matches apps/api/loadtest-tokens.json)

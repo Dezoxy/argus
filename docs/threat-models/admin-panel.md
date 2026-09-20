@@ -15,23 +15,36 @@
 
 ## Auth & authorisation
 
-- `AdminGuard` enforces `users.role = 'admin'` (active) against the verified token's tenant. Applied at the controller level (`@UseGuards(AdminGuard)`), so every handler in `AdminController` is gated.
-- `JwtAuthGuard` (global) validates the JWT and sets `req.auth`; `AdminGuard` re-reads the user row — double enforcement independent of the JWT claims.
-- Non-admins (including members of the same tenant) receive 403. Cross-tenant requests are impossible: `withTenant` + RLS bind every query to the verified `tenantId`.
+- `AdminGuard` enforces `users.role = 'admin'` (active) against the verified
+  token's tenant. Applied at the controller level (`@UseGuards(AdminGuard)`), so
+  every handler in `AdminController` is gated.
+- `JwtAuthGuard` (global) validates the JWT and sets `req.auth`; `AdminGuard`
+  re-reads the user row — double enforcement independent of the JWT claims.
+- Non-admins (including members of the same tenant) receive 403. Cross-tenant
+  requests are impossible: `withTenant` + RLS bind every query to the verified
+  `tenantId`.
 
 ## Device revoke
 
 - Hard-delete of the `devices` row cascades to `key_packages` (FK `ON DELETE CASCADE`).
-- Effect: the device loses its one-time KeyPackage pool. It cannot receive new MLS Welcomes and cannot be added to new conversations. Existing sealed MLS group state on the client device is still present locally but is orphaned — the server will not serve it new material.
+- Effect: the device loses its one-time KeyPackage pool. It cannot receive new
+  MLS Welcomes and cannot be added to new conversations. Existing sealed MLS
+  group state on the client device is still present locally but is orphaned —
+  the server will not serve it new material.
 - Admin can revoke their own device (edge case; they simply re-provision on next login).
 - Audit event `device.revoked` is written after the DELETE succeeds.
 
 ## Audit log exposure
 
-- The `ip` column (inet) is shown to tenant admins for forensic purposes. It is not exposed to members or external parties.
-- `actorSub` is the verified session subject (`argusid:<id>`, an opaque identifier, not a session token).
-- `actorDisplayName` is resolved via LEFT JOIN matching either `users.external_identity_id` or `'argusid:'||argus_id` against `actorSub`, within the same RLS context — a deleted/revoked user resolves to `null`.
-- Cursor encoding: `base64url(JSON({ createdAt, id }))` — no secret data, tamper-tolerant (a malformed cursor returns from the beginning).
+- The `ip` column (inet) is shown to tenant admins for forensic purposes. It is
+  not exposed to members or external parties.
+- `actorSub` is the verified session subject (`argusid:<id>`, an opaque
+  identifier, not a session token).
+- `actorDisplayName` is resolved via LEFT JOIN matching either
+  `users.external_identity_id` or `'argusid:'||argus_id` against `actorSub`,
+  within the same RLS context — a deleted/revoked user resolves to `null`.
+- Cursor encoding: `base64url(JSON({ createdAt, id }))` — no secret data,
+  tamper-tolerant (a malformed cursor returns from the beginning).
 
 ## Rate limits
 

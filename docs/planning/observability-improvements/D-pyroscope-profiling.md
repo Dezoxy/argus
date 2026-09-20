@@ -6,9 +6,13 @@
 
 ## Problem
 
-Logs, metrics, and traces tell you *that* something is slow. Continuous profiling tells you *which function* is burning CPU or allocating heap — without needing to reproduce the issue or run a manual profiler session.
+Logs, metrics, and traces tell you *that* something is slow. Continuous
+profiling tells you *which function* is burning CPU or allocating heap — without
+needing to reproduce the issue or run a manual profiler session.
 
-Pyroscope integrates directly into the Grafana UI, so you can open the "Flame graph" panel next to a Tempo trace and see what the Node.js process was doing during that exact time window.
+Pyroscope integrates directly into the Grafana UI, so you can open the "Flame
+graph" panel next to a Tempo trace and see what the Node.js process was doing
+during that exact time window.
 
 ---
 
@@ -33,7 +37,8 @@ pyroscope:
       limits: { memory: 256m, cpus: '0.25' }
 ```
 
-Add `pyroscope-data:` to the top-level `volumes` block. No published ports — Grafana queries `http://pyroscope:4040`.
+Add `pyroscope-data:` to the top-level `volumes` block. No published ports —
+Grafana queries `http://pyroscope:4040`.
 
 ### 2. New file: `infra/stack/observability/pyroscope/pyroscope-config.yml`
 
@@ -68,7 +73,8 @@ datasources:
 
 ### 4. `apps/api/package.json`
 
-Add the Pyroscope Node.js SDK (pull-mode — Pyroscope scrapes the process; no push from app code):
+Add the Pyroscope Node.js SDK (pull-mode — Pyroscope scrapes the process; no
+push from app code):
 
 ```json
 "@pyroscope/nodejs": "^0.4.0"
@@ -129,9 +135,12 @@ Add a "Flame graph" panel:
 
 ## Security notes
 
-- The Pyroscope service has no published ports — only accessible from Grafana over the internal Docker network.
-- Profiles contain function names and call stacks. They do not contain variable values, request bodies, or user data.
-- `PYROSCOPE_SERVER_ADDRESS` is a non-secret internal address; it goes in the non-secret `environment` block.
+- The Pyroscope service has no published ports — only accessible from Grafana
+  over the internal Docker network.
+- Profiles contain function names and call stacks. They do not contain variable
+  values, request bodies, or user data.
+- `PYROSCOPE_SERVER_ADDRESS` is a non-secret internal address; it goes in the
+  non-secret `environment` block.
 
 ---
 
@@ -139,5 +148,7 @@ Add a "Flame graph" panel:
 
 1. `docker compose exec pyroscope wget -qO- http://localhost:4040/ready` — should return `ready`.
 2. Send traffic to the API for ~30 seconds.
-3. In Grafana → Explore → Pyroscope datasource → select `argus.api` → choose `process_cpu` profile type → should see a flame graph.
-4. Open `argus-traces.json` → the flame graph panel in the traces section should populate when a time range with traffic is selected.
+3. In Grafana → Explore → Pyroscope datasource → select `argus.api` → choose
+   `process_cpu` profile type → should see a flame graph.
+4. Open `argus-traces.json` → the flame graph panel in the traces section should
+   populate when a time range with traffic is selected.

@@ -1,11 +1,18 @@
 # AWS Secure Internal Messaging App — Architecture Plan
 
-> ⚠️ **DEPRECATED / SUPERSEDED — do not follow this document.**
-> This is an early AWS-first draft kept only for history. It still recommends AWS (EKS/RDS), Angular, ASP.NET Core, and SignalR — all of which were **replaced**. The live plan is [`secure_messaging_platform_plan.md`](../architecture/secure_messaging_platform_plan.md): a **single Azure VM (Docker Compose), React + Vite PWA, NestJS, WebSocket, MLS, Postgres + RLS** (the K8s/EKS approach this draft describes was dropped — everything below is historical).
+> ⚠️ **DEPRECATED / SUPERSEDED — do not follow this document.** This is an early
+> AWS-first draft kept only for history. It still recommends AWS (EKS/RDS),
+> Angular, ASP.NET Core, and SignalR — all of which were **replaced**. The live
+> plan is
+> [`secure_messaging_platform_plan.md`](../architecture/secure_messaging_platform_plan.md):
+> a **single Azure VM (Docker Compose), React + Vite PWA, NestJS, WebSocket,
+> MLS, Postgres + RLS** (the K8s/EKS approach this draft describes was dropped —
+> everything below is historical).
 
 ## 0. Executive Summary
 
-This document describes an AWS-first architecture for a **company-internal secure messaging application** focused on:
+This document describes an AWS-first architecture for a **company-internal
+secure messaging application** focused on:
 
 - **Text messages**
 - **Image messages / image attachments**
@@ -16,9 +23,13 @@ This document describes an AWS-first architecture for a **company-internal secur
 - **Kubernetes flexibility**
 - **Future native apps for iOS, Android, Windows, macOS, and desktop**
 
-The recommended direction is to build a **custom secure internal messaging platform** where the backend acts as a delivery, identity, and coordination layer, while clients own encryption and decryption of message content.
+The recommended direction is to build a **custom secure internal messaging
+platform** where the backend acts as a delivery, identity, and coordination
+layer, while clients own encryption and decryption of message content.
 
-The first beta should be a **web application** running on AWS, but the architecture must be designed so that the same backend can later support mobile and desktop apps.
+The first beta should be a **web application** running on AWS, but the
+architecture must be designed so that the same backend can later support mobile
+and desktop apps.
 
 ---
 
@@ -26,7 +37,8 @@ The first beta should be a **web application** running on AWS, but the architect
 
 ### Main Goal
 
-Build a private, company-internal messaging system with strong security, designed for sensitive business communication.
+Build a private, company-internal messaging system with strong security,
+designed for sensitive business communication.
 
 ### First Beta Scope
 
@@ -98,11 +110,14 @@ The backend should not manage:
 
 ## 3. Important Security Reality: Web Beta vs Native Apps
 
-A web-only beta can be secure enough for testing and early internal usage, but it has a weakness:
+A web-only beta can be secure enough for testing and early internal usage, but
+it has a weakness:
 
-> In a browser-based end-to-end encrypted app, the server delivers the JavaScript that performs encryption.
+> In a browser-based end-to-end encrypted app, the server delivers the
+> JavaScript that performs encryption.
 
-If the web server or deployment pipeline is compromised, an attacker could theoretically ship malicious JavaScript to users.
+If the web server or deployment pipeline is compromised, an attacker could
+theoretically ship malicious JavaScript to users.
 
 Therefore:
 
@@ -304,7 +319,8 @@ Recipient decrypts locally
 
 ### Important Security Boundary
 
-AWS KMS is useful for infrastructure and service encryption, but it should not replace end-to-end encryption.
+AWS KMS is useful for infrastructure and service encryption, but it should not
+replace end-to-end encryption.
 
 Use AWS KMS for:
 
@@ -314,7 +330,8 @@ Use AWS KMS for:
 - Application-level envelope encryption where the server is allowed to decrypt
 - Internal service keys
 
-Do not use AWS KMS as the main mechanism for user message privacy if the goal is true E2EE, because server-side KMS usually means the server can decrypt.
+Do not use AWS KMS as the main mechanism for user message privacy if the goal is
+true E2EE, because server-side KMS usually means the server can decrypt.
 
 ---
 
@@ -718,7 +735,8 @@ short-lived service account tokens
 IRSA for AWS permissions
 ```
 
-IRSA means IAM Roles for Service Accounts. It allows Kubernetes service accounts to access AWS services without static AWS keys inside pods.
+IRSA means IAM Roles for Service Accounts. It allows Kubernetes service accounts
+to access AWS services without static AWS keys inside pods.
 
 ---
 
@@ -1033,7 +1051,8 @@ For your stated goal, choose:
 Option A for beta: no admin content access.
 ```
 
-Later, if business requires it, add a separate compliance mode per tenant or per organization.
+Later, if business requires it, add a separate compliance mode per tenant or per
+organization.
 
 ---
 
@@ -1148,7 +1167,8 @@ WebSocket API
 Admin API
 ```
 
-Native clients improve security because private keys can be stored in OS-backed secure storage.
+Native clients improve security because private keys can be stored in OS-backed
+secure storage.
 
 ---
 

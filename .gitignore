@@ -94,3 +94,12 @@ ds-bundle/
 .design-sync/node_modules
 .design-sync/synth/node_modules
 .design-sync/synth/styles.compiled.css
+
+# Structurizr: regenerated on every load while all views use autoLayout.
+# Authoring uses automatic layout; do not introduce maintained coordinates.
+docs/architecture/workspace.json
+docs/architecture/.structurizr/
+docs/architecture/generated/
+
+# python bytecode from the repo's own scripts (scripts/check_docs_consistency.py)
+__pycache__/

@@ -1,9 +1,11 @@
 # Threat model: rate limiting (per-user request throttling)
 
-> Status: **DRAFT for ratification.** Roadmap **checkpoint 46**. A global per-verified-user request throttle
-> (`@nestjs/throttler`) with a generous baseline and tighter caps on the abuse-prone mutations earlier threat
-> models deferred to this checkpoint (key-directory §3, key-backup §49, encrypted-attachments). This is a
-> **defensive control**, not a data feature: it sees request *metadata* only (identity, route), never bodies.
+> Status: **DRAFT for ratification.** Roadmap **checkpoint 46**. A global
+> per-verified-user request throttle (`@nestjs/throttler`) with a generous
+> baseline and tighter caps on the abuse-prone mutations earlier threat models
+> deferred to this checkpoint (key-directory §3, key-backup §49,
+> encrypted-attachments). This is a **defensive control**, not a data feature:
+> it sees request *metadata* only (identity, route), never bodies.
 
 ## 1. Feature & data flow
 

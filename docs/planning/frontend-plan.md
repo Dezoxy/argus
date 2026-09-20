@@ -1,14 +1,27 @@
 # Frontend Upgrade Implementation Plan (`apps/web`)
 
-> **Status:** all 14 steps + F1–F6 follow-ups are **complete** and merged (PRs #87–#146). This document stays the **canonical detail + standing rules** for `apps/web`; it is anchored in the roadmap as checkpoint **`#44a`** (`docs/planning/roadmap/README.md`, Phase 5). Update both together.
+> **Status:** all 14 steps + F1–F6 follow-ups are **complete** and merged (PRs
+> #87–#146). This document stays the **canonical detail + standing rules** for
+> `apps/web`; it is anchored in the roadmap as checkpoint **`#44a`**
+> (`docs/planning/roadmap/README.md`, Phase 5). Update both together.
 
-> **For agentic workers:** Implement this plan task-by-task using the repo's agent instructions and the tools available in your environment. Steps use checkbox (`- [ ]`) syntax for tracking. Keep each task in its own commit unless the user asks to batch changes.
+> **For agentic workers:** Implement this plan task-by-task using the repo's
+> agent instructions and the tools available in your environment. Steps use
+> checkbox (`- [ ]`) syntax for tracking. Keep each task in its own commit
+> unless the user asks to batch changes.
 
-**Goal:** Make the Argus frontend easier to extend without weakening the E2EE, passkey-first, pseudonymous product direction.
+**Goal:** Make the Argus frontend easier to extend without weakening the E2EE,
+passkey-first, pseudonymous product direction.
 
-**Architecture:** The client remains a static React/Vite PWA. The server stays crypto-blind, so plaintext, private keys, passphrases, and decrypted attachments stay inside the browser. Future UI work should separate product shell, route pages, local encrypted state, API contracts, and reusable components instead of growing one large chat surface.
+**Architecture:** The client remains a static React/Vite PWA. The server stays
+crypto-blind, so plaintext, private keys, passphrases, and decrypted attachments
+stay inside the browser. Future UI work should separate product shell, route
+pages, local encrypted state, API contracts, and reusable components instead of
+growing one large chat surface.
 
-**Tech Stack:** React 19, Vite, TypeScript, Tailwind v4, `vite-plugin-pwa`, `@argus/contracts` with Zod, `packages/crypto`, WebSocket gateway, IndexedDB, versioned localStorage keys, Vitest, Playwright.
+**Tech Stack:** React 19, Vite, TypeScript, Tailwind v4, `vite-plugin-pwa`,
+`@argus/contracts` with Zod, `packages/crypto`, WebSocket gateway, IndexedDB,
+versioned localStorage keys, Vitest, Playwright.
 
 ---
 
@@ -18,37 +31,48 @@ Implement this as **14 steps**.
 
 Reasoning:
 
-- Fewer than 8 steps would mix design-system, routing, auth, chat, tests, and PWA work into risky oversized changes.
+- Fewer than 8 steps would mix design-system, routing, auth, chat, tests, and
+  PWA work into risky oversized changes.
 - More than 15 steps would create too much planning overhead for a solo project.
-- 14 steps keeps the PR automation and Playwright safety net early, then splits UI primitives into creation and adoption, which makes diffs easier to review.
+- 14 steps keeps the PR automation and Playwright safety net early, then splits
+  UI primitives into creation and adoption, which makes diffs easier to review.
 
-Each step should leave the app runnable at the canonical local SPA URL, `http://localhost:5173/chat`.
-If Vite prints a different fallback port because `5173` is already occupied, use that printed URL only for browser inspection and do not change OIDC redirect assumptions.
+Each step should leave the app runnable at the canonical local SPA URL,
+`http://localhost:5173/chat`. If Vite prints a different fallback port because
+`5173` is already occupied, use that printed URL only for browser inspection and
+do not change OIDC redirect assumptions.
 
 ## Non-Negotiables
 
 - The frontend may decrypt content locally, but the server must never receive plaintext.
-- Do not add username/password UI. The app direction is Zitadel-managed registration and passkey-first login.
-- Do not store auth tokens, plaintext message content, private keys, passphrases, or presigned URLs in logs.
+- Do not add username/password UI. The app direction is Zitadel-managed
+  registration and passkey-first login.
+- Do not store auth tokens, plaintext message content, private keys,
+  passphrases, or presigned URLs in logs.
 - Any browser persistence must use versioned keys and migration/fallback logic.
-- Any new server call must go through typed client functions and shared contracts where available.
+- Any new server call must go through typed client functions and shared
+  contracts where available.
 - Mobile layouts must be designed intentionally, not just compressed desktop panels.
-- Do not render raw errors if they may contain request data, URLs, tokens, stack traces, or message content.
+- Do not render raw errors if they may contain request data, URLs, tokens, stack
+  traces, or message content.
 - Do not introduce new dependencies unless the current complexity earns them.
 
 ## Identity Model
 
 Use precise language:
 
-- **Zitadel identity:** stable authenticated subject, used for authentication, authorization, and storage scoping.
-- **Argus profile:** pseudonymous app identity, generated Argus ID, optional user-chosen display name, and bounded avatar.
+- **Zitadel identity:** stable authenticated subject, used for authentication,
+  authorization, and storage scoping.
+- **Argus profile:** pseudonymous app identity, generated Argus ID, optional
+  user-chosen display name, and bounded avatar.
 
 Rules:
 
 - Do not infer app display identity from email address.
 - Do not display the Zitadel subject ID as the user's app identity.
 - Use the authenticated subject only for storage scoping and authorization boundaries.
-- The Argus UI should expose only the generated Argus ID, optional display name, and bounded avatar.
+- The Argus UI should expose only the generated Argus ID, optional display name,
+  and bounded avatar.
 
 ## Current Stack Decision
 
@@ -57,13 +81,19 @@ Rules:
 - Keep **Vite** for local development and production bundling.
 - Keep **Zitadel** as the auth provider.
 - Keep **passkey-first** as the preferred user-facing login direction.
-- Keep **Tailwind v4**, but move shared visual decisions into Argus tokens and reusable components.
-- Keep the existing `react-router-dom` `BrowserRouter`/`Routes` boundary and extend it for the planned route split. Do not add another routing library or parallel custom route switch unless route complexity clearly requires it.
+- Keep **Tailwind v4**, but move shared visual decisions into Argus tokens and
+  reusable components.
+- Keep the existing `react-router-dom` `BrowserRouter`/`Routes` boundary and
+  extend it for the planned route split. Do not add another routing library or
+  parallel custom route switch unless route complexity clearly requires it.
 
 ## Local Dev URL Rule
 
-The canonical local SPA origin is `http://localhost:5173` because Vite defaults to port `5173`, and the local Zitadel redirect URI, `.env.example`, Makefile, and auth docs are configured around that origin.
-Alternate Vite fallback ports are temporary browser-inspection URLs only; do not bake them into docs, tests, OIDC settings, or screenshots.
+The canonical local SPA origin is `http://localhost:5173` because Vite defaults
+to port `5173`, and the local Zitadel redirect URI, `.env.example`, Makefile,
+and auth docs are configured around that origin. Alternate Vite fallback ports
+are temporary browser-inspection URLs only; do not bake them into docs, tests,
+OIDC settings, or screenshots.
 
 ## Browser Storage Classification
 
@@ -83,10 +113,14 @@ Storage key rules:
 
 - Use namespaced, versioned keys.
 - Scope account-specific records by authenticated subject id.
-- Prefer keys like `argus:v1:profile:<subjectId>`, `argus:v1:settings:<subjectId>`, `argus:v1:device`, and `argus:v1:theme`.
+- Prefer keys like `argus:v1:profile:<subjectId>`,
+  `argus:v1:settings:<subjectId>`, `argus:v1:device`, and `argus:v1:theme`.
 - Avoid generic keys like `profile`, `settings`, `user`, `token`, and `messages`.
-- Keep bearer and refresh tokens in the memory-only OIDC user/token store; do not persist them in `localStorage`, `sessionStorage`, or IndexedDB.
-- Define fallback behavior for corrupted, unmigratable, or quota-limited state. Fallback may wipe only the affected Argus namespace, never unrelated browser storage.
+- Keep bearer and refresh tokens in the memory-only OIDC user/token store; do
+  not persist them in `localStorage`, `sessionStorage`, or IndexedDB.
+- Define fallback behavior for corrupted, unmigratable, or quota-limited state.
+  Fallback may wipe only the affected Argus namespace, never unrelated browser
+  storage.
 
 ## Current Screen Map
 
@@ -144,7 +178,8 @@ Embedded surface ownership before refactoring:
 - Inspect: `apps/web/src/features/settings/SettingsPanel.tsx`
 - Inspect: `apps/web/src/lib/auth.ts`
 
-- [x] Confirm every user-facing surface has an owner: auth, callback, chat, settings, recovery, devices, storage, attachments.
+- [x] Confirm every user-facing surface has an owner: auth, callback, chat,
+  settings, recovery, devices, storage, attachments.
 - [x] Document which surfaces are real, placeholder, or blocked by backend work.
 - [x] Do not move code in this step.
 
@@ -165,7 +200,8 @@ git commit -m "docs: update frontend upgrade plan"
 
 ### Step 2: Automated Frontend PR Gate
 
-**Purpose:** Make Codex able to run the frontend verification and PR review loop without manual clicking or ad hoc commands.
+**Purpose:** Make Codex able to run the frontend verification and PR review loop
+without manual clicking or ad hoc commands.
 
 **Files:**
 
@@ -175,15 +211,22 @@ git commit -m "docs: update frontend upgrade plan"
 - Modify: `docs/planning/frontend-plan.md`
 
 - [x] Add root script `frontend:verify`.
-- [x] If `apps/web` already has `test:e2e`, include it in `frontend:verify`; otherwise print a clear skip message until Step 3 adds it.
-- [x] Add `scripts/fetch-pr-review-threads.py` using `gh api graphql` to print unresolved review threads with `id`, `isResolved`, `isOutdated`, `path`, `line`, author, and body.
+- [x] If `apps/web` already has `test:e2e`, include it in `frontend:verify`;
+  otherwise print a clear skip message until Step 3 adds it.
+- [x] Add `scripts/fetch-pr-review-threads.py` using `gh api graphql` to print
+  unresolved review threads with `id`, `isResolved`, `isOutdated`, `path`,
+  `line`, author, and body.
 - [x] Add `scripts/frontend-pr-gate.sh` that detects the current PR with `gh pr view --json number,url`.
 - [x] The gate script must wait for CI with `gh pr checks <number> --watch`.
 - [x] The gate script must comment `@codex review`.
-- [x] The gate script must poll until a `chatgpt-codex-connector` review for the current head commit appears.
-- [x] The gate script must fetch unresolved review threads and exit nonzero if unresolved actionable Codex findings remain.
-- [x] The gate script must print the exact review thread ids and URLs needed for follow-up replies.
-- [x] Add `--merge` only if it can prove CI is green and the latest Codex review is clean; otherwise leave merge manual.
+- [x] The gate script must poll until a `chatgpt-codex-connector` review for the
+  current head commit appears.
+- [x] The gate script must fetch unresolved review threads and exit nonzero if
+  unresolved actionable Codex findings remain.
+- [x] The gate script must print the exact review thread ids and URLs needed for
+  follow-up replies.
+- [x] Add `--merge` only if it can prove CI is green and the latest Codex review
+  is clean; otherwise leave merge manual.
 
 **Verification:**
 
@@ -193,7 +236,9 @@ shellcheck scripts/frontend-pr-gate.sh
 python3 -m py_compile scripts/fetch-pr-review-threads.py
 ```
 
-Expected: `frontend:verify` runs available checks, shell script passes ShellCheck if installed, and Python compiles. If ShellCheck is not installed locally, document the skip in the PR body.
+Expected: `frontend:verify` runs available checks, shell script passes
+ShellCheck if installed, and Python compiles. If ShellCheck is not installed
+locally, document the skip in the PR body.
 
 **Commit:**
 
@@ -249,7 +294,8 @@ git commit -m "test(web): add frontend smoke tests"
 - Create: `apps/web/src/features/ui/theme.ts`
 - Create: `apps/web/src/features/ui/theme.spec.ts`
 
-- [x] Define tokens for app background, panel, panel-subtle, border, text, muted text, danger, success, and accent colors.
+- [x] Define tokens for app background, panel, panel-subtle, border, text, muted
+  text, danger, success, and accent colors.
 - [x] Keep purple as the default accent.
 - [x] Preserve the existing user-selectable accent color list.
 - [x] Add a test that validates each accent has `id`, `label`, `hex`, and `soft` values.
@@ -287,7 +333,8 @@ git commit -m "feat(web): add argus design tokens"
 - [x] Create primitives and use each in at most one safe location.
 - [x] `IconButton` must require `aria-label`.
 - [x] `Button` must support `disabled` and `loading` states.
-- [x] `Modal` must set `role="dialog"`, `aria-modal="true"`, an accessible label/title, close-on-escape behavior, and visible focus styles.
+- [x] `Modal` must set `role="dialog"`, `aria-modal="true"`, an accessible
+  label/title, close-on-escape behavior, and visible focus styles.
 - [x] Clickable row-like controls must be keyboard-friendly.
 - [x] `Avatar` must reuse the safe avatar source boundary.
 - [x] Do not redesign chat or settings in this step.
@@ -363,7 +410,8 @@ git commit -m "refactor(web): adopt shared ui primitives"
 - [x] Add route shells for settings, security, devices, and storage.
 - [x] Route components own layout boundaries.
 - [x] Route components must not make direct untyped backend calls.
-- [x] Extend the existing `react-router-dom` route configuration instead of adding another router dependency or a parallel custom route switch.
+- [x] Extend the existing `react-router-dom` route configuration instead of
+  adding another router dependency or a parallel custom route switch.
 
 **Verification:**
 
@@ -442,7 +490,8 @@ git commit -m "refactor(web): split settings sections"
 
 - [x] Keep app UI free of username/password login controls.
 - [x] Treat Zitadel as the registration/passkey authority.
-- [x] Keep Argus profile fields local: generated Argus ID, optional display name, bounded avatar.
+- [x] Keep Argus profile fields local: generated Argus ID, optional display
+  name, bounded avatar.
 - [x] Keep profile storage scoped by authenticated subject id.
 - [x] Keep mismatched legacy profile records discarded.
 - [x] Do not infer display identity from email.
@@ -483,11 +532,13 @@ git commit -m "feat(web): harden pseudonymous profile boundary"
 - Modify: `packages/contracts/src/index.ts`
 
 - [x] Centralize request creation, auth headers, JSON parsing, and Zod validation.
-- [x] Rely on inferred types from `@argus/contracts` Zod schemas instead of duplicate hand-written response types.
+- [x] Rely on inferred types from `@argus/contracts` Zod schemas instead of
+  duplicate hand-written response types.
 - [x] Return typed success/error results instead of throwing from component code.
 - [x] Keep tokens out of logs.
 - [x] Keep presigned URLs out of logs.
-- [x] If a backend contract changes, the frontend build should fail at compile time or validation tests should fail.
+- [x] If a backend contract changes, the frontend build should fail at compile
+  time or validation tests should fail.
 
 **Verification:**
 
@@ -496,7 +547,8 @@ pnpm --filter @argus/web test -- api-client.spec.ts
 pnpm --filter @argus/web typecheck
 ```
 
-Expected: API client tests cover success, validation failure, auth failure, and network failure.
+Expected: API client tests cover success, validation failure, auth failure, and
+network failure.
 
 **Commit:**
 
@@ -523,7 +575,8 @@ git commit -m "refactor(web): centralize typed api client"
 - [x] Add fallback/wipe behavior for unmigratable records and corrupted Argus state.
 - [x] Wipe only known Argus namespaced keys, not unrelated browser storage.
 - [x] Keep plaintext message content out of localStorage.
-- [x] Keep private keys, passphrases, auth tokens, presigned URLs, and decrypted attachments out of localStorage.
+- [x] Keep private keys, passphrases, auth tokens, presigned URLs, and decrypted
+  attachments out of localStorage.
 
 **Verification:**
 
@@ -532,7 +585,8 @@ pnpm --filter @argus/web test -- persistence.spec.ts
 pnpm --filter @argus/web typecheck
 ```
 
-Expected: tests cover missing record, invalid JSON, version mismatch, quota failure, legacy profile migration, and scoped namespace wipe.
+Expected: tests cover missing record, invalid JSON, version mismatch, quota
+failure, legacy profile migration, and scoped namespace wipe.
 
 **Commit:**
 
@@ -560,7 +614,8 @@ git commit -m "feat(web): add versioned browser persistence"
 - [x] Step 12D: extract backfill/history behavior.
 - [x] Keep crypto and live WebSocket behavior in hooks with narrow inputs.
 - [x] Use stable refs, callbacks, and memo boundaries for rapidly changing live state.
-- [x] Do not add Zustand or another local store unless profiling or real UI lag proves it is needed.
+- [x] Do not add Zustand or another local store unless profiling or real UI lag
+  proves it is needed.
 - [x] Preserve the current live conversation behavior.
 - [x] Preserve current-user profile normalization for new and existing conversations.
 
@@ -589,7 +644,8 @@ git commit -m "refactor(web): split chat state hooks"
 
 ### Step 13: Async, Empty, and Safe Error States
 
-**Purpose:** Make incomplete backend or offline states understandable without leaking sensitive data.
+**Purpose:** Make incomplete backend or offline states understandable without
+leaking sensitive data.
 
 **Files:**
 
@@ -602,7 +658,8 @@ git commit -m "refactor(web): split chat state hooks"
 - Modify: `apps/web/src/routes`
 
 - [x] Add `toSafeUiError(error)` or equivalent.
-- [x] Do not render raw `error.message` directly if the error may contain request data, response data, URLs, tokens, stack traces, or message content.
+- [x] Do not render raw `error.message` directly if the error may contain
+  request data, response data, URLs, tokens, stack traces, or message content.
 - [x] UI errors should show only safe metadata and human-readable generic messages.
 - [x] Add reusable loading state.
 - [x] Add reusable empty state.
@@ -645,7 +702,8 @@ git commit -m "feat(web): add safe frontend async states"
 - [x] Do not cache `/auth/callback`.
 - [x] Do not cache authorization-bearing requests.
 - [x] Do not cache presigned attachment URLs.
-- [x] Do not cache API responses containing sensitive user-specific data unless intentionally designed.
+- [x] Do not cache API responses containing sensitive user-specific data unless
+  intentionally designed.
 - [x] Do not cache decrypted content.
 - [x] Keep runtime caching explicit and narrow.
 
@@ -676,8 +734,10 @@ git commit -m "feat(web): restrict pwa caching"
 - Create: `apps/web/src/lib/telemetry.spec.ts`
 
 - [x] Add privacy-safe telemetry helpers for event names and technical metadata only.
-- [x] Add tests that reject message content, tokens, keys, passphrases, presigned URLs, and full authorization headers.
-- [x] Do not send telemetry anywhere in this step; define the local safety boundary first.
+- [x] Add tests that reject message content, tokens, keys, passphrases,
+  presigned URLs, and full authorization headers.
+- [x] Do not send telemetry anywhere in this step; define the local safety
+  boundary first.
 
 **Verification:**
 
@@ -695,7 +755,8 @@ git commit -m "feat(web): add privacy-safe telemetry boundary"
 
 ### Step 14C: Headers, Bundle Visibility, and Threat Model
 
-**Purpose:** Document production hosting expectations and add low-risk performance visibility.
+**Purpose:** Document production hosting expectations and add low-risk
+performance visibility.
 
 **Files:**
 
@@ -703,9 +764,13 @@ git commit -m "feat(web): add privacy-safe telemetry boundary"
 - Create: `docs/threat-models/frontend-observability.md`
 
 - [x] Add bundle size visibility.
-- [x] Keep route-level lazy loading where it reduces initial load without complicating chat startup.
-- [x] Document target hosting headers: `Content-Security-Policy`, `Referrer-Policy`, `Permissions-Policy`, `X-Content-Type-Options`, `frame-ancestors`, `base-uri`, and optional COOP/COEP later if needed.
-- [x] Add a threat-model note for frontend telemetry, browser persistence, PWA caching, and hosting headers.
+- [x] Keep route-level lazy loading where it reduces initial load without
+  complicating chat startup.
+- [x] Document target hosting headers: `Content-Security-Policy`,
+  `Referrer-Policy`, `Permissions-Policy`, `X-Content-Type-Options`,
+  `frame-ancestors`, `base-uri`, and optional COOP/COEP later if needed.
+- [x] Add a threat-model note for frontend telemetry, browser persistence, PWA
+  caching, and hosting headers.
 
 **Verification:**
 
@@ -731,7 +796,8 @@ Recommended default for the first frontend upgrade pass:
 4. Keep Steps 4-8 for UI maintainability and immediate velocity.
 5. Keep Steps 9-11 for auth/profile/persistence safety.
 6. Keep Step 12 split into smaller commits if the chat diff grows.
-7. Keep Step 14 only if PWA, telemetry, performance, or deployment headers are part of the next milestone.
+7. Keep Step 14 only if PWA, telemetry, performance, or deployment headers are
+   part of the next milestone.
 
 Best first implementation batch after review:
 
@@ -745,25 +811,28 @@ Best first implementation batch after review:
 
 ## Frontend-Only Follow-up Roadmap
 
-These follow-ups stay inside `apps/web` and frontend docs unless a later step explicitly says a backend
-contract is ready. Do not add server routes, database tables, cloud config, or auth-provider policy work in
-this roadmap.
+These follow-ups stay inside `apps/web` and frontend docs unless a later step
+explicitly says a backend contract is ready. Do not add server routes, database
+tables, cloud config, or auth-provider policy work in this roadmap.
 
 ### F1: A11y and Responsive Pass
 
-**Purpose:** Improve keyboard, screen-reader, and viewport behavior for the existing app surfaces.
+**Purpose:** Improve keyboard, screen-reader, and viewport behavior for the
+existing app surfaces.
 
-- [x] F1A: Add baseline Playwright coverage for chat/settings landmarks, keyboard focus return, hidden menu
-      tab stops, and mobile chat/sidebar navigation.
+- [x] F1A: Add baseline Playwright coverage for chat/settings landmarks,
+  keyboard focus return, hidden menu tab stops, and mobile chat/sidebar
+  navigation.
 - [x] F1B: Sweep focus states, accessible names, `aria-expanded`/`aria-current` usage, and modal focus entry.
-- [x] F1C: Run desktop and mobile browser QA for chat, settings, profile, composer, and route shells.
+- [x] F1C: Run desktop and mobile browser QA for chat, settings, profile,
+  composer, and route shells.
 
 **Verification:** `pnpm frontend:verify`, plus browser QA on desktop and one mobile viewport.
 
 ### F2: Local Lighthouse PWA Pass
 
-**Purpose:** Run Lighthouse against the locally built PWA and fix frontend-owned installability, performance,
-and accessibility warnings.
+**Purpose:** Run Lighthouse against the locally built PWA and fix frontend-owned
+installability, performance, and accessibility warnings.
 
 - [x] Keep this frontend-only: no deploy-header or Cloudflare changes.
 - [x] Preserve the static-only service-worker policy.
@@ -776,7 +845,8 @@ and accessibility warnings.
 
 - [x] Add a first-run recovery reminder that stays local and dismissible.
 - [x] Add a client-only passphrase strength meter for recovery backup creation.
-- [x] Keep recovery copy clear that identity recovery does not restore past message history.
+- [x] Keep recovery copy clear that identity recovery does not restore past
+  message history.
 - [x] Do not upload backups or add backend endpoints in this follow-up.
 
 ### F4: PWA Update Prompt
@@ -789,13 +859,15 @@ Home Screen app.
 - [x] Reload only after the user chooses to restart into the new app shell.
 - [x] Add `workbox-window` because `virtual:pwa-register` imports it at runtime.
 - [x] Keep this frontend-only: no runtime caches for auth, API, WebSocket, or attachments.
-- [x] Document that iOS Home Screen metadata such as icon/name may still require reinstalling.
+- [x] Document that iOS Home Screen metadata such as icon/name may still require
+  reinstalling.
 
 ### F5: UI Consistency Sweep
 
 **Purpose:** Smooth existing chat/settings surfaces after the structural refactor.
 
-- [x] Normalize spacing, icon sizing, menu animations, modal entry, and mobile edge spacing.
+- [x] Normalize spacing, icon sizing, menu animations, modal entry, and mobile
+  edge spacing.
 - [x] Preserve the current dark-only product direction and accent-color system.
 - [x] Add or update Playwright coverage for any interaction changed.
 
@@ -804,13 +876,16 @@ Home Screen app.
 **Purpose:** Reduce initial frontend payload where it is low-risk.
 
 - [x] Use the existing bundle visibility output as the measurement source.
-- [x] Prefer lazy-loading non-chat routes, settings sections, and recovery panels before touching crypto paths.
-- [x] Do not split code in a way that complicates chat startup or the passkey/auth callback path.
+- [x] Prefer lazy-loading non-chat routes, settings sections, and recovery
+  panels before touching crypto paths.
+- [x] Do not split code in a way that complicates chat startup or the
+  passkey/auth callback path.
 
-Result: the first F6 pass lazy-loads non-chat route shells, the chat-owned settings modal, and the
-recovery panel inside Security settings. The Vite bundle report moved the main JS chunk from
-`739.2 KiB` / `224.8 KiB gzip` to `697.1 KiB` / `212.9 KiB gzip`. The remaining large main chunk is
-intentional for now because chat, auth callback, and crypto startup stayed eager.
+Result: the first F6 pass lazy-loads non-chat route shells, the chat-owned
+settings modal, and the recovery panel inside Security settings. The Vite bundle
+report moved the main JS chunk from `739.2 KiB` / `224.8 KiB gzip` to `697.1
+KiB` / `212.9 KiB gzip`. The remaining large main chunk is intentional for now
+because chat, auth callback, and crypto startup stayed eager.
 
 ## Standard Verification Before Each PR
 
@@ -837,7 +912,8 @@ pnpm --filter @argus/web test:e2e
 
 Manual checks:
 
-- Desktop chat at `http://localhost:5173/chat`, or the actual Vite fallback URL printed by `pnpm --filter @argus/web dev` when port `5173` is occupied
+- Desktop chat at `http://localhost:5173/chat`, or the actual Vite fallback URL
+  printed by `pnpm --filter @argus/web dev` when port `5173` is occupied
 - Mobile chat width
 - Settings open/close
 - Settings section navigation
@@ -865,11 +941,14 @@ gh pr comment <PR_NUMBER> --body '@codex review'
 
 - [ ] Wait for the `chatgpt-codex-connector` review to post.
 - [ ] Inspect every unresolved Codex review thread.
-- [ ] If Codex finds a real issue, fix it locally, run the relevant verification, commit, and push the PR update.
+- [ ] If Codex finds a real issue, fix it locally, run the relevant
+  verification, commit, and push the PR update.
 - [ ] After every pushed PR update, ping Codex again and repeat the loop.
-- [ ] If a Codex finding is intentionally not fixed, reply on the PR with the technical justification before merge.
+- [ ] If a Codex finding is intentionally not fixed, reply on the PR with the
+  technical justification before merge.
 - [ ] Merge only when both are true:
   - CI is green.
-  - Latest Codex review has no unresolved actionable findings, or every remaining finding has an explicit PR justification.
+  - Latest Codex review has no unresolved actionable findings, or every
+    remaining finding has an explicit PR justification.
 
 Do not merge on green CI alone.

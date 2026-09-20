@@ -1,29 +1,83 @@
 # 00 — Security Review Campaign Attestation
 
-> **"Prove it is private and safe."** This is the capstone of a six-slice adversarial security review of **argus**, a privacy-first, end-to-end-encrypted, multi-tenant messaging platform (NestJS API, React + Vite PWA, PostgreSQL + RLS, MLS/ts-mls crypto in `packages/crypto`).
+> **"Prove it is private and safe."** This is the capstone of a six-slice
+> adversarial security review of **argus**, a privacy-first,
+> end-to-end-encrypted, multi-tenant messaging platform (NestJS API, React +
+> Vite PWA, PostgreSQL + RLS, MLS/ts-mls crypto in `packages/crypto`).
 >
-> **Anchor:** `main` @ `bf6777fc` (post-#256, all six slice PRs #251–#256 merged). **Dates:** 2026-06-19. **Author:** security-architect (capstone synthesis). **Status:** AUTHORITATIVE for the campaign's verdict; the six slice notes under `docs/reviews/0{1..6}-*.md` are authoritative for the per-claim evidence.
+> **Anchor:** `main` @ `bf6777fc` (post-#256, all six slice PRs #251–#256
+> merged). **Dates:** 2026-06-19. **Author:** security-architect (capstone
+> synthesis). **Status:** AUTHORITATIVE for the campaign's verdict; the six
+> slice notes under `docs/reviews/0{1..6}-*.md` are authoritative for the
+> per-claim evidence.
 
 ---
 
 ## 1. Method & honesty stance
 
-The campaign ran as six adversarial slices, each an `ultracode` workflow with maxed-Opus reviewer subagents (`crypto-reviewer`, `security-boundary-auditor`, `infra-reviewer`) in a fixed pipeline:
+The campaign ran as six adversarial slices, each an `ultracode` workflow with
+maxed-Opus reviewer subagents (`crypto-reviewer`, `security-boundary-auditor`,
+`infra-reviewer`) in a fixed pipeline:
 
-1. **Recon** — map the surface and extract the falsifiable claims (one per invariant facet).
-2. **Per-claim finders** — one adversarial agent per claim, each trying to *break* it, not confirm it.
-3. **Skeptic refutation** — every candidate finding re-attacked: confirmed, downgraded, refuted, or (rarely) *impact-upgraded*.
+1. **Recon** — map the surface and extract the falsifiable claims (one per
+   invariant facet).
+2. **Per-claim finders** — one adversarial agent per claim, each trying to
+   *break* it, not confirm it.
+3. **Skeptic refutation** — every candidate finding re-attacked: confirmed,
+   downgraded, refuted, or (rarely) *impact-upgraded*.
 4. **Synthesis** — the slice note.
 
-**A claim is marked PROVEN only where a break was attempted and failed.** Where the literal wording of a claim was overstated but the security property held, the verdict is PARTIAL — not PASS — by design (default-to-caution). The skeptic pass is what makes "PROVEN" mean something: in Slice 3 it *raised* the impact of FP-1 after the finder under-rated it (`03-auth-identity.md:48`); in Slices 1–2 it refuted five candidate findings as misreads. This document does not soften any gap to make the verdict cleaner. An overclaim that survived into this attestation would itself be the failure.
+**A claim is marked PROVEN only where a break was attempted and failed.** Where
+the literal wording of a claim was overstated but the security property held,
+the verdict is PARTIAL — not PASS — by design (default-to-caution). The skeptic
+pass is what makes "PROVEN" mean something: in Slice 3 it *raised* the impact of
+FP-1 after the finder under-rated it (`03-auth-identity.md:48`); in Slices 1–2
+it refuted five candidate findings as misreads. This document does not soften
+any gap to make the verdict cleaner. An overclaim that survived into this
+attestation would itself be the failure.
 
-**Spot-checks for this capstone** (not taken on trust from the slices): the commit anchor (`bf6777fc`, main); the auth single-path (`auth.service.ts:44-79` — one `jwtVerify` against the self-minted key, no Zitadel/JWKS); `key_backups` dropped (`0040_drop_key_backups.sql:3`) and `packages/crypto/src/key-backup.ts` deleted; the audit-prune absence (no `@Cron`/`ScheduleModule`/`SchedulerRegistry`/`pg_cron` in `apps/api/src`); the BKP-1 backup-bundle gap on **both** CD tracks — the production Azure-VM path (`cd.yml:162`) and the parallel AWS experiment (`cd-aws.yml:154`); and the Art.30 compliance overclaims verbatim — the `docs/gdpr/article-30-records.md:78` "enforced by cleanup worker" attestation **plus** the stale dropped-`key_backups` rows at `:48` (data category), `:80` (retention), `:94` (audit event).
+**Spot-checks for this capstone** (not taken on trust from the slices): the
+commit anchor (`bf6777fc`, main); the auth single-path (`auth.service.ts:44-79`
+— one `jwtVerify` against the self-minted key, no Zitadel/JWKS); `key_backups`
+dropped (`0040_drop_key_backups.sql:3`) and `packages/crypto/src/key-backup.ts`
+deleted; the audit-prune absence (no
+`@Cron`/`ScheduleModule`/`SchedulerRegistry`/`pg_cron` in `apps/api/src`); the
+BKP-1 backup-bundle gap on **both** CD tracks — the production Azure-VM path
+(`cd.yml:162`) and the parallel AWS experiment (`cd-aws.yml:154`); and the
+Art.30 compliance overclaims verbatim — the `docs/gdpr/article-30-records.md:78`
+"enforced by cleanup worker" attestation **plus** the stale
+dropped-`key_backups` rows at `:48` (data category), `:80` (retention), `:94`
+(audit event).
 
 ---
 
 ## 2. Executive verdict
 
-**argus's central privacy claim — that the server is end-to-end-encrypted and cryptographically blind to content — is PROVEN.** Across the two highest-stakes slices (crypto core, server boundary) every claim survived a hard break attempt with zero P1/P2 findings: the server stores and forwards ciphertext only, there is no hand-rolled crypto (all crypto is confined to `packages/crypto` and delegates to vetted libraries — ts-mls for MLS messaging, WebCrypto AES-256-GCM for sealing, `@noble` Ed25519 for device proofs), tenant isolation is FORCE-RLS on every tenant table, private keys live on the client as non-extractable / sealed material, and no admin or log path reaches content. The auth/identity surface holds — no forgery, privilege-escalation, cross-tenant, or silent-device-add break was provable. **The gaps are real and must be visible.** Most bound *availability* (BKP-1 — nightly backups are never actually deployed, silent total data loss), *retention* (F1/AR-1), and supply-chain / at-rest posture — they do **not** reach message content. **But two are conditional confidentiality-core exposures, and naming them honestly is the difference between "PROVEN" and "PROVEN, passively":** **FP-1** — a *malicious server* that grinds the ~30-bit device-linking code can inject its own device into a conversation and then read content (the exact MITM the safety number exists to stop, gated only by a brute-forceable code); and the **CDI-1 + CSP-1** chain — an attacker who first achieves an in-origin client compromise can read plaintext from the heap/IndexedDB and exfil it. Both are *gated* (a brute-force grind; a prior compromise) and neither is a passive / honest-but-curious-server break — the crypto-blind core holds against the server itself — but both are genuine paths to content and both are must-fix. Below, the six invariants — decisive but honest.
+**argus's central privacy claim — that the server is end-to-end-encrypted and
+cryptographically blind to content — is PROVEN.** Across the two highest-stakes
+slices (crypto core, server boundary) every claim survived a hard break attempt
+with zero P1/P2 findings: the server stores and forwards ciphertext only, there
+is no hand-rolled crypto (all crypto is confined to `packages/crypto` and
+delegates to vetted libraries — ts-mls for MLS messaging, WebCrypto AES-256-GCM
+for sealing, `@noble` Ed25519 for device proofs), tenant isolation is FORCE-RLS
+on every tenant table, private keys live on the client as non-extractable /
+sealed material, and no admin or log path reaches content. The auth/identity
+surface holds — no forgery, privilege-escalation, cross-tenant, or
+silent-device-add break was provable. **The gaps are real and must be visible.**
+Most bound *availability* (BKP-1 — nightly backups are never actually deployed,
+silent total data loss), *retention* (F1/AR-1), and supply-chain / at-rest
+posture — they do **not** reach message content. **But two are conditional
+confidentiality-core exposures, and naming them honestly is the difference
+between "PROVEN" and "PROVEN, passively":** **FP-1** — a *malicious server* that
+grinds the ~30-bit device-linking code can inject its own device into a
+conversation and then read content (the exact MITM the safety number exists to
+stop, gated only by a brute-forceable code); and the **CDI-1 + CSP-1** chain —
+an attacker who first achieves an in-origin client compromise can read plaintext
+from the heap/IndexedDB and exfil it. Both are *gated* (a brute-force grind; a
+prior compromise) and neither is a passive / honest-but-curious-server break —
+the crypto-blind core holds against the server itself — but both are genuine
+paths to content and both are must-fix. Below, the six invariants — decisive but
+honest.
 
 | # | Invariant | Verdict | Basis (one line) | Slice(s) |
 |---|-----------|---------|------------------|----------|
@@ -34,7 +88,20 @@ The campaign ran as six adversarial slices, each an `ultracode` workflow with ma
 | 5 | **Secrets from Key Vault via Managed Identity, as files; no long-lived cloud cred in env** | **PARTIAL** | **Delivery *source* rule PROVEN** (no committed secret; no `aws_iam_access_key`/`aws_iam_user`; OIDC CI; secrets fetched to tmpfs `0444` files via IMDS/Arc-HIMDS). But **one secret — the cloudflared tunnel token — is delivered into the container `environment:` block, not as a mounted file** (INF-4), bending the "as files" form ("the matching secret may not use env"). Slice 06 judged the source rule met (PASS); the capstone marks PARTIAL on the file-delivery form — same INF-4 root cause as Invariant 2. PASS once it moves to a credentials file. Long-lived Arc/B2 credentials also need an owner + rotation. | 06 |
 | 6 | **No admin path to content** (admin/ops = metadata only) | **PASS** | All 3 admin-gated controllers return bounded metadata; device key capped at `left(...,12)`; audit view omits `metadata` jsonb; no debug/dump/decrypt route; GDPR has no admin override. | 02, 03, 04 |
 
-**Reading the table:** the four invariants that carry the E2EE promise (1, 3, 4, 6) are clean PASS. Invariants 2 and 5 are both **PARTIAL** — and on the *same single root cause*, INF-4: the cloudflared tunnel token rides in the container `environment:` block, which (a) persists it in Docker metadata at rest (the Invariant-2 persistence clause; the logging clause itself is PROVEN) and (b) delivers a secret via env rather than as a mounted file (the Invariant-5 "as files" form; the delivery-*source* rule itself is PROVEN). One host-root-gated fix — cloudflared credentials-file mode — closes both. The visible weaknesses below split two ways: **BKP-1** (availability), **F1/AR-1** (at-rest retention), and **INF-4** (secret persistence/delivery) do **not** reach message content; **FP-1** (a malicious-server device-injection MITM) and the **CDI-1 + CSP-1** active-attacker chain **are conditional confidentiality-core exposures** — gated by a brute-force grind and a prior in-origin compromise respectively — not passive server-side breaks, but genuine must-fix paths to content.
+**Reading the table:** the four invariants that carry the E2EE promise (1, 3,
+4, 6) are clean PASS. Invariants 2 and 5 are both **PARTIAL** — and on the *same
+single root cause*, INF-4: the cloudflared tunnel token rides in the container
+`environment:` block, which (a) persists it in Docker metadata at rest (the
+Invariant-2 persistence clause; the logging clause itself is PROVEN) and (b)
+delivers a secret via env rather than as a mounted file (the Invariant-5 "as
+files" form; the delivery-*source* rule itself is PROVEN). One host-root-gated
+fix — cloudflared credentials-file mode — closes both. The visible weaknesses
+below split two ways: **BKP-1** (availability), **F1/AR-1** (at-rest retention),
+and **INF-4** (secret persistence/delivery) do **not** reach message content;
+**FP-1** (a malicious-server device-injection MITM) and the **CDI-1 + CSP-1**
+active-attacker chain **are conditional confidentiality-core exposures** — gated
+by a brute-force grind and a prior in-origin compromise respectively — not
+passive server-side breaks, but genuine must-fix paths to content.
 
 ---
 
@@ -43,41 +110,107 @@ The campaign ran as six adversarial slices, each an `ultracode` workflow with ma
 Grouped by invariant, evidence-anchored. This is the substance behind "private and safe."
 
 ### Invariant 1 — Server is crypto-blind (Slices 01, 02, 04)
-- **No content reachable server-side.** Every content-bearing column is opaque ciphertext: `messages.ciphertext`, `conversation_commits.commit`, `conversation_welcomes.welcome`/`ratchet_tree`, `attachments.object_key` (`02-server-boundary.md:24`). A grep for `decrypt|decipher|.subtle|aes-|chacha|deriveKey` in the request path returns **zero**; the only crypto verb is an Ed25519 *public-key* signature check (an authz step). `body.alg` is stored and echoed but **never branched on** to select a cipher.
-- **Reads return ciphertext verbatim under RLS**, and a row-shape mismatch throws a *static* string — ciphertext never reaches an error message (`02-server-boundary.md:29`).
+- **No content reachable server-side.** Every content-bearing column is opaque
+  ciphertext: `messages.ciphertext`, `conversation_commits.commit`,
+  `conversation_welcomes.welcome`/`ratchet_tree`, `attachments.object_key`
+  (`02-server-boundary.md:24`). A grep for
+  `decrypt|decipher|.subtle|aes-|chacha|deriveKey` in the request path returns
+  **zero**; the only crypto verb is an Ed25519 *public-key* signature check (an
+  authz step). `body.alg` is stored and echoed but **never branched on** to
+  select a cipher.
+- **Reads return ciphertext verbatim under RLS**, and a row-shape mismatch
+  throws a *static* string — ciphertext never reaches an error message
+  (`02-server-boundary.md:29`).
 
 ### Invariant 4 — No hand-rolled crypto; key-substitution resistant (Slices 01, 03)
-- **No hand-rolled crypto — all crypto confined to `packages/crypto`, delegating to vetted libraries**: ts-mls for the MLS message/group layer; WebCrypto AES-256-GCM for at-rest/attachment sealing (`encryptAttachment`/`sealWithKey`, `seal.ts` — the attachment-AEAD-AAD hardening is a tracked P3 residual, `01-crypto-core.md:64`); `@noble` Ed25519 for device proofs. Outside `packages/crypto` the only primitive uses are non-E2EE server-auth (SHA-256 opaque-token digests, SHA-384 build SRI, breakglass Argon2id), each pre-cleared and Semgrep-enforced (`01-crypto-core.md:52-56`, three new guard rules at `:82-89`).
-- **CSPRNG everywhere** — every key/nonce/IV/salt/token traced to a CSPRNG; `Math.random` has zero functional uses repo-wide (`01-crypto-core.md:30-33`).
-- **Malicious-server key substitution is detected**: the safety number derives from the KeyPackage's *embedded* `leafNode.signaturePublicKey`, never a server routing field, so a byte-swap shifts the number and trips the out-of-band check; the joiner side is MLS-validated (`validateRatchetTree`) (`01-crypto-core.md:45-51`). The signature-key pin **transitively pins** the HPKE encryption key via ts-mls `validateKeyPackage` (`03-auth-identity.md:24`).
+- **No hand-rolled crypto — all crypto confined to `packages/crypto`, delegating
+  to vetted libraries**: ts-mls for the MLS message/group layer; WebCrypto
+  AES-256-GCM for at-rest/attachment sealing (`encryptAttachment`/`sealWithKey`,
+  `seal.ts` — the attachment-AEAD-AAD hardening is a tracked P3 residual,
+  `01-crypto-core.md:64`); `@noble` Ed25519 for device proofs. Outside
+  `packages/crypto` the only primitive uses are non-E2EE server-auth (SHA-256
+  opaque-token digests, SHA-384 build SRI, breakglass Argon2id), each
+  pre-cleared and Semgrep-enforced (`01-crypto-core.md:52-56`, three new guard
+  rules at `:82-89`).
+- **CSPRNG everywhere** — every key/nonce/IV/salt/token traced to a CSPRNG;
+  `Math.random` has zero functional uses repo-wide (`01-crypto-core.md:30-33`).
+- **Malicious-server key substitution is detected**: the safety number derives
+  from the KeyPackage's *embedded* `leafNode.signaturePublicKey`, never a server
+  routing field, so a byte-swap shifts the number and trips the out-of-band
+  check; the joiner side is MLS-validated (`validateRatchetTree`)
+  (`01-crypto-core.md:45-51`). The signature-key pin **transitively pins** the
+  HPKE encryption key via ts-mls `validateKeyPackage`
+  (`03-auth-identity.md:24`).
 
 ### Invariant 3 — Tenant isolation (Slice 02)
-- **All 18 live tenant tables** carry a tenant-isolation policy + leading `tenant_id` index; the `ENABLE`-RLS and `FORCE`-RLS sets are **identical** (every enabled table is forced) (`02-server-boundary.md:30`).
-- **Tenant context is never client-controlled** — `withTenant` sets it tx-locally from verified `auth.tenantId`, the `DEFAULT_TENANT_ID` constant, or a server-derived `row.tenantId`; all ~80 call sites checked; `argus_app` is the non-bypass runtime role; policies fail closed on an unset GUC. Backed by `db/rls.spec.ts` (`02-server-boundary.md:33-37`).
+- **All 18 live tenant tables** carry a tenant-isolation policy + leading
+  `tenant_id` index; the `ENABLE`-RLS and `FORCE`-RLS sets are **identical**
+  (every enabled table is forced) (`02-server-boundary.md:30`).
+- **Tenant context is never client-controlled** — `withTenant` sets it
+  tx-locally from verified `auth.tenantId`, the `DEFAULT_TENANT_ID` constant, or
+  a server-derived `row.tenantId`; all ~80 call sites checked; `argus_app` is
+  the non-bypass runtime role; policies fail closed on an unset GUC. Backed by
+  `db/rls.spec.ts` (`02-server-boundary.md:33-37`).
 
 ### Invariant 2 — No secret/plaintext logging (Slices 02, 04, 06) — *logging clause only; persistence clause is PARTIAL (INF-4, §6)*
-- **Default-deny everywhere**: the off-box error sink drops body/query/cookies/url, allowlists 4 headers, redacts presigned-URL/JWT/Bearer by value-shape (`02-server-boundary.md:42`); metric labels use route *templates* never `req.url` (`04-metadata-privacy.md:40`); WS token-verify failure is never logged; the Zod pipe emits `path: message`, never the rejected value. Web side has **zero** telemetry transport (`04-metadata-privacy.md:55`).
-- **Infra logging clean**: every `log()` helper is name/status-only; **no `set -x`, no `curl -v`** anywhere in `infra/`; secret-bearing curls use `--config -` stdin not argv (`06-infra-deploy.md:41`).
-- **The one exception** is the *persistence* clause, not logging: the cloudflared tunnel token rides in the container `environment:` block and so persists in Docker metadata (INF-4) — which is why the invariant is PARTIAL, not PASS, until it moves to a credentials file.
+- **Default-deny everywhere**: the off-box error sink drops
+  body/query/cookies/url, allowlists 4 headers, redacts presigned-URL/JWT/Bearer
+  by value-shape (`02-server-boundary.md:42`); metric labels use route
+  *templates* never `req.url` (`04-metadata-privacy.md:40`); WS token-verify
+  failure is never logged; the Zod pipe emits `path: message`, never the
+  rejected value. Web side has **zero** telemetry transport
+  (`04-metadata-privacy.md:55`).
+- **Infra logging clean**: every `log()` helper is name/status-only; **no `set
+  -x`, no `curl -v`** anywhere in `infra/`; secret-bearing curls use `--config
+  -` stdin not argv (`06-infra-deploy.md:41`).
+- **The one exception** is the *persistence* clause, not logging: the
+  cloudflared tunnel token rides in the container `environment:` block and so
+  persists in Docker metadata (INF-4) — which is why the invariant is PARTIAL,
+  not PASS, until it moves to a credentials file.
 
 ### Invariant 5 — Secrets via Key Vault / Managed Identity (Slice 06) — *delivery-source clause; the file-delivery form is PARTIAL (INF-4, §6)*
-- **No committed secret, no static cloud key in CI** — OIDC federation throughout; **no `aws_iam_access_key`/`aws_iam_user`** in Terraform (`06-infra-deploy.md:31`). Secrets minted from IMDS / Azure Arc HIMDS machine identity with no static credential, written atomically to tmpfs `0444` root files (`06-infra-deploy.md:24`).
-- **The one exception** is the file-delivery form: the cloudflared tunnel token is delivered into the container `environment:` block rather than as a mounted file (INF-4) — the same token/root-cause as the Invariant-2 residual — which is why this invariant is PARTIAL, not PASS, until it moves to a credentials file.
+- **No committed secret, no static cloud key in CI** — OIDC federation
+  throughout; **no `aws_iam_access_key`/`aws_iam_user`** in Terraform
+  (`06-infra-deploy.md:31`). Secrets minted from IMDS / Azure Arc HIMDS machine
+  identity with no static credential, written atomically to tmpfs `0444` root
+  files (`06-infra-deploy.md:24`).
+- **The one exception** is the file-delivery form: the cloudflared tunnel token
+  is delivered into the container `environment:` block rather than as a mounted
+  file (INF-4) — the same token/root-cause as the Invariant-2 residual — which
+  is why this invariant is PARTIAL, not PASS, until it moves to a credentials
+  file.
 
 ### Invariant 6 — No admin path to content (Slices 02, 03, 04)
-- **Six concrete break paths attempted, none reached content.** All 3 admin-gated controllers return bounded metadata; the device view caps the key at `left(signature_public_key, 12)` (non-reversible); the audit view omits the `metadata` jsonb; no debug/dump/raw/decrypt route exists; the GDPR routes key on `@CurrentAuth()` with no target-user param (no admin override) (`04-metadata-privacy.md:67-78`).
+- **Six concrete break paths attempted, none reached content.** All 3
+  admin-gated controllers return bounded metadata; the device view caps the key
+  at `left(signature_public_key, 12)` (non-reversible); the audit view omits the
+  `metadata` jsonb; no debug/dump/raw/decrypt route exists; the GDPR routes key
+  on `@CurrentAuth()` with no target-user param (no admin override)
+  (`04-metadata-privacy.md:67-78`).
 
 ### Client at-rest (Slice 05) — the strongest client result
-- **No browser-storage path persists message plaintext or key bytes unsealed.** One IndexedDB; all 13 write sites seal content/key bytes inside an AES-256-GCM `SealedBlob` under a **non-extractable** WebAuthn-PRF unlock key (fresh 12-byte CSPRNG IV per seal); the decrypted message-log is sealed *before* every `put`; no API/content response is ever cached; the *access* token is memory-only (`05-client-pwa.md:24-31`).
+- **No browser-storage path persists message plaintext or key bytes unsealed.**
+  One IndexedDB; all 13 write sites seal content/key bytes inside an AES-256-GCM
+  `SealedBlob` under a **non-extractable** WebAuthn-PRF unlock key (fresh
+  12-byte CSPRNG IV per seal); the decrypted message-log is sealed *before*
+  every `put`; no API/content response is ever cached; the *access* token is
+  memory-only (`05-client-pwa.md:24-31`).
 
 ### Auth/device trust (Slice 03) — the headline question answered
-- **A malicious server cannot silently add a device to a conversation.** The add is cryptographically bound to the OOB-verified fingerprint + a real Ed25519 proof-of-possession + ts-mls signature validation; a server-inserted member row is pure routing metadata with zero decryption power (`03-auth-identity.md:24`). *(The separate device-**linking** OOB code is the one weak spot — FP-1, §6.)*
+- **A malicious server cannot silently add a device to a conversation.** The add
+  is cryptographically bound to the OOB-verified fingerprint + a real Ed25519
+  proof-of-possession + ts-mls signature validation; a server-inserted member
+  row is pure routing metadata with zero decryption power
+  (`03-auth-identity.md:24`). *(The separate device-**linking** OOB code is the
+  one weak spot — FP-1, §6.)*
 
 ---
 
 ## 4. Consolidated finding register (every P1 / P2 + the one PARTIAL)
 
-Every P1 and P2 across all six slices, plus the session-token PARTIAL. **No P1/P2 surfaced in Slices 01 or 02** (the two confidentiality-core slices). Priority is the order to fix before beta.
+Every P1 and P2 across all six slices, plus the session-token PARTIAL. **No
+P1/P2 surfaced in Slices 01 or 02** (the two confidentiality-core slices).
+Priority is the order to fix before beta.
 
 | Prio | ID | Slice | Sev | One-line | Invariant(s) | Status |
 |------|----|-------|-----|----------|--------------|--------|
@@ -90,13 +223,34 @@ Every P1 and P2 across all six slices, plus the session-token PARTIAL. **No P1/P
 | 7 | **SUP-1** | 06 | P2 | Third-party CI container images mutable/unpinned — `semgrep/semgrep` runs **untagged `:latest`** in a job holding the repo checkout + `GITHUB_TOKEN` → third-party-code-exec path SHA-pinned actions don't cover. | (supply chain) | Spun-off fix PR (digest-pin CI images) |
 | — | **ST-1** | 03 | P3 (PARTIAL basis) | `session-token-integrity` is **PARTIAL**: a *revoked* session's already-minted **access** token stays valid on non-admin routes for its full ≤10-min TTL (only `AdminGuard` re-checks `revoked_at`). Bounded, self-closing, admin surface live-revoked, refresh-chain theft closed by family-revoke. | (session lifecycle) | Spun-off OR accept-and-document — **must be written into `session-tokens.md`** |
 
-**P3 / INFO tail (not enumerated here — see slice docs):** Slice 01 — 5 P3 (`01-crypto-core.md:60-66`). Slice 02 — 2 P3 (`02-server-boundary.md:58-61`). Slice 03 — 11 further P3 (`03-auth-identity.md:30-44`: ST-2, PK-1/2, BG-1/2, DA-1/2, FP-2, AI-1/2/3). Slice 04 — ER-1 + ~13 P3/Low/INFO (`04-metadata-privacy.md:90-110`). Slice 05 — ~13 P3 (`05-client-pwa.md:85-103`). Slice 06 — INF-1/2/3/4 + INFO-1/2 + BKP-3 (`06-infra-deploy.md:122-141`). The P3/INFO tail is overwhelmingly doc-staleness, missing regression guards, and defense-in-depth that holds today but could degrade on a careless future edit — none is a live confidentiality break.
+**P3 / INFO tail (not enumerated here — see slice docs):** Slice 01 — 5 P3
+(`01-crypto-core.md:60-66`). Slice 02 — 2 P3 (`02-server-boundary.md:58-61`).
+Slice 03 — 11 further P3 (`03-auth-identity.md:30-44`: ST-2, PK-1/2, BG-1/2,
+DA-1/2, FP-2, AI-1/2/3). Slice 04 — ER-1 + ~13 P3/Low/INFO
+(`04-metadata-privacy.md:90-110`). Slice 05 — ~13 P3
+(`05-client-pwa.md:85-103`). Slice 06 — INF-1/2/3/4 + INFO-1/2 + BKP-3
+(`06-infra-deploy.md:122-141`). The P3/INFO tail is overwhelmingly
+doc-staleness, missing regression guards, and defense-in-depth that holds today
+but could degrade on a careless future edit — none is a live confidentiality
+break.
 
 ---
 
 ## 5. Threat-model overclaim register
 
-The shipped *code* is generally more correct than the threat-model *docs*. The campaign's Phase-1 reconciliation cross-checked all 58 threat-model notes against the slice findings and the shipped code, surfacing **49 overclaims (32 NEW, not previously flagged by any slice)**. The dominant pattern is a large cluster of stale notes describing **decommissioned designs** as current. These mislead a buyer/DPA/pen-tester worse than a missing doc, because they read as live attestations. **The compliance-grade overclaims are concentrated in the Art.30 record (`docs/gdpr/article-30-records.md`):** the most severe is the `:78` "enforced by cleanup worker" retention attestation for a prune job that does not exist, and the same record also still lists the **dropped `key_backups` table** as a live processing activity (`:48` data category, `:80` retention, `:94` audit event) — a DPA-facing record attesting a decommissioned activity. All confirmed verbatim.
+The shipped *code* is generally more correct than the threat-model *docs*. The
+campaign's Phase-1 reconciliation cross-checked all 58 threat-model notes
+against the slice findings and the shipped code, surfacing **49 overclaims (32
+NEW, not previously flagged by any slice)**. The dominant pattern is a large
+cluster of stale notes describing **decommissioned designs** as current. These
+mislead a buyer/DPA/pen-tester worse than a missing doc, because they read as
+live attestations. **The compliance-grade overclaims are concentrated in the
+Art.30 record (`docs/gdpr/article-30-records.md`):** the most severe is the
+`:78` "enforced by cleanup worker" retention attestation for a prune job that
+does not exist, and the same record also still lists the **dropped `key_backups`
+table** as a live processing activity (`:48` data category, `:80` retention,
+`:94` audit event) — a DPA-facing record attesting a decommissioned activity.
+All confirmed verbatim.
 
 ### NEW (not previously flagged by a slice) — the ones to act on first
 
@@ -112,23 +266,56 @@ The shipped *code* is generally more correct than the threat-model *docs*. The c
 | **P2** | `phase-5-frontend-passkey.md` | **Recovery-code fallback** for PRF-less devices "included." | Explicitly removed (owner decision 2026-06-17, `passkey-auth.md:113-116`); `keystore.ts:25` "There is NO recovery." A reader believes a lost passkey can recover — it cannot. |
 
 ### ALREADY-FLAGGED by a slice (tracked, do not double-count)
-- **The compliance-grade overclaims (Art.30 record):** `article-30-records.md:78` "enforced by cleanup worker" — confirmed verbatim; the control does not exist (F1/AR-1, `04-metadata-privacy.md:92`). **Plus** the dropped-`key_backups` table still recorded as a live processing activity at `:48` (category), `:80` (retention), `:94` (audit event) — the table was dropped in `0040` and the key-backup API/package surface no longer exists, so the record attests a decommissioned activity.
-- `gdpr.md` — phantom `key_backups` cascade, claims email exported (code selects none), omits `friendships`, dead Zitadel-console erasure runbook (F3/GDPR-DOC-1/2, `04:95-98`).
-- `multi-device-enrollment.md` T2 — equates the ~30-bit linking code with the full safety-number defense (FP-1, `03:40`).
-- `session-tokens.md:125-126` — documents only the refresh-chain residual, not the ≤10-min access-token window (ST-1, `03:32`).
-- `vm-deploy.md:51` / `vm-ingress.md:114` — "backups already built / data recoverable from nightly B2 backup" (BKP-1, `06`).
-- `frontend-observability.md` §3 / `code-delivery-integrity.md` — "narrowly scoped connect-src" / dead Workbox-integrity claim (CSP-1/CDI-2, `05`).
+- **The compliance-grade overclaims (Art.30 record):**
+  `article-30-records.md:78` "enforced by cleanup worker" — confirmed verbatim;
+  the control does not exist (F1/AR-1, `04-metadata-privacy.md:92`). **Plus**
+  the dropped-`key_backups` table still recorded as a live processing activity
+  at `:48` (category), `:80` (retention), `:94` (audit event) — the table was
+  dropped in `0040` and the key-backup API/package surface no longer exists, so
+  the record attests a decommissioned activity.
+- `gdpr.md` — phantom `key_backups` cascade, claims email exported (code selects
+  none), omits `friendships`, dead Zitadel-console erasure runbook
+  (F3/GDPR-DOC-1/2, `04:95-98`).
+- `multi-device-enrollment.md` T2 — equates the ~30-bit linking code with the
+  full safety-number defense (FP-1, `03:40`).
+- `session-tokens.md:125-126` — documents only the refresh-chain residual, not
+  the ≤10-min access-token window (ST-1, `03:32`).
+- `vm-deploy.md:51` / `vm-ingress.md:114` — "backups already built / data
+  recoverable from nightly B2 backup" (BKP-1, `06`).
+- `frontend-observability.md` §3 / `code-delivery-integrity.md` — "narrowly
+  scoped connect-src" / dead Workbox-integrity claim (CSP-1/CDI-2, `05`).
 
-**Recommendation — two doc-reconciliation PRs (no behaviour change), security-architect pass on each:**
-1. **Decommission sweep** — banner or rewrite every **Zitadel/OIDC/Stripe** note to the shipped passkey + self-minted-token reality (`auth-tenant-context.md`, `tenant-onboarding.md`, `vm-zitadel.md`, `vm-ingress.md`, `vm-deploy.md`, `rate-limiting.md`, `session-tokens.md`, `phase-5/6` notes, `admin-panel.md`, `pseudonymous-identity.md`, `registration-and-tenancy.md`). **Do not rewrite the Azure-VM deploy as if AWS-EC2 were the live target** — production is the single Azure VM (`AGENTS.md:30`, `cd.yml`), and `infra/aws`/`cd-aws.yml` is a separate parallel experiment; the sweep must *separate* Azure production from the AWS experiment, not erase the live Azure runbooks (per Codex review of this PR). K8s/AKS was genuinely dropped and any remaining K8s note can be retired.
-2. **Keystore-model sweep** — realign every passphrase/Argon2id/server-backup note to the PRF-sealed no-recovery lifecycle (`key-model.md`, `message-history.md`, `live-messaging.md`, `device-provisioning.md`, `device-keystore.md`).
-3. **Art.30 correction is urgent and rides with the F1/AR-1 fix** — (a) either ship the prune and keep the `:78` attestation, or change it to "currently unbounded"; **and (b) remove the stale `key_backups` rows (`:48`/`:80`/`:94`)** that record a dropped table as a live processing activity. Re-clear both with the GDPR owner. A false retention attestation and a phantom processing activity in a record-of-processing document are the worst-failure category for a privacy product.
+**Recommendation — two doc-reconciliation PRs (no behaviour change),
+security-architect pass on each:**
+1. **Decommission sweep** — banner or rewrite every **Zitadel/OIDC/Stripe** note
+   to the shipped passkey + self-minted-token reality (`auth-tenant-context.md`,
+   `tenant-onboarding.md`, `vm-zitadel.md`, `vm-ingress.md`, `vm-deploy.md`,
+   `rate-limiting.md`, `session-tokens.md`, `phase-5/6` notes, `admin-panel.md`,
+   `pseudonymous-identity.md`, `registration-and-tenancy.md`). **Do not rewrite
+   the Azure-VM deploy as if AWS-EC2 were the live target** — production is the
+   single Azure VM (`AGENTS.md:30`, `cd.yml`), and `infra/aws`/`cd-aws.yml` is a
+   separate parallel experiment; the sweep must *separate* Azure production from
+   the AWS experiment, not erase the live Azure runbooks (per Codex review of
+   this PR). K8s/AKS was genuinely dropped and any remaining K8s note can be
+   retired.
+2. **Keystore-model sweep** — realign every passphrase/Argon2id/server-backup
+   note to the PRF-sealed no-recovery lifecycle (`key-model.md`,
+   `message-history.md`, `live-messaging.md`, `device-provisioning.md`,
+   `device-keystore.md`).
+3. **Art.30 correction is urgent and rides with the F1/AR-1 fix** — (a) either
+   ship the prune and keep the `:78` attestation, or change it to "currently
+   unbounded"; **and (b) remove the stale `key_backups` rows
+   (`:48`/`:80`/`:94`)** that record a dropped table as a live processing
+   activity. Re-clear both with the GDPR owner. A false retention attestation
+   and a phantom processing activity in a record-of-processing document are the
+   worst-failure category for a privacy product.
 
 ---
 
 ## 6. Residual-risk register
 
-The honest "what remains and why." Each row: severity, whether it blocks beta, and the closing control.
+The honest "what remains and why." Each row: severity, whether it blocks beta,
+and the closing control.
 
 | Risk | Sev | Blocks beta? | Why it's acceptable / not, and the closing control |
 |------|-----|--------------|---------------------------------------------------|
@@ -150,21 +337,72 @@ The honest "what remains and why." Each row: severity, whether it blocks beta, a
 
 ## 7. Verdict & conditions to ship
 
-**Is argus's core E2EE privacy claim PROVEN? Yes — with precise caveats.** Six adversarial slices, with maxed-Opus reviewers actively trying to break each claim, established that the server is cryptographically blind to content (invariant 1), there is no hand-rolled crypto — all crypto is confined to `packages/crypto` via vetted libraries (ts-mls for MLS messaging, WebCrypto AES-GCM for sealing, `@noble` Ed25519 for device proofs), CSPRNG-only (invariant 4), tenant isolation is FORCE-RLS on all 18 tenant tables with no client-controlled tenant context (invariant 3), no admin or log path reaches content (invariant 6, and invariant 2's logging clause — its persistence clause is the INF-4 PARTIAL), and the malicious-server silent-device-*add* backdoor is cryptographically closed (Slice 03). Passively at rest, the browser endpoint leaks no message plaintext or key bytes. These are genuine, evidence-anchored results, not marketing.
+**Is argus's core E2EE privacy claim PROVEN? Yes — with precise caveats.** Six
+adversarial slices, with maxed-Opus reviewers actively trying to break each
+claim, established that the server is cryptographically blind to content
+(invariant 1), there is no hand-rolled crypto — all crypto is confined to
+`packages/crypto` via vetted libraries (ts-mls for MLS messaging, WebCrypto
+AES-GCM for sealing, `@noble` Ed25519 for device proofs), CSPRNG-only (invariant
+4), tenant isolation is FORCE-RLS on all 18 tenant tables with no
+client-controlled tenant context (invariant 3), no admin or log path reaches
+content (invariant 6, and invariant 2's logging clause — its persistence clause
+is the INF-4 PARTIAL), and the malicious-server silent-device-*add* backdoor is
+cryptographically closed (Slice 03). Passively at rest, the browser endpoint
+leaks no message plaintext or key bytes. These are genuine, evidence-anchored
+results, not marketing.
 
-**The privacy core is sound; the safe-*operation* envelope is not yet closed.** Three things distinguish "the crypto is right" from "a real user is safe":
+**The privacy core is sound; the safe-*operation* envelope is not yet closed.**
+Three things distinguish "the crypto is right" from "a real user is safe":
 
 **MUST land before beta onboards a real user:**
-1. **BKP-1 (P1)** — *above all else.* Until the backup actually runs and connects on the shipped target, "restorable" is vacuously false and the first user inherits silent total data loss. This is not a confidentiality issue, but it is the single most consequential finding in the campaign.
-2. **FP-1** — widen the device-linking OOB artifact to the full safety-number width before the linking flow can be called MITM-safe.
-3. **CDI-1 + CSP-1** — land together (SW manifest-sha384 handler + `connect-src` host pin) to close the active read-then-exfil chain.
-4. **F1/AR-1** — ship the audit/session prune **and** correct the Art.30 record: the `docs/gdpr/article-30-records.md:78` "enforced by cleanup worker" attestation **and** the stale `key_backups` rows (`:48`/`:80`/`:94`). Neither the false retention claim nor the phantom processing activity must survive into a DPA-facing record.
-5. **INF-4** — *trivial but required.* Although it is rated P3 and host-root-gated, it is the **sole reason Invariants 2 and 5 are PARTIAL rather than clean PASS**, and the invariants are hard rules; the one-line fix (cloudflared credentials-file mode instead of the token in the container `environment:` block) flips both invariants to PASS. A "private and safe" attestation cannot ship with two hard-rule invariants bent by a one-line gap.
+1. **BKP-1 (P1)** — *above all else.* Until the backup actually runs and
+   connects on the shipped target, "restorable" is vacuously false and the first
+   user inherits silent total data loss. This is not a confidentiality issue,
+   but it is the single most consequential finding in the campaign.
+2. **FP-1** — widen the device-linking OOB artifact to the full safety-number
+   width before the linking flow can be called MITM-safe.
+3. **CDI-1 + CSP-1** — land together (SW manifest-sha384 handler + `connect-src`
+   host pin) to close the active read-then-exfil chain.
+4. **F1/AR-1** — ship the audit/session prune **and** correct the Art.30 record:
+   the `docs/gdpr/article-30-records.md:78` "enforced by cleanup worker"
+   attestation **and** the stale `key_backups` rows (`:48`/`:80`/`:94`). Neither
+   the false retention claim nor the phantom processing activity must survive
+   into a DPA-facing record.
+5. **INF-4** — *trivial but required.* Although it is rated P3 and
+   host-root-gated, it is the **sole reason Invariants 2 and 5 are PARTIAL
+   rather than clean PASS**, and the invariants are hard rules; the one-line fix
+   (cloudflared credentials-file mode instead of the token in the container
+   `environment:` block) flips both invariants to PASS. A "private and safe"
+   attestation cannot ship with two hard-rule invariants bent by a one-line gap.
 
-**Acceptable to carry as a documented beta residual** (each must actually be written into its threat-model note, not just known): ST-1 (≤10-min revoked-access window), BKP-2 (shared B2 key — confidentiality held by `age`), SUP-1 (mutable CI images), TOFU first-contact, RC-1 (refresh cookie at rest), the unlocked-session heap exposure, and the at-rest blast-radius single points (AR-3/AR-4). Plus the two doc-reconciliation PRs (decommission sweep + keystore-model sweep) so the threat-model corpus stops attesting controls that no longer ship.
+**Acceptable to carry as a documented beta residual** (each must actually be
+written into its threat-model note, not just known): ST-1 (≤10-min
+revoked-access window), BKP-2 (shared B2 key — confidentiality held by `age`),
+SUP-1 (mutable CI images), TOFU first-contact, RC-1 (refresh cookie at rest),
+the unlocked-session heap exposure, and the at-rest blast-radius single points
+(AR-3/AR-4). Plus the two doc-reconciliation PRs (decommission sweep +
+keystore-model sweep) so the threat-model corpus stops attesting controls that
+no longer ship.
 
-**Bottom line:** argus is built to a genuinely strong E2EE design and the implementation honors it — the crypto-blind core survived a hard, adversarial break attempt. It is **provably private against the server itself** (a passive, honest-but-curious operator cannot reach content). Two *conditional, active*-attacker paths to content remain open until fixed — **FP-1** (a malicious-server device-linking MITM, gated by a brute-forceable code) and the **CDI-1 + CSP-1** chain (gated by a prior in-origin compromise) — so it is not yet *unconditionally* private; and it is not yet *provably safe to operate* until **BKP-1** is fixed. Close BKP-1, FP-1, the CDI-1/CSP-1 chain, the F1/AR-1 + Art.30 set, and the one-line INF-4 fix (which flips Invariants 2 and 5 to clean PASS), and the "private and safe" claim stands on evidence rather than aspiration.
+**Bottom line:** argus is built to a genuinely strong E2EE design and the
+implementation honors it — the crypto-blind core survived a hard, adversarial
+break attempt. It is **provably private against the server itself** (a passive,
+honest-but-curious operator cannot reach content). Two *conditional,
+active*-attacker paths to content remain open until fixed — **FP-1** (a
+malicious-server device-linking MITM, gated by a brute-forceable code) and the
+**CDI-1 + CSP-1** chain (gated by a prior in-origin compromise) — so it is not
+yet *unconditionally* private; and it is not yet *provably safe to operate*
+until **BKP-1** is fixed. Close BKP-1, FP-1, the CDI-1/CSP-1 chain, the
+F1/AR-1 + Art.30 set, and the one-line INF-4 fix (which flips Invariants 2 and 5
+to clean PASS), and the "private and safe" claim stands on evidence rather than
+aspiration.
 
 ---
 
-*Source slice notes (authoritative for per-claim evidence):* `docs/reviews/01-crypto-core.md`, `docs/reviews/02-server-boundary.md`, `docs/reviews/03-auth-identity.md`, `docs/reviews/04-metadata-privacy.md`, `docs/reviews/05-client-pwa.md`, `docs/reviews/06-infra-deploy.md`. *Campaign plan:* `docs/planning/security-review-campaign-plan.md`. *The compliance-grade overclaims:* `docs/gdpr/article-30-records.md` (`:78` cleanup-worker attestation + stale `key_backups` rows at `:48`/`:80`/`:94`).
+*Source slice notes (authoritative for per-claim evidence):*
+`docs/reviews/01-crypto-core.md`, `docs/reviews/02-server-boundary.md`,
+`docs/reviews/03-auth-identity.md`, `docs/reviews/04-metadata-privacy.md`,
+`docs/reviews/05-client-pwa.md`, `docs/reviews/06-infra-deploy.md`. *Campaign
+plan:* `docs/planning/security-review-campaign-plan.md`. *The compliance-grade
+overclaims:* `docs/gdpr/article-30-records.md` (`:78` cleanup-worker
+attestation + stale `key_backups` rows at `:48`/`:80`/`:94`).
