@@ -176,7 +176,13 @@ def check_twins(f: Failures) -> None:
     if read(REPO / "AGENTS.md") != read(REPO / "CLAUDE.md"):
         f.add(
             "twins",
-            "AGENTS.md and CLAUDE.md differ; edit CLAUDE.md, then cp CLAUDE.md AGENTS.md",
+            # LOCAL CHANGE (not an upstream bug): architecture-base edits
+            # CLAUDE.md and copies it to AGENTS.md. This repository is the other
+            # way round -- AGENTS.md is the canonical contract, read natively by
+            # Codex -- so upstream's wording would send a confused reader to the
+            # wrong file at the exact moment they are looking for direction.
+            # The check itself is symmetric; only the advice differs.
+            "AGENTS.md and CLAUDE.md differ; edit AGENTS.md, then cp AGENTS.md CLAUDE.md",
         )
 
 
