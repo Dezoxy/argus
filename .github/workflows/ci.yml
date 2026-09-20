@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   build-test:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Postgres + Redis so the @argus/api DB-integration suite (RLS, audit append-only, fail-closed
     # carve-outs, breakglass) actually RUNS in CI instead of auto-skipping. Without DATABASE_URL these
     # tests skip via describe.skipIf(!DATABASE_URL) — a gap that let tenant-isolation tests drift.
@@ -88,7 +88,7 @@ jobs:
   # product works as a user would see it — not just that units pass. (playwright.config.ts
   # boots the Vite dev server itself; no API/DB needed.)
   e2e:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -123,7 +123,7 @@ jobs:
   # internal Docker network. A stray `ports:` mapping (e.g. exposing redis or /metrics) would breach it; this
   # fails the build mechanically (see docs/security/threat-models/observability.md + vm-ingress.md).
   compose-guard:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -159,7 +159,7 @@ jobs:
         run: bash scripts/check-observability-log-labels.sh
 
   dockerignore-guard:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -174,7 +174,7 @@ jobs:
   # python3 and the checkout, so it runs on its own rather than inside
   # build-test. A green run means "nothing provably false", not "docs are good".
   docs:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

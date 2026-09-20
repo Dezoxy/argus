@@ -15,6 +15,12 @@ export default tseslint.config(
       '.claude/**',
       '.venv/**',
       'spike/**',
+      // Gitignored local scratch: design-sync's generated bundle and its build
+      // output. CI never checks these out, so linting them made `pnpm lint`
+      // red locally and green remotely — which is worse than not running it,
+      // because AGENTS.md's definition of done requires it to pass.
+      '.ds-sync/**',
+      'ds-bundle/**',
     ],
   },
   js.configs.recommended,
@@ -26,6 +32,16 @@ export default tseslint.config(
       'no-console': 'warn',
       '@typescript-eslint/no-explicit-any': 'warn',
       'security/detect-object-injection': 'off',
+    },
+  },
+  {
+    // Build and verify CLIs. Printing IS their interface — they report what
+    // they checked and exit non-zero — and the paths they read are their own
+    // build output, taken from argv, not from anything a user controls.
+    files: ['**/scripts/**/*.{mjs,js,ts}'],
+    rules: {
+      'no-console': 'off',
+      'security/detect-non-literal-fs-filename': 'off',
     },
   },
   prettier,

@@ -15,7 +15,7 @@ jobs:
     # Skip until there's a deployed target: pre-deploy STAGING_URL is unset, so this job has nothing to
     # scan. The self-hosted api-conformance-scan below has no such dependency and keeps running nightly.
     if: ${{ vars.STAGING_URL != '' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: OWASP ZAP baseline
@@ -28,7 +28,7 @@ jobs:
   # and boots fine without S3 (protected routes 401, attachment routes 503), which is fine for
   # surface/conformance scanning. Nightly cadence keeps within the freemium usage limits.
   api-conformance-scan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     services:
@@ -90,7 +90,7 @@ jobs:
         run: |
           set -euo pipefail
           node dist/main.js &
-          for i in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             if curl -fsS http://localhost:3000/healthz >/dev/null 2>&1; then
               echo "API is healthy"; exit 0
             fi

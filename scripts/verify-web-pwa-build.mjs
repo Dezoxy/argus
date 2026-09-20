@@ -1,5 +1,4 @@
 /* global URL, console */
-/* eslint-disable no-console, security/detect-non-literal-fs-filename */
 
 import { existsSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
