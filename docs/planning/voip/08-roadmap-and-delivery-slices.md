@@ -1,28 +1,76 @@
 # 08 — Roadmap & Delivery Slices
 
-> Part of the argus VoIP planning set. Siblings: [00 — Overview & goals](./00-overview-and-goals.md) · [01 — Architecture & crypto model](./01-architecture-and-crypto-model.md) · [02 — Signaling protocol & state machine](./02-signaling-protocol-and-state-machine.md) · [03 — Infrastructure: TURN & networking](./03-infrastructure-turn-and-networking.md) · [04 — Server API & database](./04-server-api-and-database.md) · [05 — Frontend PWA & WebRTC](./05-frontend-pwa-and-webrtc.md) · [06 — Threat model & privacy](./06-threat-model-and-privacy.md) · [07 — Comparative survey](./07-comparative-survey.md) · [09 — Decision log & open questions](./09-decision-log-and-open-questions.md)
+> Part of the argus VoIP planning set. Siblings: [00 — Overview &
+> goals](./00-overview-and-goals.md) · [01 — Architecture & crypto
+> model](./01-architecture-and-crypto-model.md) · [02 — Signaling protocol &
+> state machine](./02-signaling-protocol-and-state-machine.md) · [03 —
+> Infrastructure: TURN & networking](./03-infrastructure-turn-and-networking.md)
+> · [04 — Server API & database](./04-server-api-and-database.md) · [05 —
+> Frontend PWA & WebRTC](./05-frontend-pwa-and-webrtc.md) · [06 — Threat model &
+> privacy](./06-threat-model-and-privacy.md) · [07 — Comparative
+> survey](./07-comparative-survey.md) · [09 — Decision log & open
+> questions](./09-decision-log-and-open-questions.md)
 >
-> **Locked scope this roadmap delivers toward:** 1:1 audio + video only (no group/SFU — group is an explicit future phase); self-hosted WebRTC P2P media + self-hosted coturn relay; IP privacy as a per-user setting defaulting to **relay-only**; **PWA only** (Capacitor future). Six security invariants are non-negotiable gates on every slice.
+> **Locked scope this roadmap delivers toward:** 1:1 audio + video only (no
+> group/SFU — group is an explicit future phase); self-hosted WebRTC P2P media +
+> self-hosted coturn relay; IP privacy as a per-user setting defaulting to
+> **relay-only**; **PWA only** (Capacitor future). Six security invariants are
+> non-negotiable gates on every slice.
 >
-> **⚠️ V1 is now AUDIO-FIRST.** Per the scope re-cut recorded in [00 §4](./00-overview-and-goals.md), **V1 = 1:1 audio only, relay-only, foreground-ring only (both apps open), single-device per user.** No `call_sessions` metadata ledger, no `argus_call_prune` role, no prune worker, no push-wake in V1. Video, ICE-restart/reconnection, push-wake + missed-call ledger, multi-device ring-all, and the metadata-ledger/prune chain are an explicit, named **V1.1** phase. This single cut resolves three tensions at once — the multi-device↔MLS prerequisite, the egress-cost-vs-privacy tension, and the iOS-receivability over-promise. The roadmap below is re-drawn around the **~9-slice audio core**.
+> **⚠️ V1 is now AUDIO-FIRST.** Per the scope re-cut recorded in [00
+> §4](./00-overview-and-goals.md), **V1 = 1:1 audio only, relay-only,
+> foreground-ring only (both apps open), single-device per user.** No
+> `call_sessions` metadata ledger, no `argus_call_prune` role, no prune worker,
+> no push-wake in V1. Video, ICE-restart/reconnection, push-wake + missed-call
+> ledger, multi-device ring-all, and the metadata-ledger/prune chain are an
+> explicit, named **V1.1** phase. This single cut resolves three tensions at
+> once — the multi-device↔MLS prerequisite, the egress-cost-vs-privacy tension,
+> and the iOS-receivability over-promise. The roadmap below is re-drawn around
+> the **~9-slice audio core**.
 
-This file turns the design across docs 01–07 into a **sequenced, PR-sized build plan** matched to the repo's actual workflow: every change lands as a PR against protected `main`, each PR self-reviewed with `/code-review`, gated by CI (`ci · security · codeql`) **and** dual review (Codex + `@claude`), with the pinned domain reviewers (`crypto-reviewer`, `security-boundary-auditor`, `infra-reviewer`) and skills (`/db-migration`, `/feature-threat-model`, `/api-spec`) invoked where their area is touched. Sizes are calibrated for a **solo developer** — they are conservative, and the riskiest work (infra) is front-loaded.
+This file turns the design across docs 01–07 into a **sequenced, PR-sized build
+plan** matched to the repo's actual workflow: every change lands as a PR against
+protected `main`, each PR self-reviewed with `/code-review`, gated by CI (`ci ·
+security · codeql`) **and** dual review (Codex + `@claude`), with the pinned
+domain reviewers (`crypto-reviewer`, `security-boundary-auditor`,
+`infra-reviewer`) and skills (`/db-migration`, `/feature-threat-model`,
+`/api-spec`) invoked where their area is touched. Sizes are calibrated for a
+**solo developer** — they are conservative, and the riskiest work (infra) is
+front-loaded.
 
 ---
 
 ## 1. How to read this roadmap
 
-- **Slice = one PR.** Each slice is sized to be reviewable in one sitting and to satisfy a coherent slice of the Definition of Done. Where a slice is large (`L`), it is a candidate to split further if review drags.
-- **Size key:** `XS` ≈ <½ day · `S` ≈ ½–1 day · `M` ≈ 1–2 days · `L` ≈ 2–4 days · `XL` = too big, must split. (Solo-dev wall-clock, including review/CI churn — not ideal-engineering hours.)
-- **DoD gates** column lists *only the gates that actually apply* to that slice (per AGENTS.md "apply the matching set"). The universal gates — `pnpm -r typecheck && pnpm -r test && pnpm lint && pnpm format:check`, `/code-review` pass, dual review, green CI — apply to **every** slice and are not repeated each row.
-- **"Docs/threat-model first"** is a hard ordering rule: a security-relevant slice cannot start coding until its threat-model note is merged or in the same PR ahead of code (DoD).
-- **Receivability terms are used precisely** (per [00](./00-overview-and-goals.md), [02](./02-signaling-protocol-and-state-machine.md), [05](./05-frontend-pwa-and-webrtc.md)): **ring** = a real foreground in-app ring with ringtone (the only receivability V1 delivers); **wake-banner** = an Android-backgrounded push that usually fires; **tap-to-join banner** = an iOS-backgrounded notification that is *not* a ring. The iOS-locked path is never called "ringing."
+- **Slice = one PR.** Each slice is sized to be reviewable in one sitting and to
+  satisfy a coherent slice of the Definition of Done. Where a slice is large
+  (`L`), it is a candidate to split further if review drags.
+- **Size key:** `XS` ≈ <½ day · `S` ≈ ½–1 day · `M` ≈ 1–2 days · `L` ≈ 2–4 days
+  · `XL` = too big, must split. (Solo-dev wall-clock, including review/CI churn
+  — not ideal-engineering hours.)
+- **DoD gates** column lists *only the gates that actually apply* to that slice
+  (per AGENTS.md "apply the matching set"). The universal gates — `pnpm -r
+  typecheck && pnpm -r test && pnpm lint && pnpm format:check`, `/code-review`
+  pass, dual review, green CI — apply to **every** slice and are not repeated
+  each row.
+- **"Docs/threat-model first"** is a hard ordering rule: a security-relevant
+  slice cannot start coding until its threat-model note is merged or in the same
+  PR ahead of code (DoD).
+- **Receivability terms are used precisely** (per
+  [00](./00-overview-and-goals.md),
+  [02](./02-signaling-protocol-and-state-machine.md),
+  [05](./05-frontend-pwa-and-webrtc.md)): **ring** = a real foreground in-app
+  ring with ringtone (the only receivability V1 delivers); **wake-banner** = an
+  Android-backgrounded push that usually fires; **tap-to-join banner** = an
+  iOS-backgrounded notification that is *not* a ring. The iOS-locked path is
+  never called "ringing."
 
 ---
 
 ## 2. Phase overview
 
-V1 is the audio core (Phase 0 + Phase 1). Everything that turns the demo into a network-resilient, reachable-while-backgrounded product is **V1.1** and beyond.
+V1 is the audio core (Phase 0 + Phase 1). Everything that turns the demo into a
+network-resilient, reachable-while-backgrounded product is **V1.1** and beyond.
 
 | Phase | Band | Goal | Outcome you can demo | Net new risk introduced |
 |---|---|---|---|---|
@@ -40,15 +88,28 @@ V1 is the audio core (Phase 0 + Phase 1). Everything that turns the demo into a 
 | **Egress cost vs. privacy** — relay-default video drives B2/VM egress and CPU hardest | Audio relay is ~1–2% of video bitrate; relay-default stays affordable through V1; video egress is a V1.1 decision with data |
 | **iOS receivability over-promise** — "it rings" is false on a locked iPhone | V1 promises only a foreground **ring** (both apps open); the honest wake-banner / tap-to-join story is a deliberate V1.1 deliverable, not an implied V1 guarantee |
 
-**Critical path (V1):** Phase 0 crypto+infra (P0-CRYPTO, P0-T*) → TURN creds (P0-A) → audio happy path (P1) → demoable call. The infra slices and the authenticated-sender crypto slice are the long poles; they start first and run in parallel with the pure-software contracts work.
+**Critical path (V1):** Phase 0 crypto+infra (P0-CRYPTO, P0-T*) → TURN creds
+(P0-A) → audio happy path (P1) → demoable call. The infra slices and the
+authenticated-sender crypto slice are the long poles; they start first and run
+in parallel with the pure-software contracts work.
 
 ---
 
 ## 3. Phase 0 — Prerequisites (V1)
 
-The goal of Phase 0 is that **by the end, a call could be made** — the relay exists *and is monitored*, credentials mint, the wire format is typed, the sender of a call signal can be cryptographically authenticated, and the GDPR/threat-model paper trail is in place — even though no UI wires it together yet. Phase 0 is the highest-risk phase because it breaks the zero-ingress invariant and adds a new crypto path; it is deliberately the most heavily reviewed.
+The goal of Phase 0 is that **by the end, a call could be made** — the relay
+exists *and is monitored*, credentials mint, the wire format is typed, the
+sender of a call signal can be cryptographically authenticated, and the
+GDPR/threat-model paper trail is in place — even though no UI wires it together
+yet. Phase 0 is the highest-risk phase because it breaks the zero-ingress
+invariant and adds a new crypto path; it is deliberately the most heavily
+reviewed.
 
-> **No `call_sessions` table in V1.** The metadata ledger, the `argus_call_prune` role, and the prune worker are **V1.1** (Phase 3). V1 audio calls are fully ephemeral: invite/ring/connect/hangup leave **no persisted call record**. The only schema change in V1 is the per-user `call_relay_only` setting column.
+> **No `call_sessions` table in V1.** The metadata ledger, the
+> `argus_call_prune` role, and the prune worker are **V1.1** (Phase 3). V1 audio
+> calls are fully ephemeral: invite/ring/connect/hangup leave **no persisted
+> call record**. The only schema change in V1 is the per-user `call_relay_only`
+> setting column.
 
 ### Slice P0-CRYPTO — Authenticated-sender decrypt path (`packages/crypto`)
 
@@ -149,13 +210,25 @@ The goal of Phase 0 is that **by the end, a call could be made** — the relay e
 | **Reviewers** | `security-boundary-auditor` (no-log of cred, guarded route, tenant scope), `crypto-reviewer` (HMAC use, no hand-rolled primitive, CSPRNG) |
 | **Size** | **M** |
 
-**Phase 0 exit criteria:** coturn is reachable on the TURN hostname **and a health alert + runbook are live**; an authenticated user **with ≥1 accepted friend** can `POST /calls/turn-credentials` and receive working relay-only ICE servers (600 s TTL) — a friendless requester gets `403`; the contracts + the `call_relay_only` column are merged; the **authenticated-sender decrypt path exists in `packages/crypto`**; and the full GDPR/threat-model artifact bundle (seven files) is in place. No call connects yet — that's Phase 1.
+**Phase 0 exit criteria:** coturn is reachable on the TURN hostname **and a
+health alert + runbook are live**; an authenticated user **with ≥1 accepted
+friend** can `POST /calls/turn-credentials` and receive working relay-only ICE
+servers (600 s TTL) — a friendless requester gets `403`; the contracts + the
+`call_relay_only` column are merged; the **authenticated-sender decrypt path
+exists in `packages/crypto`**; and the full GDPR/threat-model artifact bundle
+(seven files) is in place. No call connects yet — that's Phase 1.
 
 ---
 
 ## 4. Phase 1 — 1:1 audio P2P (the first real call) (V1)
 
-Phase 1 makes audio calls work end-to-end between two **foreground** browsers, relay-only by default, with a minimal but real UI. Video, reliability, multi-device, and background reach are deliberately out (V1.1) — this phase is about proving the **signaling relay + DTLS-SRTP + MLS-wrapped, sender-authenticated SDP** spine. **Receivability in V1 is foreground ring only** (both apps open); no wake-banner, no tap-to-join — see [00 §4](./00-overview-and-goals.md).
+Phase 1 makes audio calls work end-to-end between two **foreground** browsers,
+relay-only by default, with a minimal but real UI. Video, reliability,
+multi-device, and background reach are deliberately out (V1.1) — this phase is
+about proving the **signaling relay + DTLS-SRTP + MLS-wrapped,
+sender-authenticated SDP** spine. **Receivability in V1 is foreground ring
+only** (both apps open); no wake-banner, no tap-to-join — see [00
+§4](./00-overview-and-goals.md).
 
 ### Slice P1-GW — Gateway signaling relay (server)
 
@@ -212,13 +285,27 @@ Phase 1 makes audio calls work end-to-end between two **foreground** browsers, r
 | **Reviewers** | standard dual review; `security-boundary-auditor` only if it touches API |
 | **Size** | **L** |
 
-**Phase 1 (and V1) exit criteria:** two installed PWAs **both in the foreground** can place and answer a 1:1 **audio** call that **rings**, media relayed by default (peers don't see each other's IP), SDP/ICE never visible to the server and **bound to the authenticated MLS sender**, friendship-gated, single-device, ephemeral (no persisted call record), with a passing mocked-media E2E and a live coturn health alert. This is the first demoable call **and the V1 line**.
+**Phase 1 (and V1) exit criteria:** two installed PWAs **both in the
+foreground** can place and answer a 1:1 **audio** call that **rings**, media
+relayed by default (peers don't see each other's IP), SDP/ICE never visible to
+the server and **bound to the authenticated MLS sender**, friendship-gated,
+single-device, ephemeral (no persisted call record), with a passing mocked-media
+E2E and a live coturn health alert. This is the first demoable call **and the V1
+line**.
 
 ---
 
 ## 5. Phase 2 — Video (V1.1)
 
-Phase 2 adds the camera and the renegotiation machinery video requires. The signaling spine from Phase 1 is reused; the new risk is mid-call renegotiation/glare and camera-permission UX. **Egress note:** video relay-default is materially more expensive than audio (see [00 §4](./00-overview-and-goals.md), [03](./03-infrastructure-turn-and-networking.md)); confirm the relay cost envelope with real audio-V1 data before shipping video, and re-confirm whether Option (d) (dedicated relay) should become the default before video, per [09](./09-decision-log-and-open-questions.md) Q1.
+Phase 2 adds the camera and the renegotiation machinery video requires. The
+signaling spine from Phase 1 is reused; the new risk is mid-call
+renegotiation/glare and camera-permission UX. **Egress note:** video
+relay-default is materially more expensive than audio (see [00
+§4](./00-overview-and-goals.md),
+[03](./03-infrastructure-turn-and-networking.md)); confirm the relay cost
+envelope with real audio-V1 data before shipping video, and re-confirm whether
+Option (d) (dedicated relay) should become the default before video, per
+[09](./09-decision-log-and-open-questions.md) Q1.
 
 ### Slice P2-VID — Video capture + render + audio↔video upgrade
 
@@ -242,15 +329,28 @@ Phase 2 adds the camera and the renegotiation machinery video requires. The sign
 | **Reviewers** | standard dual review |
 | **Size** | **M** |
 
-**Phase 2 exit criteria:** a call can start as audio and add video (or start as video), with mid-call camera toggle, device switching, and glare-safe renegotiation.
+**Phase 2 exit criteria:** a call can start as audio and add video (or start as
+video), with mid-call camera toggle, device switching, and glare-safe
+renegotiation.
 
 ---
 
 ## 6. Phase 3 — Reliability & reach (V1.1)
 
-Phase 3 is what separates a demo from a usable product: surviving network changes, reaching a **backgrounded** callee, multi-device ringing, the missed-call experience — plus the metadata ledger + prune chain, abuse controls, and full relay observability. This is also where the PWA's honest limits get surfaced in-product with **precise** language: an Android-backgrounded callee gets a **wake-banner**; an iOS-backgrounded callee gets a **tap-to-join banner** (never a "ring").
+Phase 3 is what separates a demo from a usable product: surviving network
+changes, reaching a **backgrounded** callee, multi-device ringing, the
+missed-call experience — plus the metadata ledger + prune chain, abuse controls,
+and full relay observability. This is also where the PWA's honest limits get
+surfaced in-product with **precise** language: an Android-backgrounded callee
+gets a **wake-banner**; an iOS-backgrounded callee gets a **tap-to-join banner**
+(never a "ring").
 
-> **The metadata ledger lives here, not in V1.** `call_sessions` + the `argus_call_prune` role + window-scoped RLS + the prune worker are introduced together in P3-DB / P3-PR, because the first thing that *needs* persisted call metadata is the missed-call list (P3-PUSH). Retention is **30 days** ([09](./09-decision-log-and-open-questions.md) Q3), baked into both the policy literal and the `article-30-records.md` retention row.
+> **The metadata ledger lives here, not in V1.** `call_sessions` + the
+> `argus_call_prune` role + window-scoped RLS + the prune worker are introduced
+> together in P3-DB / P3-PR, because the first thing that *needs* persisted call
+> metadata is the missed-call list (P3-PUSH). Retention is **30 days**
+> ([09](./09-decision-log-and-open-questions.md) Q3), baked into both the policy
+> literal and the `article-30-records.md` retention row.
 
 ### Slice P3-DB — `call_sessions` table + `argus_call_prune` role (V1.1)
 
@@ -329,13 +429,21 @@ Phase 3 is what separates a demo from a usable product: surviving network change
 | **Reviewers** | `infra-reviewer` |
 | **Size** | **S** |
 
-**Phase 3 (V1.1) exit criteria:** calls survive Wi-Fi↔cellular handoff (and a coturn bounce via ICE-restart), a backgrounded installed-PWA callee gets a **wake-banner** (Android) or **tap-to-join banner** (iOS) with honest expectations set, missed calls show up, multiple devices ring with first-accept-wins, abuse is rate-limited, call metadata is persisted and self-expires at **30 days**, and the relay has full observability.
+**Phase 3 (V1.1) exit criteria:** calls survive Wi-Fi↔cellular handoff (and a
+coturn bounce via ICE-restart), a backgrounded installed-PWA callee gets a
+**wake-banner** (Android) or **tap-to-join banner** (iOS) with honest
+expectations set, missed calls show up, multiple devices ring with
+first-accept-wins, abuse is rate-limited, call metadata is persisted and
+self-expires at **30 days**, and the relay has full observability.
 
 ---
 
 ## 7. Phase 4+ — Future (explicitly deferred)
 
-These are **not V1/V1.1**. They are listed so the architecture leaves their doors open (per [01 §5](./01-architecture-and-crypto-model.md) and [07](./07-comparative-survey.md)), and each carries net-new threat surface requiring its own threat-model addendum before any code.
+These are **not V1/V1.1**. They are listed so the architecture leaves their
+doors open (per [01 §5](./01-architecture-and-crypto-model.md) and
+[07](./07-comparative-survey.md)), and each carries net-new threat surface
+requiring its own threat-model addendum before any code.
 
 | Future slice | Scope | Why deferred / what it unlocks | New risk to model first |
 |---|---|---|---|
@@ -346,13 +454,18 @@ These are **not V1/V1.1**. They are listed so the architecture leaves their door
 | **F-SCREEN** | Screen-share via `getDisplayMedia()` + `replaceTrack`/renegotiation | Nice-to-have once the renegotiation path is mature; UI affordance + privacy prompt | Inadvertent content capture; minor |
 | **F-BLOCK** | Dedicated block list (beyond transitive-via-unfriend) | Enterprise-optional; unfriend hard-DELETE already removes call ability | low |
 
-> **Hold the line.** The comparative survey ([07](./07-comparative-survey.md)) is unanimous: groups are a *topology change*, not a feature flag (SFU + a second E2EE layer = a whole project). Do not let "we might do groups" pull SFU complexity into V1/V1.1.
+> **Hold the line.** The comparative survey ([07](./07-comparative-survey.md))
+> is unanimous: groups are a *topology change*, not a feature flag (SFU + a
+> second E2EE layer = a whole project). Do not let "we might do groups" pull SFU
+> complexity into V1/V1.1.
 
 ---
 
 ## 8. Dependency graph & critical path
 
-The V1 critical path is the **~9-slice audio core**: the authenticated-sender crypto slice + the infra chain converge with the pure-software signaling chain at `P1-UI`. V1.1 (Phase 2/3) hangs off `P1-UI` and `P1-GW`.
+The V1 critical path is the **~9-slice audio core**: the authenticated-sender
+crypto slice + the infra chain converge with the pure-software signaling chain
+at `P1-UI`. V1.1 (Phase 2/3) hangs off `P1-UI` and `P1-GW`.
 
 ```mermaid
 flowchart TD
@@ -451,28 +564,71 @@ P0-A → P1-INV (needs P1-GW) ─────┘
 P0-CT/P0-OPS ····(coturn live + monitored)····→ P1-UI
 ```
 
-The dominant constraint is **infra**: `P0-TM → P0-IT → P0-IS → P0-CT → P0-OPS` is strictly serial (threat model → terraform → secret/cert → service → alerting), and each infra step carries a **manual confirmation** gate (`terraform apply`, `az vm run-command`) that a solo dev cannot parallelize away. Two other long poles run **in parallel** with it: the **authenticated-sender crypto slice** (`P0-CRYPTO`, a hard predecessor of `P1-SIG`) and the pure-software signaling chain (`P0-C → P1-GW → P1-SIG`). All three converge at `P1-UI`. The software chain cannot *demonstrate* a connected call until `P0-CT` lands the live, monitored relay. So: **start P0-TM + P0-C + P0-CRYPTO on day one**, fork the infra chain and the software chain, and converge at `P1-UI`. V1 ends there; everything below is V1.1.
+The dominant constraint is **infra**: `P0-TM → P0-IT → P0-IS → P0-CT → P0-OPS`
+is strictly serial (threat model → terraform → secret/cert → service →
+alerting), and each infra step carries a **manual confirmation** gate
+(`terraform apply`, `az vm run-command`) that a solo dev cannot parallelize
+away. Two other long poles run **in parallel** with it: the
+**authenticated-sender crypto slice** (`P0-CRYPTO`, a hard predecessor of
+`P1-SIG`) and the pure-software signaling chain (`P0-C → P1-GW → P1-SIG`). All
+three converge at `P1-UI`. The software chain cannot *demonstrate* a connected
+call until `P0-CT` lands the live, monitored relay. So: **start P0-TM + P0-C +
+P0-CRYPTO on day one**, fork the infra chain and the software chain, and
+converge at `P1-UI`. V1 ends there; everything below is V1.1.
 
 ---
 
 ## 9. Solo-dev sequencing advice
 
-- **The audio cut is the whole point — don't let V1.1 creep back into V1.** Video, push/reach, multi-device, and the metadata ledger are explicitly V1.1. If a "small" addition pulls `call_sessions`, push, or video into the audio core, it has un-resolved the three tensions the cut was made to resolve ([00 §4](./00-overview-and-goals.md)).
-- **Front-load the scary infra.** `P0-CT` (coturn + `compose-guard` + the first public port) is the single highest-risk slice and the one most likely to need an `infra-reviewer` round-trip. Do it early while you have appetite for it; don't let it block UI momentum (the software chain runs alongside). **Treat coturn availability (`P0-OPS`) as part of "done" for the relay** — relay-default means a dead, unmonitored coturn = total calling outage with no alert.
-- **The authenticated-sender crypto slice (`P0-CRYPTO`) is a real, reviewer-gated piece of work, not a freebie.** It is a hard predecessor of the first connecting call. Start it day one alongside the docs/contracts so `crypto-reviewer` has time for a round-trip.
-- **Land docs-only and contracts-only PRs first.** `P0-TM` (now including the GDPR bundle) and `P0-C` are fast, unblock everything, and bank reviewer goodwill before the heavy slices.
-- **Treat the manual-confirmation slices as scheduled events**, not interrupts: `P0-IT` (terraform apply), `P0-CT`/`P3-PR` (vm run-command) each need a deliberate, human-in-the-loop deploy window. Batch them.
-- **Keep the gating E2E mocked.** Per [05 §7](./05-frontend-pwa-and-webrtc.md), the merge-gating `call.spec.ts` uses fake media + a demo signaling stub; the *real* two-peer/coturn smoke runs as a **non-gating nightly** (UDP-relay in CI is fragile). This keeps the merge gate fast and deterministic for a solo dev.
-- **One `/code-review` per PR, domain reviewers per area, dual review always.** Don't over-review the XS/S slices; spend the deep `security-architect`/`/code-review ultra` budget at phase boundaries (end of Phase 0, end of V1) per the milestone-review rule.
-- **The friendship gate (`P1-INV`) is genuinely new product behavior** — it's the first time contact is gated on an accepted friendship. Call it out in the PR description's "what changed and why" for the product-owner read, since it changes who can reach whom.
-- **Set iOS expectations honestly in-product the moment push lands (V1.1, `P3-PUSH`)** — the iOS-backgrounded path is a **tap-to-join banner**, surfaced as a call-readiness **warning, not a hard block** ([09](./09-decision-log-and-open-questions.md) Q4). If a stakeholder ever makes "rings a locked iPhone" a hard requirement, that is a **decision fork to Capacitor (F-CALLKIT) as a V1 prerequisite**, not a V1.1 deferral.
+- **The audio cut is the whole point — don't let V1.1 creep back into V1.**
+  Video, push/reach, multi-device, and the metadata ledger are explicitly V1.1.
+  If a "small" addition pulls `call_sessions`, push, or video into the audio
+  core, it has un-resolved the three tensions the cut was made to resolve ([00
+  §4](./00-overview-and-goals.md)).
+- **Front-load the scary infra.** `P0-CT` (coturn + `compose-guard` + the first
+  public port) is the single highest-risk slice and the one most likely to need
+  an `infra-reviewer` round-trip. Do it early while you have appetite for it;
+  don't let it block UI momentum (the software chain runs alongside). **Treat
+  coturn availability (`P0-OPS`) as part of "done" for the relay** —
+  relay-default means a dead, unmonitored coturn = total calling outage with no
+  alert.
+- **The authenticated-sender crypto slice (`P0-CRYPTO`) is a real,
+  reviewer-gated piece of work, not a freebie.** It is a hard predecessor of the
+  first connecting call. Start it day one alongside the docs/contracts so
+  `crypto-reviewer` has time for a round-trip.
+- **Land docs-only and contracts-only PRs first.** `P0-TM` (now including the
+  GDPR bundle) and `P0-C` are fast, unblock everything, and bank reviewer
+  goodwill before the heavy slices.
+- **Treat the manual-confirmation slices as scheduled events**, not interrupts:
+  `P0-IT` (terraform apply), `P0-CT`/`P3-PR` (vm run-command) each need a
+  deliberate, human-in-the-loop deploy window. Batch them.
+- **Keep the gating E2E mocked.** Per [05 §7](./05-frontend-pwa-and-webrtc.md),
+  the merge-gating `call.spec.ts` uses fake media + a demo signaling stub; the
+  *real* two-peer/coturn smoke runs as a **non-gating nightly** (UDP-relay in CI
+  is fragile). This keeps the merge gate fast and deterministic for a solo dev.
+- **One `/code-review` per PR, domain reviewers per area, dual review always.**
+  Don't over-review the XS/S slices; spend the deep
+  `security-architect`/`/code-review ultra` budget at phase boundaries (end of
+  Phase 0, end of V1) per the milestone-review rule.
+- **The friendship gate (`P1-INV`) is genuinely new product behavior** — it's
+  the first time contact is gated on an accepted friendship. Call it out in the
+  PR description's "what changed and why" for the product-owner read, since it
+  changes who can reach whom.
+- **Set iOS expectations honestly in-product the moment push lands (V1.1,
+  `P3-PUSH`)** — the iOS-backgrounded path is a **tap-to-join banner**, surfaced
+  as a call-readiness **warning, not a hard block**
+  ([09](./09-decision-log-and-open-questions.md) Q4). If a stakeholder ever
+  makes "rings a locked iPhone" a hard requirement, that is a **decision fork to
+  Capacitor (F-CALLKIT) as a V1 prerequisite**, not a V1.1 deferral.
 - **After each merged phase, `/compact`** and re-baseline against this roadmap.
 
 ---
 
 ## 10. Per-slice DoD gate matrix (quick reference)
 
-Universal gates (every slice, not repeated below): `pnpm -r typecheck && pnpm -r test && pnpm lint && pnpm format:check`; one `/code-review` pass over the branch diff; dual review (Codex + `@claude`); green CI (`ci · security · codeql`).
+Universal gates (every slice, not repeated below): `pnpm -r typecheck && pnpm -r
+test && pnpm lint && pnpm format:check`; one `/code-review` pass over the branch
+diff; dual review (Codex + `@claude`); green CI (`ci · security · codeql`).
 
 | Slice | Band | E2E | OpenAPI + 42Crunch | RLS / `/db-migration` | Threat-model / GDPR | crypto-reviewer | boundary-auditor | infra-reviewer | Manual deploy confirm |
 |---|---|:--:|:--:|:--:|:--:|:--:|:--:|:--:|:--:|
@@ -502,4 +658,9 @@ Universal gates (every slice, not repeated below): `pnpm -r typecheck && pnpm -r
 
 ---
 
-*This roadmap is planning only — nothing here is implemented. It sequences the work described across [01](./01-architecture-and-crypto-model.md)–[07](./07-comparative-survey.md) into PR-sized slices that conform to the repo's slice/PR workflow, the six security invariants, and the Definition of Done. **V1 = the audio core (Phase 0 + Phase 1); V1.1 = video, reach, multi-device, and the metadata ledger.***
+*This roadmap is planning only — nothing here is implemented. It sequences the
+work described across
+[01](./01-architecture-and-crypto-model.md)–[07](./07-comparative-survey.md)
+into PR-sized slices that conform to the repo's slice/PR workflow, the six
+security invariants, and the Definition of Done. **V1 = the audio core (Phase
+0 + Phase 1); V1.1 = video, reach, multi-device, and the metadata ledger.***

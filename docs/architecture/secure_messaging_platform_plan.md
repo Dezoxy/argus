@@ -1,25 +1,31 @@
 # argus — Architecture
 
-> **What this is:** the canonical "how the system is built" doc. It describes **what exists today**, not
-> what was once planned. Two later course-corrections are already folded in: Kubernetes/AKS was dropped for
-> a single VM + Docker Compose (2026-06), and the **private-messenger redesign** (2026-06/07) replaced the
-> enterprise-SaaS shape — Zitadel OIDC, per-tenant SSO, Stripe billing, self-serve workspaces, the browsable
-> user directory — with an invite-only, passkey-only messenger. The earlier AWS/Kubernetes/enterprise cuts
-> live in `git log` and [`../archive/`](../archive/); do not follow them.
+> **What this is:** the canonical "how the system is built" doc. It describes
+> **what exists today**, not what was once planned. Two later course-corrections
+> are already folded in: Kubernetes/AKS was dropped for a single VM + Docker
+> Compose (2026-06), and the **private-messenger redesign** (2026-06/07)
+> replaced the enterprise-SaaS shape — Zitadel OIDC, per-tenant SSO, Stripe
+> billing, self-serve workspaces, the browsable user directory — with an
+> invite-only, passkey-only messenger. The earlier AWS/Kubernetes/enterprise
+> cuts live in `git log` and [`../archive/`](../archive/); do not follow them.
 >
-> **Phasing is not here.** [`../planning/roadmap/README.md`](../planning/roadmap/README.md) is canonical for
-> what is done and what is left. **Rules** are in `AGENTS.md`. This doc is the shape of the system.
+> **Phasing is not here.**
+> [`../planning/roadmap/README.md`](../planning/roadmap/README.md) is canonical
+> for what is done and what is left. **Rules** are in `AGENTS.md`. This doc is
+> the shape of the system.
 
 ---
 
 ## 0. Executive Summary
 
-An **end-to-end-encrypted messenger** delivered as an installable **PWA** (no app stores). The server is a
-**crypto-blind delivery layer**: it stores ciphertext, fans out real-time messages, brokers public keys, and
-relays call media — it can never read message content.
+An **end-to-end-encrypted messenger** delivered as an installable **PWA** (no
+app stores). The server is a **crypto-blind delivery layer**: it stores
+ciphertext, fans out real-time messages, brokers public keys, and relays call
+media — it can never read message content.
 
-Access is **invite-only**: an admin mints a one-time registration code, the user redeems it and sets up a
-**passkey**. There is no email, no password, no external IdP, and no self-serve signup.
+Access is **invite-only**: an admin mints a one-time registration code, the user
+redeems it and sets up a **passkey**. There is no email, no password, no
+external IdP, and no self-serve signup.
 
 **Stack as built:**
 
@@ -39,34 +45,43 @@ Access is **invite-only**: an admin mints a one-time registration code, the user
 | Observability    | Self-hosted **Prometheus · Alertmanager · Grafana · Loki · Alloy · Tempo · Pyroscope · GlitchTip** |
 | Deploy           | Tag-triggered **GitHub Actions → Azure OIDC → VM run-command** (no SSH, no open ports)          |
 
-**Why Azure, and the privacy trade being accepted:** Azure gives one low-cost **VM**, **Key Vault** for
-secrets, and cloud skills that transfer — without the K8s ops a solo dev can't justify. The honest cost:
-Azure is **US-owned**, so the privacy story is _"E2EE (the cloud only ever holds ciphertext + metadata) + EU
-Data Boundary + a German region"_ rather than _"EU-owned provider"_. Defensible, but a notch weaker than
-Hetzner/Scaleway on pure sovereignty. The stack is plain Docker Compose, so moving the VM to an EU-owned
-host later is a re-provision, not a rewrite.
+**Why Azure, and the privacy trade being accepted:** Azure gives one low-cost
+**VM**, **Key Vault** for secrets, and cloud skills that transfer — without the
+K8s ops a solo dev can't justify. The honest cost: Azure is **US-owned**, so the
+privacy story is _"E2EE (the cloud only ever holds ciphertext + metadata) + EU
+Data Boundary + a German region"_ rather than _"EU-owned provider"_. Defensible,
+but a notch weaker than Hetzner/Scaleway on pure sovereignty. The stack is plain
+Docker Compose, so moving the VM to an EU-owned host later is a re-provision,
+not a rewrite.
 
 ---
 
 ## 1. Product Goal & Scope
 
-**Goal:** a private messenger where the operator is **technically incapable** of reading message content,
-and where membership is closed — you get in because someone already inside handed you a code.
+**Goal:** a private messenger where the operator is **technically incapable** of
+reading message content, and where membership is closed — you get in because
+someone already inside handed you a code.
 
 **Shipped today:**
 
 - Invite-code registration → **passkey** setup; **passkey-only** login thereafter
-- Immutable, shareable **argus-id** (`argus-<16 chars>-<animal>`); find people by **exact argus-id only**
+- Immutable, shareable **argus-id** (`argus-<16 chars>-<animal>`); find people
+  by **exact argus-id only**
 - **Friends list** — the durable contact source that survives a PWA reinstall
 - **1:1 and group** E2EE text messaging over MLS
 - **Encrypted image attachments** (client-side AES-GCM → presigned B2)
-- **Multi-device** — a new device is approved by an existing trusted device, after a fingerprint check
-- **1:1 audio calls** — WebRTC, always relayed via coturn in V1, signaling carried as MLS ciphertext
+- **Multi-device** — a new device is approved by an existing trusted device,
+  after a fingerprint check
+- **1:1 audio calls** — WebRTC, always relayed via coturn in V1, signaling
+  carried as MLS ciphertext
 - **Safety-number (fingerprint) verification** against key substitution
 - Real-time delivery + offline catch-up, delivery/read receipts, **web push**
-- Per-user privacy toggles (read receipts, typing indicators, link previews; a relay-only call preference is stored for V1.1)
-- **Metadata-only admin panel** (devices + audit; never content) and a **breakglass** admin login
-- **GDPR** export + erasure; **90-day** server-side message retention with a DB-enforced prune
+- Per-user privacy toggles (read receipts, typing indicators, link previews; a
+  relay-only call preference is stored for V1.1)
+- **Metadata-only admin panel** (devices + audit; never content) and a
+  **breakglass** admin login
+- **GDPR** export + erasure; **90-day** server-side message retention with a
+  DB-enforced prune
 
 **Explicitly out of scope today:**
 
@@ -85,13 +100,14 @@ and where membership is closed — you get in because someone already inside han
 > The server delivers messages; it never owns their content.
 
 - Content is encrypted **on the client** before it touches the network.
-- The database stores **ciphertext**; object storage stores **encrypted blobs**; coturn relays **encrypted
-  media** it cannot interpret.
+- The database stores **ciphertext**; object storage stores **encrypted blobs**;
+  coturn relays **encrypted media** it cannot interpret.
 - Admins see **security metadata**, never plaintext.
 
-The backend manages: authentication, authorization, tenant isolation, the public **key directory**, message
-routing & storage, attachment references, TURN credential minting, audit events, and operations. It never
-manages: plaintext, user private keys, or decryption of conversations.
+The backend manages: authentication, authorization, tenant isolation, the public
+**key directory**, message routing & storage, attachment references, TURN
+credential minting, audit events, and operations. It never manages: plaintext,
+user private keys, or decryption of conversations.
 
 ---
 
@@ -99,80 +115,102 @@ manages: plaintext, user private keys, or decryption of conversations.
 
 ### 3.1 What "E2EE" means here (device-local keys)
 
-- A user may have **N devices**. Each new device is added by **approval from an existing trusted device**
-  after an out-of-band fingerprint check (`threat-models/multi-device-enrollment.md`). MLS private keys live
-  in **IndexedDB**, sealed under the per-passkey PRF unlock key.
-- There is **no key backup and no recovery**: every new device is provisioned **fresh** (no prior history —
-  MLS forward secrecy), either via enrollment from an existing device or, for a user with **no** remaining
-  enrolled device, via a new registration code (§3.4). "New phone / new browser" is always a fresh device.
+- A user may have **N devices**. Each new device is added by **approval from an
+  existing trusted device** after an out-of-band fingerprint check
+  (`threat-models/multi-device-enrollment.md`). MLS private keys live in
+  **IndexedDB**, sealed under the per-passkey PRF unlock key.
+- There is **no key backup and no recovery**: every new device is provisioned
+  **fresh** (no prior history — MLS forward secrecy), either via enrollment from
+  an existing device or, for a user with **no** remaining enrolled device, via a
+  new registration code (§3.4). "New phone / new browser" is always a fresh
+  device.
 
 ### 3.2 The honest PWA caveat (read this twice)
 
-A web app delivers the encryption code on every load, so a **fully compromised server could ship malicious
-JavaScript** and capture plaintext. Native apps avoid this; a pure PWA cannot fully escape it. It can only
-be narrowed:
+A web app delivers the encryption code on every load, so a **fully compromised
+server could ship malicious JavaScript** and capture plaintext. Native apps
+avoid this; a pure PWA cannot fully escape it. It can only be narrowed:
 
 - Strict **Content-Security-Policy** + **Subresource Integrity** (the browser rejects tampered scripts)
-- **Service worker** caches the app shell, so the code changes rarely and visibly; the SW's own integrity is
-  inlined at build time and checked in CI (`apps/web/scripts/check-sw-integrity.mjs`)
+- **Service worker** caches the app shell, so the code changes rarely and
+  visibly; the SW's own integrity is inlined at build time and checked in CI
+  (`apps/web/scripts/check-sw-integrity.mjs`)
 - Published bundle hashes on the in-app transparency page, for independent verification
-- Treat the **deploy pipeline as the #1 attack surface** — sign and scan every image, gate every rollout
+- Treat the **deploy pipeline as the #1 attack surface** — sign and scan every
+  image, gate every rollout
 
-Be honest with users: this is "very strong privacy", not "uncompromisable". It is the same trade Signal made
-when it chose native apps. Acceptable for a privacy-first PWA; do not oversell it. See
+Be honest with users: this is "very strong privacy", not "uncompromisable". It
+is the same trade Signal made when it chose native apps. Acceptable for a
+privacy-first PWA; do not oversell it. See
 `threat-models/code-delivery-integrity.md`.
 
 ### 3.3 Crypto: build on a standard, never hand-roll
 
-- **Protocol: MLS (RFC 9420)** via [`ts-mls`](mls-library-selection.md) (MIT, pure TypeScript). Chosen over
-  the Signal protocol because MLS is the modern IETF standard and is **group-ready**, so group chat was an
-  increment rather than a rewrite.
-- **Do not** compose a scheme from primitives. All cryptography lives in `packages/crypto`; primitives must
-  not appear elsewhere (AGENTS.md invariant #4).
-- The server stores MLS **KeyPackages** (public), ciphertext messages, ciphertext commits, and Welcome
-  messages for offline delivery. All of it is opaque to the server.
+- **Protocol: MLS (RFC 9420)** via [`ts-mls`](mls-library-selection.md) (MIT,
+  pure TypeScript). Chosen over the Signal protocol because MLS is the modern
+  IETF standard and is **group-ready**, so group chat was an increment rather
+  than a rewrite.
+- **Do not** compose a scheme from primitives. All cryptography lives in
+  `packages/crypto`; primitives must not appear elsewhere (AGENTS.md invariant
+  #4).
+- The server stores MLS **KeyPackages** (public), ciphertext messages,
+  ciphertext commits, and Welcome messages for offline delivery. All of it is
+  opaque to the server.
 
 ### 3.4 Key backup & recovery — there is none, by design
 
-The original passphrase / Argon2id / server-stored key-backup design was **removed** (migration
-`0040_drop_key_backups.sql`; `packages/crypto/src/key-backup.ts` deleted). The shipped model seals the device
-keystore directly under a per-passkey **WebAuthn-PRF** key — no passphrase, no Argon2, and **no recoverable
-secret on the server**.
+The original passphrase / Argon2id / server-stored key-backup design was
+**removed** (migration `0040_drop_key_backups.sql`;
+`packages/crypto/src/key-backup.ts` deleted). The shipped model seals the device
+keystore directly under a per-passkey **WebAuthn-PRF** key — no passphrase, no
+Argon2, and **no recoverable secret on the server**.
 
-- The keystore (IndexedDB, currently schema v8) is sealed at rest under the PRF unlock key: a
-  non-extractable AES-256-GCM `CryptoKey` that exists in memory only.
-- A lost passkey or an evicted PWA store is a **fresh start** — an admin mints a new registration code, the
-  user re-registers as a **new identity**, and starts with no history.
-- This trades recoverability for a strictly smaller attack surface (no server-held key ciphertext to steal
-  or brute-force) and is consistent with MLS forward secrecy. See `threat-models/prf-keystore-unlock.md` and
+- The keystore (IndexedDB, currently schema v8) is sealed at rest under the PRF
+  unlock key: a non-extractable AES-256-GCM `CryptoKey` that exists in memory
+  only.
+- A lost passkey or an evicted PWA store is a **fresh start** — an admin mints a
+  new registration code, the user re-registers as a **new identity**, and starts
+  with no history.
+- This trades recoverability for a strictly smaller attack surface (no
+  server-held key ciphertext to steal or brute-force) and is consistent with MLS
+  forward secrecy. See `threat-models/prf-keystore-unlock.md` and
   `threat-models/key-model.md`.
 
 ### 3.5 Auth ↔ crypto boundary
 
-**A passkey is not an MLS device key.** The passkey authenticates _who you are_: the server stores its
-WebAuthn **public** key, which is safe for crypto-blindness because it is not message key material. The MLS
-device signature key is the per-device **E2EE identity** and never leaves the client. The two systems stay
-independent — losing one does not compromise the other, and a lost passkey means a new MLS identity too.
+**A passkey is not an MLS device key.** The passkey authenticates _who you are_:
+the server stores its WebAuthn **public** key, which is safe for
+crypto-blindness because it is not message key material. The MLS device
+signature key is the per-device **E2EE identity** and never leaves the client.
+The two systems stay independent — losing one does not compromise the other, and
+a lost passkey means a new MLS identity too.
 
 ---
 
 ## 4. Tenancy
 
-The multi-tenant machinery is **retained and enforced**, but the deployment is **effectively single-tenant**.
+The multi-tenant machinery is **retained and enforced**, but the deployment is
+**effectively single-tenant**.
 
-- **Model:** shared PostgreSQL; every tenant-scoped table carries `tenant_id` with **`ENABLE` + `FORCE`
-  RLS**. The app sets `app.tenant_id` per transaction (`withTenant()` in `apps/api/src/db/index.ts`), so
-  Postgres rejects cross-tenant reads even when application code has a bug (AGENTS.md invariant #3).
-- **The guard is catalog-driven, not a hand-written list.** `apps/api/src/db/rls-coverage.spec.ts` enumerates
-  every ordinary table in `public` from the live catalog and fails if one is not tenant-isolated by the exact
-  policy shape. A new table without a policy turns it red automatically. Four tables sit on a justified
-  allowlist (`schema_migrations`, `user_tenant_index`, `webauthn_challenges`, `stripe_events`).
-- **One tenant in practice:** every user is bound to a single fixed `DEFAULT_TENANT_ID`
-  (`apps/api/src/auth/breakglass.service.ts`). Privacy comes from **argus-id-only discovery + E2EE**, not
-  from tenant walls. Keeping RLS costs a few lines and leaves real multi-tenancy reversible; removing it
-  would be a multi-month teardown of the security boundary.
-- **No per-tenant IdP config, no plans, no billing.** Those columns survive as inert residue from migration
-  `0039_decommission_enterprise.sql` and are slated for a later cleanup migration.
+- **Model:** shared PostgreSQL; every tenant-scoped table carries `tenant_id`
+  with **`ENABLE` + `FORCE` RLS**. The app sets `app.tenant_id` per transaction
+  (`withTenant()` in `apps/api/src/db/index.ts`), so Postgres rejects
+  cross-tenant reads even when application code has a bug (AGENTS.md invariant
+  #3).
+- **The guard is catalog-driven, not a hand-written list.**
+  `apps/api/src/db/rls-coverage.spec.ts` enumerates every ordinary table in
+  `public` from the live catalog and fails if one is not tenant-isolated by the
+  exact policy shape. A new table without a policy turns it red automatically.
+  Four tables sit on a justified allowlist (`schema_migrations`,
+  `user_tenant_index`, `webauthn_challenges`, `stripe_events`).
+- **One tenant in practice:** every user is bound to a single fixed
+  `DEFAULT_TENANT_ID` (`apps/api/src/auth/breakglass.service.ts`). Privacy comes
+  from **argus-id-only discovery + E2EE**, not from tenant walls. Keeping RLS
+  costs a few lines and leaves real multi-tenancy reversible; removing it would
+  be a multi-month teardown of the security boundary.
+- **No per-tenant IdP config, no plans, no billing.** Those columns survive as
+  inert residue from migration `0039_decommission_enterprise.sql` and are slated
+  for a later cleanup migration.
 
 ---
 
@@ -218,44 +256,55 @@ The multi-tenant machinery is **retained and enforced**, but the deployment is *
 
 ## 6. VM Deploy Architecture
 
-Full operational detail — rollout, rollback, health gates — lives in [`deploy.md`](deploy.md). This section
-is the shape only.
+Full operational detail — rollout, rollback, health gates — lives in
+[`deploy.md`](deploy.md). This section is the shape only.
 
 ### 6.1 The VM
 
-- **Host:** one Azure VM (`Standard_B2ms` — 2 vCPU / 8 GiB, burstable) in **Germany West Central**
-  (`germanywestcentral`). Every Azure resource is pinned to the same region.
-- **Stack:** **Docker Compose** (`compose.prod.yaml`) runs self-hosted **Postgres + Redis** alongside `api`,
-  `caddy` (which also serves the PWA), `cloudflared`, `coturn`, and the full observability stack. One
-  container per service — no autoscaling; scale the VM up if needed.
-- **Native workers:** four jobs run on the VM as **systemd timers**, not containers — nightly encrypted DB
-  backup (`infra/backup/`), expired-attachment reaper (`infra/cleanup/`), audit-event prune
-  (`infra/audit-prune/`), and the 90-day message-retention prune (`infra/retention/`). Each connects as its
-  own least-privilege Postgres role.
-- **Identity:** the VM's **Managed Identity** reads secrets from **Azure Key Vault** with no static creds;
-  secrets land as **credential files** in a tmpfs, never in env at rest (AGENTS.md invariant #5).
+- **Host:** one Azure VM (`Standard_B2ms` — 2 vCPU / 8 GiB, burstable) in
+  **Germany West Central** (`germanywestcentral`). Every Azure resource is
+  pinned to the same region.
+- **Stack:** **Docker Compose** (`compose.prod.yaml`) runs self-hosted
+  **Postgres + Redis** alongside `api`, `caddy` (which also serves the PWA),
+  `cloudflared`, `coturn`, and the full observability stack. One container per
+  service — no autoscaling; scale the VM up if needed.
+- **Native workers:** four jobs run on the VM as **systemd timers**, not
+  containers — nightly encrypted DB backup (`infra/backup/`), expired-attachment
+  reaper (`infra/cleanup/`), audit-event prune (`infra/audit-prune/`), and the
+  90-day message-retention prune (`infra/retention/`). Each connects as its own
+  least-privilege Postgres role.
+- **Identity:** the VM's **Managed Identity** reads secrets from **Azure Key
+  Vault** with no static creds; secrets land as **credential files** in a tmpfs,
+  never in env at rest (AGENTS.md invariant #5).
 
 ### 6.2 Ingress, TLS & isolation
 
-- **Ingress = Cloudflare Tunnel.** `cloudflared` dials **outbound**, so no inbound HTTP port is opened.
-  Cloudflare is the edge: **TLS termination, WAF, rate-limit**.
-- **The one exception is coturn.** WebRTC media is UDP, which a Cloudflare Tunnel cannot carry, so the TURN
-  ports are the only inbound rule in the NSG. coturn is the most exposed service in the stack and is
-  hardened accordingly — ephemeral HMAC credentials, no long-lived users, peer ACLs. See
-  `threat-models/voip-turn.md` and [`../runbooks/voip-turn.md`](../runbooks/voip-turn.md).
-- **Internal proxy = Caddy** (plain HTTP, single origin): serves the PWA and proxies `/api` and `/ws`. TLS is
-  Cloudflare's job (no cert-manager, no Let's-Encrypt-on-host).
-- **Network isolation = Azure NSG** + Cloudflare. **No service publishes a host port**; `coturn` alone runs
-  on the host network so it can reach the TURN ports. Both facts are asserted by the `compose-guard` CI job.
+- **Ingress = Cloudflare Tunnel.** `cloudflared` dials **outbound**, so no
+  inbound HTTP port is opened. Cloudflare is the edge: **TLS termination, WAF,
+  rate-limit**.
+- **The one exception is coturn.** WebRTC media is UDP, which a Cloudflare
+  Tunnel cannot carry, so the TURN ports are the only inbound rule in the NSG.
+  coturn is the most exposed service in the stack and is hardened accordingly —
+  ephemeral HMAC credentials, no long-lived users, peer ACLs. See
+  `threat-models/voip-turn.md` and
+  [`../runbooks/voip-turn.md`](../runbooks/voip-turn.md).
+- **Internal proxy = Caddy** (plain HTTP, single origin): serves the PWA and
+  proxies `/api` and `/ws`. TLS is Cloudflare's job (no cert-manager, no
+  Let's-Encrypt-on-host).
+- **Network isolation = Azure NSG** + Cloudflare. **No service publishes a host
+  port**; `coturn` alone runs on the host network so it can reach the TURN
+  ports. Both facts are asserted by the `compose-guard` CI job.
 
 ### 6.3 CD & secrets
 
-- **CD is driven by GitHub Actions + Azure OIDC** through the Azure control plane — no SSH, no open ports,
-  and it works before the tunnel exists. The pipeline builds, scans (Trivy), and **signs** (cosign keyless)
-  both images, pushes to GHCR, then runs the deploy script on the VM: pull → **migrate-before-serve** →
-  `docker compose up`.
-- **Secrets = Key Vault + Managed Identity**, delivered as files. `db:migrate` runs with the owner
-  credential (never the runtime `argus_app` role) before the new container takes traffic.
+- **CD is driven by GitHub Actions + Azure OIDC** through the Azure control
+  plane — no SSH, no open ports, and it works before the tunnel exists. The
+  pipeline builds, scans (Trivy), and **signs** (cosign keyless) both images,
+  pushes to GHCR, then runs the deploy script on the VM: pull →
+  **migrate-before-serve** → `docker compose up`.
+- **Secrets = Key Vault + Managed Identity**, delivered as files. `db:migrate`
+  runs with the owner credential (never the runtime `argus_app` role) before the
+  new container takes traffic.
 
 ### 6.4 Container security (applied to every service)
 
@@ -271,22 +320,25 @@ short-lived OIDC tokens for CD; no long-lived cloud keys on the VM
 
 Terraform is split by concern, deliberately:
 
-- `infra/azure/terraform/` — the production target: RG, VNet, NSG, the VM, Key Vault, Managed Identity, and
-  the GitHub-OIDC deploy role.
+- `infra/azure/terraform/` — the production target: RG, VNet, NSG, the VM, Key
+  Vault, Managed Identity, and the GitHub-OIDC deploy role.
 - `infra/stack/` — the **cloud-agnostic** runtime the VM actually runs: deploy script, Key Vault
   secret-fetch, Caddy, coturn, observability, GlitchTip.
-- `infra/aws/` — a **parallel EC2 experiment** (`t3.medium`, `eu-central-1`) on its own tag namespace and
-  kill-switch. Not production; it exists to prove the stack is portable and to shake out runtime issues.
+- `infra/aws/` — a **parallel EC2 experiment** (`t3.medium`, `eu-central-1`) on
+  its own tag namespace and kill-switch. Not production; it exists to prove the
+  stack is portable and to shake out runtime issues.
 - `infra/b2/` — the Backblaze bucket CORS policy.
 
 ---
 
 ## 7. Data Model
 
-21 tables are modeled in `apps/api/src/db/schema.ts`; **19 of them are tenant-isolated by RLS**, and two are
-on the justified allowlist (§4). The database holds two more that carry no app model — `schema_migrations`
-and the inert `stripe_events` — also allowlisted. Shapes below are abbreviated; the source of truth is
-`schema.ts` and the numbered migrations in `apps/api/src/db/migrations/`.
+21 tables are modeled in `apps/api/src/db/schema.ts`; **19 of them are
+tenant-isolated by RLS**, and two are on the justified allowlist (§4). The
+database holds two more that carry no app model — `schema_migrations` and the
+inert `stripe_events` — also allowlisted. Shapes below are abbreviated; the
+source of truth is `schema.ts` and the numbered migrations in
+`apps/api/src/db/migrations/`.
 
 ```text
 -- identity & auth ------------------------------------------------------------
@@ -356,12 +408,15 @@ audit_events(id, tenant_id, event_type, actor_sub, ip, user_agent, metadata,
              created_at)                              # append-only; pruned on a timer
 ```
 
-**There is no call table.** Calls persist **nothing** — no participants, no timestamps, no duration.
-Signaling is relayed in memory over the WebSocket, and TURN credentials are minted per attempt with a
-600-second TTL. The only durable call-related state is the per-user `call_relay_only` preference.
+**There is no call table.** Calls persist **nothing** — no participants, no
+timestamps, no duration. Signaling is relayed in memory over the WebSocket, and
+TURN credentials are minted per attempt with a 600-second TTL. The only durable
+call-related state is the per-user `call_relay_only` preference.
 
-**Removed, with inert residue:** `key_backups` (removed by `0040`), `tenant_sso_configs` (removed by `0039`).
-`stripe_events` and the `tenants.plan_*` / `stripe_*` columns still exist but nothing reads or writes them.
+**Removed, with inert residue:** `key_backups` (removed by `0040`),
+`tenant_sso_configs` (removed by `0039`). `stripe_events` and the
+`tenants.plan_*` / `stripe_*` columns still exist but nothing reads or writes
+them.
 
 ---
 
@@ -371,39 +426,47 @@ There is **no external IdP**. The API is the identity provider.
 
 **Registration** — invite-only, three steps:
 
-1. An admin mints a one-time **registration code** (32 bytes, SHA-256 at rest, single-use atomic redeem,
-   7-day TTL). A dedicated RLS carve-out exposes exactly one invite row via a transaction-local
-   `app.invite_token_hash` GUC — the pattern for "look up a code before any session context exists".
-2. The client redeems the code and runs a **WebAuthn registration** ceremony. The server stores the
-   credential's **public** key.
-3. The server mints an immutable **argus-id** — `argus-<16 unambiguous chars>-<animal>`, CSPRNG-generated —
-   and a matching `users` row. `argus_id` cannot be changed; a `BEFORE UPDATE` trigger enforces it, because
-   Postgres cannot subtract one column from a table-level UPDATE grant.
+1. An admin mints a one-time **registration code** (32 bytes, SHA-256 at rest,
+   single-use atomic redeem, 7-day TTL). A dedicated RLS carve-out exposes
+   exactly one invite row via a transaction-local `app.invite_token_hash` GUC —
+   the pattern for "look up a code before any session context exists".
+2. The client redeems the code and runs a **WebAuthn registration** ceremony.
+   The server stores the credential's **public** key.
+3. The server mints an immutable **argus-id** — `argus-<16 unambiguous
+   chars>-<animal>`, CSPRNG-generated — and a matching `users` row. `argus_id`
+   cannot be changed; a `BEFORE UPDATE` trigger enforces it, because Postgres
+   cannot subtract one column from a table-level UPDATE grant.
 
-**Login** — passkey only. The client auto-tries a discoverable passkey; if none exists, the user falls back
-to "I have a registration code". No password, no email, no magic link.
+**Login** — passkey only. The client auto-tries a discoverable passkey; if none
+exists, the user falls back to "I have a registration code". No password, no
+email, no magic link.
 
 **Sessions** — the API mints and verifies **its own** tokens:
 
-- A **10-minute EdDSA (Ed25519) access token**, held in memory only. The signing key is a Key Vault
-  credential file (an ephemeral pair in dev, so sessions do not survive a restart).
-- A **30-day refresh token** in an `HttpOnly` + `SameSite=Strict` cookie, hashed at rest in `auth_sessions`,
-  paired with a CSRF header. This is what makes "stay logged in across a reload" work.
-- `sub` is the identity spine: **`"argusid:" + argus_id`**. It is the PK of `user_tenant_index`, the lookup
-  key in `requireUser()`, the match key in `AdminGuard`, the room key in the WS gateway, and the audit
-  actor. A new identity is a new `sub` — which is exactly why "lost passkey = fresh start" falls out for
-  free.
+- A **10-minute EdDSA (Ed25519) access token**, held in memory only. The signing
+  key is a Key Vault credential file (an ephemeral pair in dev, so sessions do
+  not survive a restart).
+- A **30-day refresh token** in an `HttpOnly` + `SameSite=Strict` cookie, hashed
+  at rest in `auth_sessions`, paired with a CSRF header. This is what makes
+  "stay logged in across a reload" work.
+- `sub` is the identity spine: **`"argusid:" + argus_id`**. It is the PK of
+  `user_tenant_index`, the lookup key in `requireUser()`, the match key in
+  `AdminGuard`, the room key in the WS gateway, and the audit actor. A new
+  identity is a new `sub` — which is exactly why "lost passkey = fresh start"
+  falls out for free.
 
-**Discovery** — exact **argus-id lookup only** (`GET /users/lookup`). The browsable directory was removed;
-users cannot be enumerated.
+**Discovery** — exact **argus-id lookup only** (`GET /users/lookup`). The
+browsable directory was removed; users cannot be enumerated.
 
-**Breakglass admin** — a single admin **username + password** (Argon2id, lockout, fully audited),
-bootstrapped from Azure Key Vault. It exists so the operator can reach the admin panel when no passkey
-works. See `threat-models/breakglass-admin.md`.
+**Breakglass admin** — a single admin **username + password** (Argon2id,
+lockout, fully audited), bootstrapped from Azure Key Vault. It exists so the
+operator can reach the admin panel when no passkey works. See
+`threat-models/breakglass-admin.md`.
 
-**Authorization** — a global deny-by-default JWT guard, with `@Public()` / `@AllowUnbound()` as the explicit
-opt-outs; `AdminGuard` re-reads the role from the database rather than trusting the token. Messaging is
-**friendship-gated**: a conversation cannot be started with a non-friend.
+**Authorization** — a global deny-by-default JWT guard, with `@Public()` /
+`@AllowUnbound()` as the explicit opt-outs; `AdminGuard` re-reads the role from
+the database rather than trusting the token. Messaging is **friendship-gated**:
+a conversation cannot be started with a non-friend.
 
 ---
 
@@ -431,8 +494,9 @@ opt-outs; `AdminGuard` re-reads the role from the database rather than trusting 
 5. Recipient fetches a presigned download URL, downloads, decrypts locally.
 ```
 
-Object storage: **private buckets, no public URLs, short-lived presigned access only**. Presigned URLs are
-never logged (AGENTS.md invariant #2). Expired attachments are reaped by the `infra/cleanup/` timer.
+Object storage: **private buckets, no public URLs, short-lived presigned access
+only**. Presigned URLs are never logged (AGENTS.md invariant #2). Expired
+attachments are reaped by the `infra/cleanup/` timer.
 
 ### Audio call
 
@@ -447,20 +511,23 @@ never logged (AGENTS.md invariant #2). Expired attachments are reaped by the `in
 5. On hangup, everything is gone — nothing was persisted.
 ```
 
-`iceTransportPolicy: 'relay'` is set **server-side** and never overridden by the client. In V1 it is
-**unconditional**: the per-user `call_relay_only` preference is stored and readable but deliberately ignored,
-so no user can accidentally (or be tricked into) leaking their IP. Honouring the opt-out is a V1.1 decision.
-See `threat-models/voip-calling.md`.
+`iceTransportPolicy: 'relay'` is set **server-side** and never overridden by the
+client. In V1 it is **unconditional**: the per-user `call_relay_only` preference
+is stored and readable but deliberately ignored, so no user can accidentally (or
+be tricked into) leaking their IP. Honouring the opt-out is a V1.1 decision. See
+`threat-models/voip-calling.md`.
 
 ---
 
 ## 10. Realtime Design
 
-- The WebSocket gateway lives inside the `api` service; on the single-VM deployment that is one process.
-- **Redis pub/sub** is the realtime bus (and the rate-limiter store). It would fan out across instances if
-  the API ever ran more than one.
+- The WebSocket gateway lives inside the `api` service; on the single-VM
+  deployment that is one process.
+- **Redis pub/sub** is the realtime bus (and the rate-limiter store). It would
+  fan out across instances if the API ever ran more than one.
 - Cloudflare and Caddy proxy the WebSocket upgrade through to the gateway.
-- WS auth is a first-frame `auth` message verified by the same `auth.verify()` the HTTP guard uses.
+- WS auth is a first-frame `auth` message verified by the same `auth.verify()`
+  the HTTP guard uses.
 - Offline users: messages persist as ciphertext and are delivered on reconnect.
 - Presence and typing indicators are **per-user opt-out** and privacy-defaulted.
 
@@ -468,9 +535,10 @@ See `threat-models/voip-calling.md`.
 
 ## 11. Observability (without leaking content)
 
-**Log:** request id, tenant id, user id, service, operation, status, latency, error category, message id.
-**Never log:** message text, image data, plaintext metadata, private keys, tokens, full auth headers,
-presigned URLs. A Semgrep rule plus a CI label guard (`scripts/check-observability-log-labels.sh`) enforce
+**Log:** request id, tenant id, user id, service, operation, status, latency,
+error category, message id. **Never log:** message text, image data, plaintext
+metadata, private keys, tokens, full auth headers, presigned URLs. A Semgrep
+rule plus a CI label guard (`scripts/check-observability-log-labels.sh`) enforce
 this mechanically.
 
 The stack is fully self-hosted on the VM (`infra/stack/observability/`):
@@ -511,7 +579,8 @@ Both deploy workflows sit behind **two gates**: a repo-variable kill-switch (`va
 `vars.ENABLE_DEPLOY_AWS`) and a GitHub **Environment approval**. The version tag _is_ the image tag, so a
 running container is always traceable to a git tag.
 
-Locally, **lefthook** runs gitleaks + ESLint + Prettier + Semgrep on commit, and typecheck + tests on push.
+Locally, **lefthook** runs gitleaks + ESLint + Prettier + Semgrep on commit, and
+typecheck + tests on push.
 
 ---
 
@@ -541,8 +610,8 @@ compose.prod.yaml       # prod stack (+ caddy, cloudflared, coturn, observabilit
 .github/workflows/      # ci · security · codeql · dast · cd · cd-aws · claude
 ```
 
-`packages/contracts` is the concrete payoff of going TypeScript end-to-end — client and server can never
-disagree on the encrypted envelope.
+`packages/contracts` is the concrete payoff of going TypeScript end-to-end —
+client and server can never disagree on the encrypted envelope.
 
 ---
 
@@ -571,13 +640,15 @@ Per-feature notes live in [`../threat-models/`](../threat-models/); this is the 
 
 ## 15. Privacy vs. Compliance Positioning
 
-Maximum-privacy E2EE means the operator **cannot** offer message archival, eDiscovery, legal hold, or admin
-content audit. That is the point, and it is the differentiator — but it does close the door on anyone who
-_requires_ content retention.
+Maximum-privacy E2EE means the operator **cannot** offer message archival,
+eDiscovery, legal hold, or admin content audit. That is the point, and it is the
+differentiator — but it does close the door on anyone who _requires_ content
+retention.
 
-**Position:** stay privacy-first. Keep a documented, opt-in, **per-tenant compliance mode** as a future
-feature if that market ever matters ([`../planning/roadmap/09-backlog.md`](../planning/roadmap/09-backlog.md),
-item B3). Decide the target user before writing any public copy.
+**Position:** stay privacy-first. Keep a documented, opt-in, **per-tenant
+compliance mode** as a future feature if that market ever matters
+([`../planning/roadmap/09-backlog.md`](../planning/roadmap/09-backlog.md), item
+B3). Decide the target user before writing any public copy.
 
 ---
 
@@ -595,10 +666,11 @@ Self-hosted observability + GlitchTip     $0        (on the VM — but it is the
 Total                                     ~$65–95 / month
 ```
 
-The observability stack is the reason the VM is 8 GiB rather than 4: Loki, Tempo, Pyroscope, and GlitchTip
-together cost more memory than the application. If memory gets tight, resize to `B4ms` (16 GiB) — a resize,
-not a rebuild. Owning Postgres/Redis backups and patching is the trade for the low bill, mitigated by the
-nightly encrypted B2 backup and a rehearsed restore drill
+The observability stack is the reason the VM is 8 GiB rather than 4: Loki,
+Tempo, Pyroscope, and GlitchTip together cost more memory than the application.
+If memory gets tight, resize to `B4ms` (16 GiB) — a resize, not a rebuild.
+Owning Postgres/Redis backups and patching is the trade for the low bill,
+mitigated by the nightly encrypted B2 backup and a rehearsed restore drill
 ([`../operations/runbooks/disaster-recovery.md`](../operations/runbooks/disaster-recovery.md)).
 
 ---
@@ -628,8 +700,9 @@ and what is left. The short version of how the system got here:
 - **Video calls** (V1.1) — the API schema already reserves the widening point
 - **Native mobile** (React Native + Expo) — gated on a fail-closed crypto spike:
   [`../planning/mobile/`](../planning/mobile/)
-- Group calls (needs an SFU); optional per-tenant compliance mode; multi-region / zone-redundant deploy;
-  an Azure sovereign-operator deployment for stricter buyers
+- Group calls (needs an SFU); optional per-tenant compliance mode; multi-region
+  / zone-redundant deploy; an Azure sovereign-operator deployment for stricter
+  buyers
 
 ---
 

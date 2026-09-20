@@ -1,14 +1,20 @@
 # Frontend Rebranding Roadmap
 
-Status: active — partially realized (the `apps/web/src/v2` "Minimal Messenger OS" sketch is live behind the `/v2` sketch routes; the full rebrand has not yet replaced the v1 UI)  
+Status: active — partially realized (the `apps/web/src/v2` "Minimal Messenger
+OS" sketch is live behind the `/v2` sketch routes; the full rebrand has not yet
+replaced the v1 UI)
 Scope: `apps/web` React/Vite PWA  
-Goal: make Argus feel like a distinct, modern, privacy-first product instead of a generic dark-purple messenger.
+Goal: make Argus feel like a distinct, modern, privacy-first product instead of
+a generic dark-purple messenger.
 
 ## 1. Decision
 
 Invent a new product UI direction: **Argus Minimal Messenger OS**.
 
-Argus should feel like a sparse, fast, command-driven encrypted messenger: calm, precise, modern, and intentionally quiet. The UI should make a new user immediately understand that this is private team messaging without turning the product into a heavy security dashboard.
+Argus should feel like a sparse, fast, command-driven encrypted messenger: calm,
+precise, modern, and intentionally quiet. The UI should make a new user
+immediately understand that this is private team messaging without turning the
+product into a heavy security dashboard.
 
 The visual direction should move away from:
 
@@ -39,7 +45,9 @@ Not the target:
 - enterprise dashboard with no personality
 - soft SaaS landing page
 
-The UI should be attractive because it is composed, useful, and clear. New users should want more of it because it feels safer and more intentional than the tools they already use.
+The UI should be attractive because it is composed, useful, and clear. New users
+should want more of it because it feels safer and more intentional than the
+tools they already use.
 
 ## 3. Brand Concept
 
@@ -100,17 +108,23 @@ Recommended starting palette:
 | Identity warm | `identity.warm` | `#D99A5B` | Avatar fallback variety |
 | Identity blue | `identity.blue` | `#6EA8FE` | Avatar fallback variety |
 
-Reasoning: teal gives a privacy/secure-system feel without inheriting the current purple identity. Warm and blue identity colors prevent the UI from becoming a one-hue theme.
+Reasoning: teal gives a privacy/secure-system feel without inheriting the
+current purple identity. Warm and blue identity colors prevent the UI from
+becoming a one-hue theme.
 
 ### Light mode
 
-Do not ship light mode in the first rebrand pass unless the implementation cost is low. But define tokens so it can exist later.
+Do not ship light mode in the first rebrand pass unless the implementation cost
+is low. But define tokens so it can exist later.
 
-Reasoning: the product is security-heavy and current UI is dark-only. A rushed light mode will create contrast and trust-state bugs. Tokenize first, then add light mode when the component layer is ready.
+Reasoning: the product is security-heavy and current UI is dark-only. A rushed
+light mode will create contrast and trust-state bugs. Tokenize first, then add
+light mode when the component layer is ready.
 
 ### Typography
 
-Use system fonts for now. Do not add a custom font dependency unless the identity work proves it is worth it.
+Use system fonts for now. Do not add a custom font dependency unless the
+identity work proves it is worth it.
 
 Rules:
 
@@ -129,7 +143,8 @@ Move from "rounded everything" to a tighter geometry:
 - avatars: circle for people, rounded square for workspaces/groups
 - modals: `16px` desktop, `20px` top sheet on mobile
 
-Reasoning: the current `rounded-3xl` look makes the app feel like a mobile concept. Tighter radii feel more durable and enterprise-ready.
+Reasoning: the current `rounded-3xl` look makes the app feel like a mobile
+concept. Tighter radii feel more durable and enterprise-ready.
 
 ### Motion
 
@@ -166,7 +181,8 @@ Keep the current mobile flow directionally:
 - settings opens as a native-feeling sheet
 - avoid crowding security state; use compact badges and drill-down panels
 
-Mobile is already stronger than desktop, so the rebrand should refine it rather than rebuild it.
+Mobile is already stronger than desktop, so the rebrand should refine it rather
+than rebuild it.
 
 ### Landing/sign-in
 
@@ -212,7 +228,8 @@ Purpose: make sure the rebrand is not hiding regressions.
 Tasks:
 
 - keep current screenshots from desktop and mobile as visual baselines
-- record the current important routes: `/`, `/chat`, `/settings`, `/security`, `/devices`, `/storage`, `/transparency`
+- record the current important routes: `/`, `/chat`, `/settings`, `/security`,
+  `/devices`, `/storage`, `/transparency`
 - keep existing E2E role/name assertions unless labels intentionally change
 - add or update visual smoke checks after the new shell lands
 
@@ -229,8 +246,10 @@ Tasks:
 
 - create one canonical token source for color, radius, spacing, shadow, and focus
 - remove drift between `apps/web/src/index.css` and `apps/web/src/features/ui/theme.ts`
-- replace direct `purple-*`, hard-coded hex, and repeated `white/*` opacity usage in shared components first
-- add semantic component variants: `primary`, `secondary`, `quiet`, `danger`, `verified`, `warning`
+- replace direct `purple-*`, hard-coded hex, and repeated `white/*` opacity
+  usage in shared components first
+- add semantic component variants: `primary`, `secondary`, `quiet`, `danger`,
+  `verified`, `warning`
 - update focus rings to use semantic focus tokens, not purple
 
 High-value files:
@@ -295,7 +314,8 @@ apps/web/src/v2/
 
 Rules:
 
-- v2 components should stay behind `/v2` sketch routes until a feature flag or promotion PR
+- v2 components should stay behind `/v2` sketch routes until a feature flag or
+  promotion PR
 - v2 can reuse stable libraries from `apps/web/src/lib`
 - v2 should avoid importing v1 feature components except through explicit adapters
 - use `/v2` and `/v2/*` as coded sketch routes before replacing `/chat`
@@ -383,23 +403,28 @@ The rebrand is successful when:
 
 ### Risk: making security look decorative
 
-Mitigation: every trust badge must map to a real product state or documented guarantee. Do not use fake "secure" badges.
+Mitigation: every trust badge must map to a real product state or documented
+guarantee. Do not use fake "secure" badges.
 
 ### Risk: overbuilding a design system too early
 
-Mitigation: tokenize only the primitives already used by the app: color, text, radius, spacing, shadow, focus, and component variants.
+Mitigation: tokenize only the primitives already used by the app: color, text,
+radius, spacing, shadow, focus, and component variants.
 
 ### Risk: breaking E2E tests through copy churn
 
-Mitigation: update route and role assertions in the same PR as label changes. Grep `apps/web/e2e/` before renaming visible text.
+Mitigation: update route and role assertions in the same PR as label changes.
+Grep `apps/web/e2e/` before renaming visible text.
 
 ### Risk: weakening accessibility
 
-Mitigation: preserve existing focus management and ARIA structure while restyling. Run axe and manual keyboard checks before claiming done.
+Mitigation: preserve existing focus management and ARIA structure while
+restyling. Run axe and manual keyboard checks before claiming done.
 
 ### Risk: losing the privacy story in visual polish
 
-Mitigation: treat transparency, device trust, and verification as first-class UI, not secondary docs.
+Mitigation: treat transparency, device trust, and verification as first-class
+UI, not secondary docs.
 
 ## 9. First PR Recommendation
 
@@ -418,4 +443,5 @@ Suggested scope:
 - keep product screens visually close to current state
 - no layout redesign yet
 
-Reasoning: this pays down the hard-coded purple/dark styling first. After that, the new design can be rolled out screen by screen with smaller, safer diffs.
+Reasoning: this pays down the hard-coded purple/dark styling first. After that,
+the new design can be rolled out screen by screen with smaller, safer diffs.

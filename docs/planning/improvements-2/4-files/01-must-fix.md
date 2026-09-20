@@ -1,8 +1,8 @@
 # 01 - Must fix
 
-> **Status:** PROPOSED 2026-06-26.
-> These are user-visible failures, false critical alerts, or observability blockers that will hurt incident
-> response if left as-is.
+> **Status:** PROPOSED 2026-06-26. These are user-visible failures, false
+> critical alerts, or observability blockers that will hurt incident response if
+> left as-is.
 
 ## 1. Grafana/Loki service labels show container IDs
 
@@ -10,23 +10,26 @@
 
 ### Problem
 
-Grafana Explore shows opaque values such as `8a5ce1a06f8a...` and `61060bc4b48c...` under the `service`
-dimension. Those are Docker container IDs, not service names.
+Grafana Explore shows opaque values such as `8a5ce1a06f8a...` and
+`61060bc4b48c...` under the `service` dimension. Those are Docker container IDs,
+not service names.
 
 ### Evidence
 
-`infra/stack/observability/alloy/config.alloy` tails `/var/lib/docker/containers/*/*-json.log` and derives only
-a `container` label from the log path. Loki label discovery showed `container` and `service_name` values as
-container IDs.
+`infra/stack/observability/alloy/config.alloy` tails
+`/var/lib/docker/containers/*/*-json.log` and derives only a `container` label
+from the log path. Loki label discovery showed `container` and `service_name`
+values as container IDs.
 
 ### Plan
 
 - [x] Preserve the no-Docker-socket model.
 - [x] Add safe Docker `json-file` log attributes for Compose service metadata.
-- [x] Update `infra/stack/observability/alloy/config.alloy` to extract stable low-cardinality `service` and `service_name` labels
-  such as `service="api"` / `service="caddy"` / `service="redis-exporter"`.
-- [x] Keep the raw container ID available as a secondary drill-down label or structured metadata, not the
-  primary dashboard dimension.
+- [x] Update `infra/stack/observability/alloy/config.alloy` to extract stable
+  low-cardinality `service` and `service_name` labels such as `service="api"` /
+  `service="caddy"` / `service="redis-exporter"`.
+- [x] Keep the raw container ID available as a secondary drill-down label or
+  structured metadata, not the primary dashboard dimension.
 - [x] Update Grafana log dashboards to filter and group by the readable service label.
 
 ### Verification
@@ -41,29 +44,35 @@ container IDs.
 
 ### Problem
 
-The Friends screen showed `0 accepted friends` and `Could not refresh friends - data may be stale` during the
-`aws-v0.8.16` rollout, even though the database still had one accepted friendship.
+The Friends screen showed `0 accepted friends` and `Could not refresh friends -
+data may be stale` during the `aws-v0.8.16` rollout, even though the database
+still had one accepted friendship.
 
 ### Evidence
 
-Loki showed Caddy `502` responses for `/api/friends`, `/api/friends/requests`, `/api/me/settings/privacy`, and
-`/ws` while the API container was stopped and recreated. Postgres and Redis stayed healthy. `friendships`
-still had `accepted | 1`.
+Loki showed Caddy `502` responses for `/api/friends`, `/api/friends/requests`,
+`/api/me/settings/privacy`, and `/ws` while the API container was stopped and
+recreated. Postgres and Redis stayed healthy. `friendships` still had
+`accepted | 1`.
 
 ### Plan
 
 - [x] Make `refreshFriends()` in `apps/web/src/features/chat/ChatContext.tsx` in-flight guarded so overlapping
   triggers share one request set.
-- [x] Preserve the last known-good friends list on transient network, `502`, or deploy-window failures.
+- [x] Preserve the last known-good friends list on transient network, `502`, or
+  deploy-window failures.
 - [x] Add a short retry/backoff for transient failures.
-- [x] Keep the warning visible, but make it clear data is temporarily stale instead of implying no friends exist.
+- [x] Keep the warning visible, but make it clear data is temporarily stale
+  instead of implying no friends exist.
 - [x] Add or update E2E coverage for a transient `/api/friends` failure.
 
 ### Verification
 
-- [ ] With `/api/friends` returning one transient `502`, the previous accepted friends remain visible.
+- [ ] With `/api/friends` returning one transient `502`, the previous accepted
+  friends remain visible.
 - [ ] The retry succeeds after the endpoint recovers.
-- [ ] The Friends screen does not replace known-good friend data with an empty state on transient failure.
+- [ ] The Friends screen does not replace known-good friend data with an empty
+  state on transient failure.
 
 ## 3. Friends request refresh hits `429`
 
@@ -75,19 +84,22 @@ The API returned repeated `429` for `GET /friends/requests` before the deploy wi
 
 ### Evidence
 
-Loki showed multiple `level=warn` request-completed lines for `/friends/requests` with `statusCode: 429`.
-The route uses `@Throttle(perMinute(SENSITIVE_LIMITS.friendsList))`; `friendsList` is currently `30/min`.
-The client refresh path requests accepted friends plus incoming and outgoing friend requests together.
+Loki showed multiple `level=warn` request-completed lines for
+`/friends/requests` with `statusCode: 429`. The route uses
+`@Throttle(perMinute(SENSITIVE_LIMITS.friendsList))`; `friendsList` is currently
+`30/min`. The client refresh path requests accepted friends plus incoming and
+outgoing friend requests together.
 
 ### Plan
 
 - [x] First fix client-side duplicate refreshes with an in-flight guard.
-- [x] Audit all `refreshFriends()` triggers: tab open, manager initialization, friend-request websocket event,
-  mutations, and app resume if present.
-- [x] Add a short client-side freshness window for normal tab refreshes so repeated opens reuse the recent read
-  instead of re-querying `/friends/requests`.
-- [x] Force refreshes after mutations and friend-request websocket events so real state changes are still visible
-  immediately.
+- [x] Audit all `refreshFriends()` triggers: tab open, manager initialization,
+  friend-request websocket event, mutations, and app resume if present.
+- [x] Add a short client-side freshness window for normal tab refreshes so
+  repeated opens reuse the recent read instead of re-querying
+  `/friends/requests`.
+- [x] Force refreshes after mutations and friend-request websocket events so
+  real state changes are still visible immediately.
 - [x] Keep `SENSITIVE_LIMITS.friendsList` unchanged unless deduped normal use still approaches the cap.
 - [x] Keep mutation limits tighter than read limits.
 
@@ -113,9 +125,12 @@ Prometheus fired `RedisDown`.
 
 ### Plan
 
-- [x] Patch `compose.prod.yaml` to mount a generated Redis exporter password-file in the upstream JSON format.
-- [x] Keep the Redis password file-backed; do not move it into an environment value or process argv.
-- [x] Force-recreate `redis-exporter` when the Redis password changes so it reloads the generated file.
+- [x] Patch `compose.prod.yaml` to mount a generated Redis exporter
+  password-file in the upstream JSON format.
+- [x] Keep the Redis password file-backed; do not move it into an environment
+  value or process argv.
+- [x] Force-recreate `redis-exporter` when the Redis password changes so it
+  reloads the generated file.
 
 ### Verification
 
@@ -133,16 +148,19 @@ Prometheus fired `ArgusCoturnDown` while the coturn container was healthy.
 
 ### Evidence
 
-Prometheus logs said the coturn scrape target sent a blank `Content-Type`, so Prometheus could not determine
-the scrape protocol. The coturn healthcheck itself was healthy.
+Prometheus logs said the coturn scrape target sent a blank `Content-Type`, so
+Prometheus could not determine the scrape protocol. The coturn healthcheck
+itself was healthy.
 
 ### Plan
 
 - [x] Add the Prometheus 3 fallback scrape protocol setting to the coturn scrape job in
   `infra/stack/observability/prometheus/prometheus.yml`.
-- [x] Recreate Prometheus during deploy when the bind-mounted Prometheus config or rules change.
+- [x] Recreate Prometheus during deploy when the bind-mounted Prometheus config
+  or rules change.
 - [x] Keep coturn internal/host-local scraping only; do not publish a metrics port.
-- [x] Confirm the alert description does not claim the relay is down when the scrape parser is the failure.
+- [x] Confirm the alert description does not claim the relay is down when the
+  scrape parser is the failure.
 
 ### Verification
 

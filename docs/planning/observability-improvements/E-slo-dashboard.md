@@ -10,7 +10,8 @@ Current threshold alerts miss two important failure patterns:
 - **Brief spikes:** A 30-second outage won't trigger a "5xx > 5% for 10m" alert.
 - **Slow burns:** A sustained 2% error rate over hours drains the error budget silently.
 
-SLO-based multi-burn-rate alerting (from the Google SRE workbook) catches both patterns without excessive false positives.
+SLO-based multi-burn-rate alerting (from the Google SRE workbook) catches both
+patterns without excessive false positives.
 
 ---
 
@@ -21,7 +22,8 @@ SLO-based multi-burn-rate alerting (from the Google SRE workbook) catches both p
 | Availability | 99.5% of requests return non-5xx | 30-day rolling |
 | Latency | 95% of requests complete in < 500ms | 30-day rolling |
 
-These map to a **0.5% error budget** per month for availability (~3.6 hours of allowed downtime).
+These map to a **0.5% error budget** per month for availability (~3.6 hours of
+allowed downtime).
 
 ---
 
@@ -105,7 +107,9 @@ rule_files:
 Dashboard with three rows:
 
 **Row 1 — Budget status:**
-- Error budget remaining (stat, %) — `1 - (sum(increase(argus_api_http_requests_total{status=~"5.."}[30d])) / sum(increase(argus_api_http_requests_total[30d]))) / 0.005`
+- Error budget remaining (stat, %) — `1 -
+  (sum(increase(argus_api_http_requests_total{status=~"5.."}[30d])) /
+  sum(increase(argus_api_http_requests_total[30d]))) / 0.005`
 - Latency SLO compliance (stat, %) — `argus:http_latency_compliance:rate1h`
 - Time to budget exhaustion at current burn rate (stat)
 
@@ -121,15 +125,21 @@ Dashboard with three rows:
 
 ## Notes
 
-- The multi-burn-rate alert avoids the false-positive problem of raw thresholds: it only pages if the burn rate is elevated across *two* time windows simultaneously.
-- These recording rules add minimal Prometheus load — they pre-compute ratios that the dashboard would otherwise compute on every panel refresh.
-- Implement this after stable traffic baselines exist (Idea B and C first helps establish them).
+- The multi-burn-rate alert avoids the false-positive problem of raw thresholds:
+  it only pages if the burn rate is elevated across *two* time windows
+  simultaneously.
+- These recording rules add minimal Prometheus load — they pre-compute ratios
+  that the dashboard would otherwise compute on every panel refresh.
+- Implement this after stable traffic baselines exist (Idea B and C first helps
+  establish them).
 
 ---
 
 ## Verification
 
-1. `docker compose exec prometheus promtool check rules /etc/prometheus/rules/argus-slo.yml` — should pass with no errors.
+1. `docker compose exec prometheus promtool check rules
+   /etc/prometheus/rules/argus-slo.yml` — should pass with no errors.
 2. In Grafana → Alerting → Alert rules — both SLO alerts should appear.
 3. Open `argus-slo.json` — all panels should populate with data from the last hour.
-4. Temporarily inject errors (e.g., stop Postgres briefly) and verify the fast-burn alert fires.
+4. Temporarily inject errors (e.g., stop Postgres briefly) and verify the
+   fast-burn alert fires.

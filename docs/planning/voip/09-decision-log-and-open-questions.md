@@ -1,15 +1,37 @@
 # 09 — Decision Log & Open Questions
 
-> Part of the argus VoIP planning set. Siblings: [00 — Overview & Goals](./00-overview-and-goals.md) · [01 — Architecture & Crypto Model](./01-architecture-and-crypto-model.md) · [02 — Signaling Protocol & State Machine](./02-signaling-protocol-and-state-machine.md) · [03 — Infrastructure: TURN/coturn & Networking](./03-infrastructure-turn-and-networking.md) · [04 — Server API & Database](./04-server-api-and-database.md) · [05 — Frontend, PWA & WebRTC Client](./05-frontend-pwa-and-webrtc.md) · [06 — Threat Model & Privacy](./06-threat-model-and-privacy.md) · [07 — Comparative Survey](./07-comparative-survey.md) · [08 — Roadmap & Delivery Slices](./08-roadmap-and-delivery-slices.md)
+> Part of the argus VoIP planning set. Siblings: [00 — Overview &
+> Goals](./00-overview-and-goals.md) · [01 — Architecture & Crypto
+> Model](./01-architecture-and-crypto-model.md) · [02 — Signaling Protocol &
+> State Machine](./02-signaling-protocol-and-state-machine.md) · [03 —
+> Infrastructure: TURN/coturn &
+> Networking](./03-infrastructure-turn-and-networking.md) · [04 — Server API &
+> Database](./04-server-api-and-database.md) · [05 — Frontend, PWA & WebRTC
+> Client](./05-frontend-pwa-and-webrtc.md) · [06 — Threat Model &
+> Privacy](./06-threat-model-and-privacy.md) · [07 — Comparative
+> Survey](./07-comparative-survey.md) · [08 — Roadmap & Delivery
+> Slices](./08-roadmap-and-delivery-slices.md)
 >
-> **What this file is.** The single place that records *what was decided, why, and what it costs* (the Decision Log), and *what is still genuinely undecided and needs a human or `security-architect` call* (Open Questions). It is the entry point for a reviewer who wants the bottom line without reading all eight domain drafts. Every row links back to the draft that owns the detail.
+> **What this file is.** The single place that records *what was decided, why,
+> and what it costs* (the Decision Log), and *what is still genuinely undecided
+> and needs a human or `security-architect` call* (Open Questions). It is the
+> entry point for a reviewer who wants the bottom line without reading all eight
+> domain drafts. Every row links back to the draft that owns the detail.
 >
-> **Status.** Planning only. No VoIP code exists yet (`grep` confirms zero WebRTC/TURN/`getUserMedia` across the repo). Nothing here is implemented; this is the contract the implementation must conform to.
+> **Status.** Planning only. No VoIP code exists yet (`grep` confirms zero
+> WebRTC/TURN/`getUserMedia` across the repo). Nothing here is implemented; this
+> is the contract the implementation must conform to.
 >
-> **Receivability vocabulary (used precisely throughout this set — S7).** Three distinct things, never conflated:
-> - **ring** — a real, foreground, in-app ring with ringtone. Requires the callee's app open and focused. This is the *only* incoming-call experience V1 commits to.
-> - **wake-banner** — an Android-backgrounded Web Push notification that *usually* fires and can wake a cold PWA. Best-effort; a V1.1 capability.
-> - **tap-to-join banner** — an iOS-backgrounded notification that is **not** a ring (no sound-on-lock, no CallKit). The user taps it to *enter* the call. A V1.1 capability and the one the field cannot make reliable.
+> **Receivability vocabulary (used precisely throughout this set — S7).** Three
+> distinct things, never conflated:
+> - **ring** — a real, foreground, in-app ring with ringtone. Requires the
+>   callee's app open and focused. This is the *only* incoming-call experience
+>   V1 commits to.
+> - **wake-banner** — an Android-backgrounded Web Push notification that
+>   *usually* fires and can wake a cold PWA. Best-effort; a V1.1 capability.
+> - **tap-to-join banner** — an iOS-backgrounded notification that is **not** a
+>   ring (no sound-on-lock, no CallKit). The user taps it to *enter* the call. A
+>   V1.1 capability and the one the field cannot make reliable.
 >
 > The iOS-locked path is never called "ringing" anywhere in this plan.
 
@@ -17,7 +39,10 @@
 
 ## 1. Decision Log
 
-Two tiers: **L — locked** (given to the planning effort, not up for relitigation) and **D — derived** (a design choice the domain drafts made to satisfy the locked decisions + the six invariants; reversible with cause, but each has a recommended default already chosen).
+Two tiers: **L — locked** (given to the planning effort, not up for
+relitigation) and **D — derived** (a design choice the domain drafts made to
+satisfy the locked decisions + the six invariants; reversible with cause, but
+each has a recommended default already chosen).
 
 ### 1.1 Locked decisions (the four givens)
 
@@ -30,17 +55,34 @@ Two tiers: **L — locked** (given to the planning effort, not up for relitigati
 
 ### 1.2 The one new crypto path (M1 — correct the "zero new crypto" claim)
 
-Earlier drafts described the MITM defense as "reuse existing MLS, no new crypto." **That is wrong and must not be repeated.** Authenticating the *sender* of a call signal requires a **new, `crypto-reviewer`-gated authenticated-sender decrypt path in `packages/crypto`.**
+Earlier drafts described the MITM defense as "reuse existing MLS, no new
+crypto." **That is wrong and must not be repeated.** Authenticating the *sender*
+of a call signal requires a **new, `crypto-reviewer`-gated authenticated-sender
+decrypt path in `packages/crypto`.**
 
-- Today `Conversation.decrypt()` returns a **bare string** and surfaces **no sender identity**. The crypto-blind server forwards ciphertext; nothing on the receiving end currently tells the app *which MLS member* produced a given plaintext.
-- Binding the DTLS fingerprint to a verified identity (the whole point of D1) requires decrypt to also return the authenticated MLS sender (leaf/credential identity), so the client can assert "this `offer` came from the friend I think I'm calling."
-- This is **net-new crypto surface**, small but real, and it is a **hard Phase-0 predecessor of the very first connecting call** — no call may attempt DTLS before it lands and passes `crypto-reviewer`. It is tracked as slice **S12** ([08 P0](./08-roadmap-and-delivery-slices.md), [01 §3](./01-architecture-and-crypto-model.md)).
+- Today `Conversation.decrypt()` returns a **bare string** and surfaces **no
+  sender identity**. The crypto-blind server forwards ciphertext; nothing on the
+  receiving end currently tells the app *which MLS member* produced a given
+  plaintext.
+- Binding the DTLS fingerprint to a verified identity (the whole point of D1)
+  requires decrypt to also return the authenticated MLS sender (leaf/credential
+  identity), so the client can assert "this `offer` came from the friend I think
+  I'm calling."
+- This is **net-new crypto surface**, small but real, and it is a **hard Phase-0
+  predecessor of the very first connecting call** — no call may attempt DTLS
+  before it lands and passes `crypto-reviewer`. It is tracked as slice **S12**
+  ([08 P0](./08-roadmap-and-delivery-slices.md), [01
+  §3](./01-architecture-and-crypto-model.md)).
 
-Everywhere this plan touches the fingerprint binding (00 / 01 / 02 / 06 / 07 / 09), it must say "a new authenticated-sender decrypt path," not "reuse only."
+Everywhere this plan touches the fingerprint binding (00 / 01 / 02 / 06 / 07 /
+09), it must say "a new authenticated-sender decrypt path," not "reuse only."
 
 ### 1.3 V1 / V1.1 scope split (M-CUT — audio-first)
 
-V1 is deliberately cut to the smallest thing that proves the architecture end-to-end. **One cut resolves three hard problems at once** ([00 §4](./00-overview-and-goals.md)): the multi-device-MLS prerequisite, the egress-cost-vs-privacy tension, and the iOS-receivability over-promise.
+V1 is deliberately cut to the smallest thing that proves the architecture
+end-to-end. **One cut resolves three hard problems at once** ([00
+§4](./00-overview-and-goals.md)): the multi-device-MLS prerequisite, the
+egress-cost-vs-privacy tension, and the iOS-receivability over-promise.
 
 | Capability | V1 | V1.1 | Why the line is here |
 |---|---|---|---|
@@ -53,7 +95,12 @@ V1 is deliberately cut to the smallest thing that proves the architecture end-to
 | **Multi-device ring-all** | — | ✅ | Requires the multi-device MLS story; V1 is **single-device per user**. |
 | Authenticated-sender decrypt path (S12) | ✅ (Phase-0) | — | Hard predecessor of any connecting call (§1.2). |
 
-**Consequences of the cut for V1:** no `call_sessions` ledger, no `argus_call_prune` role, no prune worker, no Web Push wake. A missed call in V1 is simply "the app wasn't open, nothing happened" — acceptable because V1 is for two people who are both present. The metadata-ledger + prune chain, push-wake, video, ICE-restart, and ring-all all move to the named **V1.1** phase and reappear in the Decision Log below tagged accordingly.
+**Consequences of the cut for V1:** no `call_sessions` ledger, no
+`argus_call_prune` role, no prune worker, no Web Push wake. A missed call in V1
+is simply "the app wasn't open, nothing happened" — acceptable because V1 is for
+two people who are both present. The metadata-ledger + prune chain, push-wake,
+video, ICE-restart, and ring-all all move to the named **V1.1** phase and
+reappear in the Decision Log below tagged accordingly.
 
 ### 1.4 Derived decisions (chosen by the domain drafts)
 
@@ -79,7 +126,11 @@ V1 is deliberately cut to the smallest thing that proves the architecture end-to
 
 ## 2. Phase-0 GDPR & threat-model artifact bundle (M6/M7/S4/S5/S6)
 
-A Phase-0 deliverable, gating the first VoIP code per DoD. **Four named, canonical repo artifacts** — not a vague "flag for the ROPA/DPIA." All four must be merged before slice T-1 closes ([08 P0-TM](./08-roadmap-and-delivery-slices.md), [06 §12](./06-threat-model-and-privacy.md)).
+A Phase-0 deliverable, gating the first VoIP code per DoD. **Four named,
+canonical repo artifacts** — not a vague "flag for the ROPA/DPIA." All four must
+be merged before slice T-1 closes ([08
+P0-TM](./08-roadmap-and-delivery-slices.md), [06
+§12](./06-threat-model-and-privacy.md)).
 
 | # | Artifact | Action | What VoIP adds |
 |---|---|---|---|
@@ -88,17 +139,23 @@ A Phase-0 deliverable, gating the first VoIP code per DoD. **Four named, canonic
 | 3 | `docs/threat-models/metadata-exposure.md` | **Extend** | New rows: **call-graph** (who-calls-whom), **call-timing** (when/how-long), **relay-peer-IP** (the relay operator sees both peers' IPs under relay-only). |
 | 4 | `docs/gdpr/dpia-voip-calling.md` | **Create** | Per-activity **legal basis** for voice calling (legitimate interest / contract performance), necessity & proportionality of relay-only default, the iOS-receivability limitation, and the residual presence-oracle risk (Q2/R5). |
 
-> Note: `docs/threat-models/voip-calling.md` (the feature threat-model note) and the `docs/threat-models/vm-ingress.md` revision are **separate** Phase-0 prerequisites (§4.1 P1) — they are the *security* note; the four above are the *GDPR/metadata* artifacts. Both bundles gate code.
+> Note: `docs/threat-models/voip-calling.md` (the feature threat-model note) and
+> the `docs/threat-models/vm-ingress.md` revision are **separate** Phase-0
+> prerequisites (§4.1 P1) — they are the *security* note; the four above are the
+> *GDPR/metadata* artifacts. Both bundles gate code.
 
 ---
 
 ## 3. Open Questions
 
-Each Open Question below carries the **chair ruling** as its recommended default. The ruling is the decision of record for planning; the listed decision owner confirms (and may overturn with cause) before the named slice.
+Each Open Question below carries the **chair ruling** as its recommended
+default. The ruling is the decision of record for planning; the listed decision
+owner confirms (and may overturn with cause) before the named slice.
 
 ### Q1 — Exact TURN ingress option (the highest-risk infra call)
 
-**The question.** How does TURN media land inbound, given Cloudflare Tunnel cannot carry UDP and the platform has never had a public port?
+**The question.** How does TURN media land inbound, given Cloudflare Tunnel
+cannot carry UDP and the platform has never had a public port?
 
 | Option | UDP? | Hides VM IP? | €/mo | Verdict |
 |---|---|---|---|---|
@@ -107,90 +164,203 @@ Each Open Question below carries the **chair ruling** as its recommended default
 | **(c) TURNS-only over 443/TLS** | No (TCP relay) | No | €0 | **Ship as a co-listener (confirmed)** |
 | (d) Dedicated relay host / separate IP | Yes | App VM stays hidden | €4–8 | **Becomes the DEFAULT before video (V1.1)** |
 
-**Chair ruling — (a) + (c) confirmed for audio V1.** coturn on the VM public IP, NSG-restricted to exactly 3478 (UDP+TCP), 5349 (TURNS), and a narrow ~100-port UDP relay range; TURNS-over-TLS for hostile/captive networks. The accepted trade is R12 (real VM IP discoverable via `turn.4rgus.com`), acceptable for the single-VM audio V1. **Option (d) is the named upgrade and becomes the default before video ships** (V1.1), when concurrency and blast-radius isolation start to matter. **Decision owner:** `security-architect` + `infra-reviewer` confirm **before slice T-2**.
+**Chair ruling — (a) + (c) confirmed for audio V1.** coturn on the VM public IP,
+NSG-restricted to exactly 3478 (UDP+TCP), 5349 (TURNS), and a narrow ~100-port
+UDP relay range; TURNS-over-TLS for hostile/captive networks. The accepted trade
+is R12 (real VM IP discoverable via `turn.4rgus.com`), acceptable for the
+single-VM audio V1. **Option (d) is the named upgrade and becomes the default
+before video ships** (V1.1), when concurrency and blast-radius isolation start
+to matter. **Decision owner:** `security-architect` + `infra-reviewer` confirm
+**before slice T-2**.
 
 ### Q2 — Is the presence oracle acceptable, and is the uniform-ring-timeout mitigation sufficient?
 
-**The question.** Calling inherently leaks "is X reachable now." D7 minimizes it (no presence API, uniform 202/404, fixed timeout), but a determined friend can still infer answer-vs-ignore over repeated calls (R5, **needs-work**).
+**The question.** Calling inherently leaks "is X reachable now." D7 minimizes it
+(no presence API, uniform 202/404, fixed timeout), but a determined friend can
+still infer answer-vs-ignore over repeated calls (R5, **needs-work**).
 
-- **Option A:** Accept the residual oracle as inherent to any calling product; ship the uniform-ring-timeout UX (fixed minimum foreground-**ring** window so connect-speed can't distinguish offline vs ignored) and bound it with the friendship gate + rate limits. Document as accepted residual risk.
-- **Option B:** Add explicit per-user "who can call me" controls beyond friendship (allowlist, DND). More UX, marginal gain over the friendship gate.
-- **Option C:** Block calling until a richer privacy model exists. Over-rotation; defeats the feature.
+- **Option A:** Accept the residual oracle as inherent to any calling product;
+  ship the uniform-ring-timeout UX (fixed minimum foreground-**ring** window so
+  connect-speed can't distinguish offline vs ignored) and bound it with the
+  friendship gate + rate limits. Document as accepted residual risk.
+- **Option B:** Add explicit per-user "who can call me" controls beyond
+  friendship (allowlist, DND). More UX, marginal gain over the friendship gate.
+- **Option C:** Block calling until a richer privacy model exists.
+  Over-rotation; defeats the feature.
 
-**Chair ruling — A.** **Decision owner:** `security-architect` sign-off on the residual-risk register ([06 §11 R5](./06-threat-model-and-privacy.md)) and the DPIA (artifact #4); the uniform-timeout detail must ship *with* V1 (the C-series client slices), not after.
+**Chair ruling — A.** **Decision owner:** `security-architect` sign-off on the
+residual-risk register ([06 §11 R5](./06-threat-model-and-privacy.md)) and the
+DPIA (artifact #4); the uniform-timeout detail must ship *with* V1 (the C-series
+client slices), not after.
 
 ### Q3 — Call-metadata retention window
 
 **The question.** How long does `call_sessions` (a V1.1 table) keep missed-call/abuse metadata?
 
 - **Option A:** 90 days — message-aligned, one ceiling, one pattern.
-- **Option B:** 30 days — a missed-call list rarely needs more; less metadata retained is strictly better.
-- **Option C:** No persistence (Redis TTL only) — rejected in D5 (loses records on restart, no abuse trail).
+- **Option B:** 30 days — a missed-call list rarely needs more; less metadata
+  retained is strictly better.
+- **Option C:** No persistence (Redis TTL only) — rejected in D5 (loses records
+  on restart, no abuse trail).
 
-**Chair ruling — B (30 days).** Baked into the window-scoped prune-policy literal **and** the ROPA retention row (`docs/gdpr/article-30-records.md`, artifact #2). Never exceed the message ceiling without a threat-model update. **Decision owner:** product + `security-architect`, **before the V1.1 `0045` migration** (the interval is baked into the policy literal).
+**Chair ruling — B (30 days).** Baked into the window-scoped prune-policy
+literal **and** the ROPA retention row (`docs/gdpr/article-30-records.md`,
+artifact #2). Never exceed the message ceiling without a threat-model update.
+**Decision owner:** product + `security-architect`, **before the V1.1 `0045`
+migration** (the interval is baked into the policy literal).
 
 ### Q4 — Push reliability on iOS: accept the limit or block calling on unsupported configs?
 
-**The question.** L4 + D14 mean a **tap-to-join banner** on a locked iPhone is unreliable and is **not a ring** (installed-PWA-only push, no silent wake, no CallKit). How honest/restrictive should we be? *(V1 sidesteps this — it is foreground-**ring**-only; this question governs V1.1 push.)*
+**The question.** L4 + D14 mean a **tap-to-join banner** on a locked iPhone is
+unreliable and is **not a ring** (installed-PWA-only push, no silent wake, no
+CallKit). How honest/restrictive should we be? *(V1 sidesteps this — it is
+foreground-**ring**-only; this question governs V1.1 push.)*
 
-- **Option A — accept + be honest.** Foreground **ring** is the V1 path. In V1.1, make Home-Screen install + notifications a surfaced *prerequisite* for the wake-banner / tap-to-join banner; show a one-time explainer ("calls may not alert you when your phone is locked on iOS"). Surface **call-readiness as a warning, not a hard block**. Don't promise WhatsApp-grade ringing.
-- **Option B — gate the call button** on push-readiness (hide/disable for Safari-tab or notifications-off users). Stricter, fewer "why didn't it alert me" complaints, but reduces reach.
+- **Option A — accept + be honest.** Foreground **ring** is the V1 path. In
+  V1.1, make Home-Screen install + notifications a surfaced *prerequisite* for
+  the wake-banner / tap-to-join banner; show a one-time explainer ("calls may
+  not alert you when your phone is locked on iOS"). Surface **call-readiness as
+  a warning, not a hard block**. Don't promise WhatsApp-grade ringing.
+- **Option B — gate the call button** on push-readiness (hide/disable for
+  Safari-tab or notifications-off users). Stricter, fewer "why didn't it alert
+  me" complaints, but reduces reach.
 - **Option C — wait for Capacitor** (native CallKit/ConnectionService).
 
-**Chair ruling — A, with call-readiness surfaced as a warning (not B's hard block).** This is the field's known dead-end — flag it as the weakest point of the product. **Decision fork, not a deferral:** if "rings a locked phone" is ever a **hard product requirement**, then **Capacitor becomes a V1 prerequisite** and the PWA-only V1 cannot satisfy it — that is a scope decision the product owner makes explicitly, not something engineering can mitigate away. **Decision owner:** product, with `security-architect` confirming the content-free push posture (R11) and the DPIA limitation note.
+**Chair ruling — A, with call-readiness surfaced as a warning (not B's hard
+block).** This is the field's known dead-end — flag it as the weakest point of
+the product. **Decision fork, not a deferral:** if "rings a locked phone" is
+ever a **hard product requirement**, then **Capacitor becomes a V1
+prerequisite** and the PWA-only V1 cannot satisfy it — that is a scope decision
+the product owner makes explicitly, not something engineering can mitigate away.
+**Decision owner:** product, with `security-architect` confirming the
+content-free push posture (R11) and the DPIA limitation note.
 
 ### Q5 — Derive an MLS-exporter media key?
 
-**The question.** D1 (MLS *authenticates* the fingerprint, via the new decrypt path) vs additionally deriving a media key via the exporter.
+**The question.** D1 (MLS *authenticates* the fingerprint, via the new decrypt
+path) vs additionally deriving a media key via the exporter.
 
-- **Option A:** No exporter key. Authenticate via MLS sender + MLS-wrapped SDP; DTLS-SRTP supplies the SRTP key. Add the `Conversation.exportKey()` shim only when the SFU/group phase starts.
-- **Option B:** Wire the exporter now and key SRTP/an SFrame layer from it. Adds confidentiality the relay already can't reach (coturn never sees plaintext) at real complexity cost — premature for 1:1 P2P.
+- **Option A:** No exporter key. Authenticate via MLS sender + MLS-wrapped SDP;
+  DTLS-SRTP supplies the SRTP key. Add the `Conversation.exportKey()` shim only
+  when the SFU/group phase starts.
+- **Option B:** Wire the exporter now and key SRTP/an SFrame layer from it. Adds
+  confidentiality the relay already can't reach (coturn never sees plaintext) at
+  real complexity cost — premature for 1:1 P2P.
 
-**Chair ruling — A (no, for V1).** The exporter shim is **async/deferred** and tracked as part of the group-phase work, not gated on V1 (see S12 — note S12 itself is the *authenticated-sender* path, which **is** required; the *exporter* shim is the separable, deferred piece). Caveat for whenever the shim is added: an exported key must never be serialized toward the server (invariant 1/2). The survey confirms the future group path (RFC 9605 SFrame + MLS exporter) depends on this shim, so A does not foreclose B. **Decision owner:** `crypto-reviewer`.
+**Chair ruling — A (no, for V1).** The exporter shim is **async/deferred** and
+tracked as part of the group-phase work, not gated on V1 (see S12 — note S12
+itself is the *authenticated-sender* path, which **is** required; the *exporter*
+shim is the separable, deferred piece). Caveat for whenever the shim is added:
+an exported key must never be serialized toward the server (invariant 1/2). The
+survey confirms the future group path (RFC 9605 SFrame + MLS exporter) depends
+on this shim, so A does not foreclose B. **Decision owner:** `crypto-reviewer`.
 
 ### Q6 — TURN credential TTL
 
-**Chair ruling — 600s.** Comfortable headroom for setup + a re-fetch on a network change; still near-useless if leaked; coturn doesn't re-auth mid-allocation so an established call survives expiry. Baked into D3. **Decision owner:** implementer at slice T-5/S3 — record the chosen value in the endpoint's OpenAPI description; no `security-architect` gate needed.
+**Chair ruling — 600s.** Comfortable headroom for setup + a re-fetch on a
+network change; still near-useless if leaked; coturn doesn't re-auth
+mid-allocation so an established call survives expiry. Baked into D3. **Decision
+owner:** implementer at slice T-5/S3 — record the chosen value in the endpoint's
+OpenAPI description; no `security-architect` gate needed.
 
 ### Q7 — Friendship gate strictness: gate the ring, the TURN credential, or both?
 
 **The question.** Where exactly is the D6 friendship check enforced?
 
-- **Option A — both.** Friendship checked at `POST /calls/:friendUserId/invite` (no **ring** emitted to a non-friend, uniform 202) **and** at `POST /calls/turn-credentials` (the cheapest bandwidth-abuse choke). Defense in depth.
-- **Option B — invite only.** Simpler, but lets a non-friend mint relay credentials (free bandwidth) even if they can't reach anyone.
+- **Option A — both.** Friendship checked at `POST /calls/:friendUserId/invite`
+  (no **ring** emitted to a non-friend, uniform 202) **and** at `POST
+  /calls/turn-credentials` (the cheapest bandwidth-abuse choke). Defense in
+  depth.
+- **Option B — invite only.** Simpler, but lets a non-friend mint relay
+  credentials (free bandwidth) even if they can't reach anyone.
 
-**Chair ruling — A.** **Decision owner:** `security-boundary-auditor` at slice S3/S4. Note: TURN-cred issuance needs a callee context to gate per-pair; if creds are minted before a specific callee is known, gate on "user has ≥1 accepted friend" as a coarse floor and re-check at invite.
+**Chair ruling — A.** **Decision owner:** `security-boundary-auditor` at slice
+S3/S4. Note: TURN-cred issuance needs a callee context to gate per-pair; if
+creds are minted before a specific callee is known, gate on "user has ≥1
+accepted friend" as a coarse floor and re-check at invite.
 
 ---
 
 ### Q8 — Invite-retry `callId`: reuse the live id, or a fresh id per response?
 
-**The question.** When a caller re-invites the same callee while a ring is already live, should the `202` return the **same** live `callId` (clean idempotency/resume) or a **fresh** id each time (no retry-comparison oracle)?
+**The question.** When a caller re-invites the same callee while a ring is
+already live, should the `202` return the **same** live `callId` (clean
+idempotency/resume) or a **fresh** id each time (no retry-comparison oracle)?
 
-- **Option A — fresh id per response (chosen).** Every invite — active or no-op, first or repeated — returns a new `callId`; the server **dedups by `(caller, callee)`** so a retry never creates a second ring, and the caller resumes via its original first-response id. No two responses can be compared to detect a live ring.
-- **Option B — reuse the live id on retry.** Cleaner resume semantics, but a caller can send two invites and compare the returned ids: a reused id reveals a live ring / reachable friend — a presence/friendship oracle.
+- **Option A — fresh id per response (chosen).** Every invite — active or no-op,
+  first or repeated — returns a new `callId`; the server **dedups by `(caller,
+  callee)`** so a retry never creates a second ring, and the caller resumes via
+  its original first-response id. No two responses can be compared to detect a
+  live ring.
+- **Option B — reuse the live id on retry.** Cleaner resume semantics, but a
+  caller can send two invites and compare the returned ids: a reused id reveals
+  a live ring / reachable friend — a presence/friendship oracle.
 
-**Ruling — A.** The product's north-star is privacy / no-oracle (it defaults to relay-only precisely to avoid leaks), so where oracle-avoidance and convenience conflict, oracle-avoidance wins — and Option A still satisfies retry correctness via server-side `(caller, callee)` dedup (no orphaned or duplicate rings). **This point is genuinely contested**: an automated reviewer oscillated between A and B across review rounds, which is exactly why it is recorded here as a deliberate decision rather than flipped again. **Decision owner:** `security-boundary-auditor` at slice S4 (P1-INV); revisit only if a concrete resume-UX requirement is shown to outweigh the (small) retry-oracle.
+**Ruling — A.** The product's north-star is privacy / no-oracle (it defaults to
+relay-only precisely to avoid leaks), so where oracle-avoidance and convenience
+conflict, oracle-avoidance wins — and Option A still satisfies retry correctness
+via server-side `(caller, callee)` dedup (no orphaned or duplicate rings).
+**This point is genuinely contested**: an automated reviewer oscillated between
+A and B across review rounds, which is exactly why it is recorded here as a
+deliberate decision rather than flipped again. **Decision owner:**
+`security-boundary-auditor` at slice S4 (P1-INV); revisit only if a concrete
+resume-UX requirement is shown to outweigh the (small) retry-oracle.
 
 ---
 
 ## 4. Prerequisites & assumptions that must hold
 
-These must be true (or made true) for the plan to be valid. If any breaks, the affected decision is revisited.
+These must be true (or made true) for the plan to be valid. If any breaks, the
+affected decision is revisited.
 
 ### 4.1 Hard prerequisites (block the relevant slice if unmet)
 
-1. **The security threat-model note ships before code.** Copy/link [06](./06-threat-model-and-privacy.md) to `docs/threat-models/voip-calling.md` and revise `docs/threat-models/vm-ingress.md` (which currently asserts the tunnel is the *only* ingress — false the moment coturn ships). This is **separate from** the four GDPR/metadata artifacts in §2 (both bundles gate). ([06](./06-threat-model-and-privacy.md), [03 §12 T-1](./03-infrastructure-turn-and-networking.md))
-2. **The §2 GDPR artifact bundle is merged** (data-residency revised, article-30-records revised, metadata-exposure extended, dpia-voip-calling created). ([08 P0-TM](./08-roadmap-and-delivery-slices.md))
-3. **The authenticated-sender decrypt path (S12) lands and passes `crypto-reviewer` before the first connecting call.** This is net-new crypto (§1.2), not a reuse. ([01 §3](./01-architecture-and-crypto-model.md))
-4. **`compose-guard` is updated, not bypassed.** It must still assert zero `ports:` and additionally assert exactly one `network_mode: host` service == coturn. Adding coturn naively breaks CI mechanically. ([03 §3.2](./03-infrastructure-turn-and-networking.md))
-5. **Any persisted call table (V1.1) ships with full RLS** (`tenant_id` + ENABLE/FORCE + `to argus_app` + `nullif` guard + leading `tenant_id` index + composite FKs) or it is a block (invariant 3). ([04 §4.2](./04-server-api-and-database.md))
-6. **coturn never terminates media crypto.** It is a packet relay below the crypto layer; `turns:` on 5349 is a *transport* wrapper, not media termination. Any proposal where TURN sees plaintext is wrong (invariant 1). ([01 §2](./01-architecture-and-crypto-model.md), [03](./03-infrastructure-turn-and-networking.md))
-7. **SDP/ICE always travels inside MLS ciphertext.** The server validates only the outer `CipherEnvelope` + routing IDs; it must never parse the inner `CallSignal` union. ([02 §1.2, §2.3](./02-signaling-protocol-and-state-machine.md))
-8. **TURN secrets + TURNS cert ride the Key Vault file-secret path** (invariant 5) — never env, never on-box ad-hoc ACME. ([03 §5, §7](./03-infrastructure-turn-and-networking.md))
-9. **New endpoints are in the OpenAPI spec + 42Crunch ≥ 90 + two-tier controller specs** (guard/status contract via `reflectRouteMeta`; behaviour via faked services). The `credential` field flagged sensitive, examples synthetic. ([04 §2.5, §9](./04-server-api-and-database.md))
-10. **coturn availability is a Phase-0 operational concern** — see §4.4. With relay-default, **coturn availability == calling availability** for every default user, so its uptime alert + runbook stub ship in Phase-0, not as P3 polish.
-11. **The destructive-op confirmation gate holds.** `terraform apply` for the NSG rules and `az vm run-command` deploys require explicit human confirmation — never auto-run. ([03 §12 T-2](./03-infrastructure-turn-and-networking.md), AGENTS.md)
+1. **The security threat-model note ships before code.** Copy/link
+   [06](./06-threat-model-and-privacy.md) to
+   `docs/threat-models/voip-calling.md` and revise
+   `docs/threat-models/vm-ingress.md` (which currently asserts the tunnel is the
+   *only* ingress — false the moment coturn ships). This is **separate from**
+   the four GDPR/metadata artifacts in §2 (both bundles gate).
+   ([06](./06-threat-model-and-privacy.md), [03 §12
+   T-1](./03-infrastructure-turn-and-networking.md))
+2. **The §2 GDPR artifact bundle is merged** (data-residency revised,
+   article-30-records revised, metadata-exposure extended, dpia-voip-calling
+   created). ([08 P0-TM](./08-roadmap-and-delivery-slices.md))
+3. **The authenticated-sender decrypt path (S12) lands and passes
+   `crypto-reviewer` before the first connecting call.** This is net-new crypto
+   (§1.2), not a reuse. ([01 §3](./01-architecture-and-crypto-model.md))
+4. **`compose-guard` is updated, not bypassed.** It must still assert zero
+   `ports:` and additionally assert exactly one `network_mode: host` service ==
+   coturn. Adding coturn naively breaks CI mechanically. ([03
+   §3.2](./03-infrastructure-turn-and-networking.md))
+5. **Any persisted call table (V1.1) ships with full RLS** (`tenant_id` +
+   ENABLE/FORCE + `to argus_app` + `nullif` guard + leading `tenant_id` index +
+   composite FKs) or it is a block (invariant 3). ([04
+   §4.2](./04-server-api-and-database.md))
+6. **coturn never terminates media crypto.** It is a packet relay below the
+   crypto layer; `turns:` on 5349 is a *transport* wrapper, not media
+   termination. Any proposal where TURN sees plaintext is wrong (invariant 1).
+   ([01 §2](./01-architecture-and-crypto-model.md),
+   [03](./03-infrastructure-turn-and-networking.md))
+7. **SDP/ICE always travels inside MLS ciphertext.** The server validates only
+   the outer `CipherEnvelope` + routing IDs; it must never parse the inner
+   `CallSignal` union. ([02 §1.2,
+   §2.3](./02-signaling-protocol-and-state-machine.md))
+8. **TURN secrets + TURNS cert ride the Key Vault file-secret path**
+   (invariant 5) — never env, never on-box ad-hoc ACME. ([03 §5,
+   §7](./03-infrastructure-turn-and-networking.md))
+9. **New endpoints are in the OpenAPI spec + 42Crunch ≥ 90 + two-tier controller
+   specs** (guard/status contract via `reflectRouteMeta`; behaviour via faked
+   services). The `credential` field flagged sensitive, examples synthetic. ([04
+   §2.5, §9](./04-server-api-and-database.md))
+10. **coturn availability is a Phase-0 operational concern** — see §4.4. With
+    relay-default, **coturn availability == calling availability** for every
+    default user, so its uptime alert + runbook stub ship in Phase-0, not as P3
+    polish.
+11. **The destructive-op confirmation gate holds.** `terraform apply` for the
+    NSG rules and `az vm run-command` deploys require explicit human
+    confirmation — never auto-run. ([03 §12
+    T-2](./03-infrastructure-turn-and-networking.md), AGENTS.md)
 
 ### 4.2 Soft assumptions (true today per grounding; re-verify if stale)
 
@@ -209,7 +379,9 @@ These must be true (or made true) for the plan to be valid. If any breaks, the a
 
 ### 4.3 Call-reliability / failure modes (S1)
 
-State plainly so the implementation and runbook plan for them ([06 §11](./06-threat-model-and-privacy.md), [08 phase table](./08-roadmap-and-delivery-slices.md)):
+State plainly so the implementation and runbook plan for them ([06
+§11](./06-threat-model-and-privacy.md), [08 phase
+table](./08-roadmap-and-delivery-slices.md)):
 
 | # | Failure | V1 behaviour | Recovery |
 |---|---|---|---|
@@ -220,15 +392,30 @@ State plainly so the implementation and runbook plan for them ([06 §11](./06-th
 
 ### 4.4 coturn as a Phase-0 operational concern (S1 / cost-infra)
 
-Because relay-default makes coturn availability synonymous with calling availability, the following are **Phase-0 deliverables**, not later polish ([08](./08-roadmap-and-delivery-slices.md)):
+Because relay-default makes coturn availability synonymous with calling
+availability, the following are **Phase-0 deliverables**, not later polish
+([08](./08-roadmap-and-delivery-slices.md)):
 
-- **A coturn uptime / health alert.** Wire a healthcheck into the compose sketch (the `coturn` service gets a `healthcheck:` — N2, [03 §3.1](./03-infrastructure-turn-and-networking.md)) and an alert on it, alongside the existing stack alerts.
-- **A one-page runbook stub** covering the three first-line incidents: **TURN down**, **TURN over quota**, **cert expired** (the `turns:` 5349 cert from Key Vault). Stub now, flesh out as real incidents teach it.
+- **A coturn uptime / health alert.** Wire a healthcheck into the compose sketch
+  (the `coturn` service gets a `healthcheck:` — N2, [03
+  §3.1](./03-infrastructure-turn-and-networking.md)) and an alert on it,
+  alongside the existing stack alerts.
+- **A one-page runbook stub** covering the three first-line incidents: **TURN
+  down**, **TURN over quota**, **cert expired** (the `turns:` 5349 cert from Key
+  Vault). Stub now, flesh out as real incidents teach it.
 
 ### 4.5 Capacity / cost assumptions (V1 vs V1.1)
 
-- **V1 (audio): negligible.** Relay-only audio is ~64 kbit/s/leg; the shared VM carries it comfortably and `max-bps` + `total-quota` cap abuse. The egress-cost-vs-privacy tension that drove the original plan **does not exist for audio** — relay-only is simply the default with no escape hatch needed.
-- **V1.1 (video):** the practical ceiling (~25 concurrent video calls before media contends with Postgres/Redis/HTTP) and per-call egress (~€0.18/HD-video-call-hour) reappear — these are the trigger to **graduate Q1 to Option (d)** before video ships, and the reason the power-user direct-P2P opt-out (L3) is the cost release valve. ([03 §10](./03-infrastructure-turn-and-networking.md))
+- **V1 (audio): negligible.** Relay-only audio is ~64 kbit/s/leg; the shared VM
+  carries it comfortably and `max-bps` + `total-quota` cap abuse. The
+  egress-cost-vs-privacy tension that drove the original plan **does not exist
+  for audio** — relay-only is simply the default with no escape hatch needed.
+- **V1.1 (video):** the practical ceiling (~25 concurrent video calls before
+  media contends with Postgres/Redis/HTTP) and per-call egress
+  (~€0.18/HD-video-call-hour) reappear — these are the trigger to **graduate Q1
+  to Option (d)** before video ships, and the reason the power-user direct-P2P
+  opt-out (L3) is the cost release valve. ([03
+  §10](./03-infrastructure-turn-and-networking.md))
 
 ---
 
@@ -244,4 +431,19 @@ Because relay-default makes coturn availability synonymous with calling availabi
 | **V1.1 missed-call ledger + prune (D5, D13)** | Q3 (30-day literal) | P5 (full RLS) |
 | **V1.1 push wake + tap-to-join banner (D14)** | Q4 (iOS push acceptance / Capacitor fork) | §2 push sub-processor rows |
 
-**Bottom line for the reviewer.** The four locked decisions are validated by the comparative survey ([07](./07-comparative-survey.md)) — argus's call architecture is mainstream-correct, with one deliberate, defensible divergence (relay-only *by default*). **V1 is cut to 1:1 audio, relay-only, foreground-ring-only, single-device** — a single cut that resolves the multi-device-MLS prerequisite, the egress-cost-vs-privacy tension, and the iOS-receivability over-promise at once. The one thing this plan must *not* under-state: the MITM defense needs a **new, `crypto-reviewer`-gated authenticated-sender decrypt path (S12)** — there is no "zero new crypto" here, and it is a hard Phase-0 predecessor of the first connecting call. **Genuinely human/`security-architect` calls before building**: TURN ingress (Q1, highest risk), presence-oracle acceptance (Q2). Q3–Q5 govern V1.1; Q6–Q7 are low-stakes implementer calls. The single least-mitigable constraint is **L4/Q4 — ringing a locked iPhone** — which V1 sidesteps by being foreground-only, and which, if it ever becomes a hard requirement, makes Capacitor a V1 prerequisite rather than a future nicety.
+**Bottom line for the reviewer.** The four locked decisions are validated by the
+comparative survey ([07](./07-comparative-survey.md)) — argus's call
+architecture is mainstream-correct, with one deliberate, defensible divergence
+(relay-only *by default*). **V1 is cut to 1:1 audio, relay-only,
+foreground-ring-only, single-device** — a single cut that resolves the
+multi-device-MLS prerequisite, the egress-cost-vs-privacy tension, and the
+iOS-receivability over-promise at once. The one thing this plan must *not*
+under-state: the MITM defense needs a **new, `crypto-reviewer`-gated
+authenticated-sender decrypt path (S12)** — there is no "zero new crypto" here,
+and it is a hard Phase-0 predecessor of the first connecting call. **Genuinely
+human/`security-architect` calls before building**: TURN ingress (Q1, highest
+risk), presence-oracle acceptance (Q2). Q3–Q5 govern V1.1; Q6–Q7 are low-stakes
+implementer calls. The single least-mitigable constraint is **L4/Q4 — ringing a
+locked iPhone** — which V1 sidesteps by being foreground-only, and which, if it
+ever becomes a hard requirement, makes Capacitor a V1 prerequisite rather than a
+future nicety.

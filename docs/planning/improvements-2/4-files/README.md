@@ -1,14 +1,15 @@
 # Runtime health improvement plan
 
-> **Status:** ACTIVE 2026-06-26. Must-fix implementation is in progress; deployed verification is still pending.
-> **Origin:** AWS experiment VM triage via SSM plus Loki/Grafana log review after the Friends screen showed
-> stale data during the `aws-v0.8.16` rollout.
+> **Status:** ACTIVE 2026-06-26. Must-fix implementation is in progress;
+> deployed verification is still pending. **Origin:** AWS experiment VM triage
+> via SSM plus Loki/Grafana log review after the Friends screen showed stale
+> data during the `aws-v0.8.16` rollout.
 
 ## Scope
 
-This plan turns the 2026-06-26 runtime findings into implementable tracks. It covers the user-visible Friends
-refresh failure, noisy or false critical alerts, broken observability labels, and lower-priority operational
-cleanup.
+This plan turns the 2026-06-26 runtime findings into implementable tracks. It
+covers the user-visible Friends refresh failure, noisy or false critical alerts,
+broken observability labels, and lower-priority operational cleanup.
 
 ## Status legend
 
@@ -27,7 +28,8 @@ cleanup.
 
 ## Recommended order
 
-1. Fix Loki/Grafana service labels first so every later log review names real services instead of container IDs.
+1. Fix Loki/Grafana service labels first so every later log review names real
+   services instead of container IDs.
 2. Fix Friends refresh resilience and `/friends/requests` 429 bursts.
 3. Fix Redis exporter and coturn scrape false critical alerts.
 4. Clean up Postgres exporter, Grafana provisioning, Alertmanager, and Pyroscope noise.
@@ -39,15 +41,19 @@ cleanup.
 - Caddy returned `502` for `/api/friends`, `/api/friends/requests`, `/api/me/settings/privacy`, and `/ws`
   while the API container was being recreated.
 - The database still had `accepted | 1` in `friendships`; this was not friend data loss.
-- Loki labels currently expose container IDs as the main service dimension, making Grafana service cards
-  unreadable.
-- Prometheus was firing `RedisDown` and `ArgusCoturnDown` even though Redis and coturn containers were healthy.
+- Loki labels currently expose container IDs as the main service dimension,
+  making Grafana service cards unreadable.
+- Prometheus was firing `RedisDown` and `ArgusCoturnDown` even though Redis and
+  coturn containers were healthy.
 
 ## Constraints
 
-- Preserve the no-Docker-socket posture in Alloy. A Docker socket mount is daemon-root-equivalent and is not an
-  acceptable shortcut for service-name labels.
-- Keep logs metadata-only. Do not log tokens, secret files, plaintext, message content, or presigned URLs.
-- Keep all secrets file-backed. Fixes must not move Redis, Grafana, Alertmanager, or database credentials into
-  process environment values.
-- Each implementation PR updates this README and the relevant concrete track file before opening the PR.
+- Preserve the no-Docker-socket posture in Alloy. A Docker socket mount is
+  daemon-root-equivalent and is not an acceptable shortcut for service-name
+  labels.
+- Keep logs metadata-only. Do not log tokens, secret files, plaintext, message
+  content, or presigned URLs.
+- Keep all secrets file-backed. Fixes must not move Redis, Grafana,
+  Alertmanager, or database credentials into process environment values.
+- Each implementation PR updates this README and the relevant concrete track
+  file before opening the PR.

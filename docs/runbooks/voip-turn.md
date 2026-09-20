@@ -1,6 +1,7 @@
 # Runbook: TURN relay (coturn) — ArgusCoturnDown
 
-Fires when `up{job="coturn"} == 0` for ≥ 2 minutes. All relay-only calls fail while coturn is down.
+Fires when `up{job="coturn"} == 0` for ≥ 2 minutes. All relay-only calls fail
+while coturn is down.
 
 ---
 
@@ -130,7 +131,17 @@ If you see the 403, the relay is up but no relay-only call can connect. Check th
 
 ## Notes
 
-- coturn runs as `nobody` (uid 65534), `cap_drop: ALL`, `read_only: true`. Never restart it as root.
-- The combined config (turnserver.conf + static-auth-secret) is written to a tmpfs `/var/tmp/turnserver-combined.conf` by the entrypoint; it is lost on container restart — this is intentional (secret never persists to disk).
-- The prometheus metrics endpoint binds `0.0.0.0:9641` (coturn 4.6.2 has no localhost-bind option under `network_mode: host`); it is kept off the internet by the NSG/SG (9641 is never opened), and being TCP it is unreachable via the UDP relay. The `ArgusCoturnDown` alert fires on scrape failure, not on an external health check. Tightening the bind is a tracked follow-up (`voip-turn.md` §3.1).
-- TLS cert renewal: `caddy` sends a SIGHUP to the `coturn` container by name after cert rotation — coturn reloads the cert file without dropping existing sessions.
+- coturn runs as `nobody` (uid 65534), `cap_drop: ALL`, `read_only: true`. Never
+  restart it as root.
+- The combined config (turnserver.conf + static-auth-secret) is written to a
+  tmpfs `/var/tmp/turnserver-combined.conf` by the entrypoint; it is lost on
+  container restart — this is intentional (secret never persists to disk).
+- The prometheus metrics endpoint binds `0.0.0.0:9641` (coturn 4.6.2 has no
+  localhost-bind option under `network_mode: host`); it is kept off the internet
+  by the NSG/SG (9641 is never opened), and being TCP it is unreachable via the
+  UDP relay. The `ArgusCoturnDown` alert fires on scrape failure, not on an
+  external health check. Tightening the bind is a tracked follow-up
+  (`voip-turn.md` §3.1).
+- TLS cert renewal: `caddy` sends a SIGHUP to the `coturn` container by name
+  after cert rotation — coturn reloads the cert file without dropping existing
+  sessions.
