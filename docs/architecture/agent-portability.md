@@ -32,7 +32,7 @@ contradicts the shared rules; an agent that is not Claude Code simply has no
 | Capability | Claude Code | Codex | Portable? |
 |---|---|---|---|
 | Rules / contract | CLAUDE.md | AGENTS.md | ✅ byte-identical twins, gated by `make docs` |
-| Review checklists | subagents (`.claude/agents/`) | "Review criteria" section in AGENTS.md | ✅ as guidance |
+| Review checklists | subagents (`.claude/agents/`) | generated `.codex/agents/*.toml` + the "Review criteria" section in AGENTS.md | ✅ the TOMLs are generated FROM the Claude copies, so the two cannot state different rules |
 | Procedures (RLS migration, threat model, api-spec) | skills (`.claude/skills/`) | prompts (`.codex/prompts/`) | ✅ mirrored |
 | Architecture authoring | skills (`.claude/skills/`) | same files under `.agents/skills/` | ✅ byte-identical mirror, gated by `make docs` |
 | Stack know-how (NestJS, Postgres, Docker, React, Vite, E2E, a11y) | skills imported from agent-base | same files under `.agents/skills/` | ✅ byte-identical mirror; imported rather than left machine-local precisely so Codex gets them too |
@@ -45,6 +45,22 @@ commit regardless of agent. That's the real guarantee — the per-agent guardrai
 just catch issues earlier.
 
 ## Set up Codex
+
+`.codex/agents/*.toml` is **generated from `.claude/agents/*.md`**, not written
+by hand. Edit the Claude copy, then regenerate — otherwise the two drift, and a
+drifted reviewer is worse than no reviewer. That is not hypothetical: the Codex
+crypto-reviewer once carried a rule instructing it to accept a server-side
+Argon2id key backup, a surface
+[ADR 4](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/decisions/0004-store-no-recoverable-secret-on-the-server.md)
+had deliberately removed. A reviewer following it would have approved
+reintroducing exactly what the architecture rejects.
+
+**Hooks are deliberately not mirrored.** `.codex/hooks/` and `.codex/hooks.json`
+are gitignored: the JSON hardcodes absolute paths, and the scripts duplicate
+`.claude/hooks/` byte-for-byte with nothing enforcing that the two stay in sync
+— unlike skills, where `make docs` gates the mirror. Codex enforces the
+destructive-command boundary through its **sandbox and approval policy**
+instead, which is the mechanism the table above already records.
 
 ```bash
 # 1. AGENTS.md is already read automatically from the repo root — nothing to do.

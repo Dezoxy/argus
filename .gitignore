@@ -103,3 +103,11 @@ docs/architecture/generated/
 
 # python bytecode from the repo's own scripts (scripts/check_docs_consistency.py)
 __pycache__/
+
+# Codex hook wiring is machine-local: hooks.json hardcodes absolute paths, and
+# .codex/hooks/ duplicates .claude/hooks/ byte-for-byte with nothing enforcing
+# the mirror. Codex enforces the destructive-command boundary through its own
+# sandbox + approval policy instead (see docs/architecture/agent-portability.md).
+# .codex/agents/ and .codex/prompts/ ARE committed — they carry rules, not paths.
+.codex/hooks/
+.codex/hooks.json
