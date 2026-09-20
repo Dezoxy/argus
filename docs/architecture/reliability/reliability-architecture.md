@@ -1,8 +1,8 @@
-# Reliability and recovery
+## Reliability and recovery
 
 What fails, what notices, and how service and data come back.
 
-## What fails together
+### What fails together
 
 One VM runs everything, so the failure domains are blunt and worth stating
 plainly:
@@ -21,7 +21,7 @@ observes, so the single most important failure is the one it cannot report. That
 is tracked as [TD-004](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/risks/technical-debt.md), and an off-host uptime check
 is the fix.
 
-## Backups
+### Backups
 
 Nightly, and unusually well defended for a project this size:
 
@@ -39,7 +39,7 @@ Nightly, and unusually well defended for a project this size:
   them. A compromised storage key can upload a forged dump; it cannot make
   restore accept one.
 
-## Recovery objectives
+### Recovery objectives
 
 | Objective | Target | Evidence |
 | --- | --- | --- |
@@ -52,7 +52,7 @@ ran, not that the result can be restored — see
 [TD-001](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/risks/technical-debt.md) and
 [QA-06](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/requirements/quality-attributes.md).
 
-## What signatures do not solve
+### What signatures do not solve
 
 The signing scheme authenticates a backup ("our worker produced this"), not its
 freshness ("this is the latest"). An attacker holding the storage key can replay
@@ -61,7 +61,7 @@ immutable upload time recorded by the bucket, which means the restore runbook
 needs the operator to know the compromise window. Signatures and timestamps are
 both required, and neither is sufficient alone.
 
-## No high availability
+### No high availability
 
 There is none, deliberately ([ADR 5](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/decisions/0005-run-on-one-vm-with-docker-compose.md)).
 Recovery from host loss is a rebuild and restore, not a failover. The stack's

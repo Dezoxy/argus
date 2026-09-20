@@ -1,4 +1,4 @@
-# Secrets inventory
+## Secrets inventory
 
 Every **secret** the argus deployment depends on: what it protects, who reads it
 and when, how it is delivered, and what happens if it leaks or is lost.
@@ -15,7 +15,7 @@ and when, how it is delivered, and what happens if it leaks or is lost.
 > `infra/aws/scripts/populate-keyvault.sh`, `infra/stack/deploy/deploy.sh`,
 > `infra/backup/README.md`, `docs/security/threat-models/db-backup.md`.
 
-## 0. Where secrets live and how they reach the box
+### 0. Where secrets live and how they reach the box
 
 All runtime secrets live in **Azure Key Vault** `argus-exp-kv-4ad322` (vault name
 pattern `${var.prefix}-kv-<sha1[:6]>`, experiment prefix `argus-exp`). The EC2 box
@@ -51,7 +51,7 @@ SSM Parameter Store (+ Terraform state — use the encrypted, locked S3 backend)
 could onboard a machine under that onboarding SP — rotate immediately. **If lost:**
 re-create via Terraform; no data impact.
 
-## 1. Signing keys (token + backup authenticity)
+### 1. Signing keys (token + backup authenticity)
 
 | Secret | Purpose | Consumer | Origin | Lifecycle |
 |---|---|---|---|---|
@@ -64,7 +64,7 @@ host-root attacker could forge a validly-signed backup; it does **not** decrypt
 anything. Losing either private key is not a data-loss event (the age key is what
 decrypts).
 
-## 2. Database passwords & DSNs
+### 2. Database passwords & DSNs
 
 | Secret | Purpose | Consumer | Origin | Lifecycle |
 |---|---|---|---|---|
@@ -78,13 +78,13 @@ decrypts).
 > `redis_url` and `glitchtip_database_url` are DSNs **derived on the box** by
 > `deploy.sh`, not stored in KV.
 
-## 3. Cache / realtime backplane
+### 3. Cache / realtime backplane
 
 | Secret | Purpose | Consumer | Origin | Lifecycle |
 |---|---|---|---|---|
 | `argus-redis-password` | Redis `requirepass` (realtime presence/pub-sub AUTH) | `deploy.sh` derives `redis.conf` + `redis_url` from it; API via `REDIS_URL_FILE`; re-read each boot | `put` (32 alnum, URL-unreserved only); TF generates | **Rotatable** — deploy force-recreates redis + api to pick it up |
 
-## 4. Object-storage keys (Backblaze B2)
+### 4. Object-storage keys (Backblaze B2)
 
 | Secret | Purpose | Consumer | Origin | Lifecycle |
 |---|---|---|---|---|
@@ -97,7 +97,7 @@ exposes ciphertext only. The db-backups key has **no delete** capability, so a
 leak can write shadow/forged versions but cannot scrub WORM-locked backups
 (signing + Object-Lock defend restore).
 
-## 5. Infra tokens (registry + ingress)
+### 5. Infra tokens (registry + ingress)
 
 | Secret | Purpose | Consumer | Origin | Lifecycle |
 |---|---|---|---|---|
@@ -108,7 +108,7 @@ leak can write shadow/forged versions but cannot scrub WORM-locked backups
 intercept ingress routing — high impact; rotate in Cloudflare immediately. A lost
 tunnel token makes the site unreachable until re-supplied.
 
-## 6. Observability
+### 6. Observability
 
 | Secret | Purpose | Consumer | Origin | Lifecycle |
 |---|---|---|---|---|
@@ -117,7 +117,7 @@ tunnel token makes the site unreachable until re-supplied.
 
 Both expose **metadata/metrics only — never message content** (invariant #6).
 
-## 7. Backup-encryption (age) — the highest-stakes secret
+### 7. Backup-encryption (age) — the highest-stakes secret
 
 | Secret | Purpose | Consumer | Origin | Lifecycle |
 |---|---|---|---|---|
@@ -143,7 +143,7 @@ Both expose **metadata/metrics only — never message content** (invariant #6).
 > (`docs/security/threat-models/db-backup.md`) frames "never on the backup host" as on-disk
 > presence — it does not yet address identity-readability; tracked there.
 
-## 8. Arming / optional secrets — seeded EMPTY until provisioned
+### 8. Arming / optional secrets — seeded EMPTY until provisioned
 
 The `OPTIONAL_SECRETS` set in `fetch-keyvault-secrets.sh`: if absent, a `0444` **empty**
 file is seeded so the compose mount still resolves and the consumer runs **degraded**
@@ -159,9 +159,9 @@ file is seeded so the compose mount still resolves and the consumer runs **degra
 secret introduced. Stripe / operator-API integrations, if ever added, are app-level and
 **not** part of this deploy's Key Vault fetch set.)
 
-## 9. Operator reference
+### 9. Operator reference
 
-### Mandatory to boot (the stack won't reach healthy without these)
+#### Mandatory to boot (the stack won't reach healthy without these)
 The boot fetch (`fetch-keyvault-secrets.sh`) reads its `SECRETS[]` set
 **unconditionally** — a 404 on any of these fails the boot closed:
 `argus-session-signing-key`, `argus-backup-signing-key`, `argus-database-url`,
@@ -176,14 +176,14 @@ deploy-transient `argus-migration-database-url` and `argus-ghcr-token` (fetched 
 > box — `populate.sh` + Terraform provision them, so they are present (Grafana
 > itself does run on the lean box).
 
-### Optional / conditional
+#### Optional / conditional
 `argus-b2-cors-app-key` — **populate-required**: `populate-keyvault.sh` prompts for
 it unconditionally and fails without it, even though its *runtime* use is gated on
 `B2_CORS_KEY_ID` (`deploy.sh` skips CORS convergence when that's unset). So supply it
 at the `populate` prompt regardless. `argus-backup-age-key` (restore only — never in
 the boot fetch — but catastrophic if lost); the arming set (§8).
 
-### ⚠️ The set-once placeholder trap
+#### ⚠️ The set-once placeholder trap
 Set-once secrets are burned at a component's **first init** (or pinned out-of-band)
 and never reconciled — `populate.sh` SKIPS them even under `--rotate`. If a
 set-once secret (`argus-backup-signing-key`, the Postgres/GlitchTip owner
@@ -194,7 +194,7 @@ passwords, the Grafana admin password) was seeded as a
 component initialises. This is why the deploy runbook scans for `REPLACE-`
 placeholders *before* tagging.
 
-### No long-lived cloud creds
+#### No long-lived cloud creds
 Azure access from the box is entirely via the **Arc Managed Identity** — an
 ephemeral KV bearer token per fetch, no client secret, nothing long-lived stored.
 AWS access from CI is via **GitHub OIDC → STS** (temporary role credentials), no

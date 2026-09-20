@@ -1,4 +1,4 @@
-# Technical debt
+## Technical debt
 
 Deliberate shortcuts and known-unfinished work. Each says what it would take to
 clear, so that "later" is a decision rather than a habit.

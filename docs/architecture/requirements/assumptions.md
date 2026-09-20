@@ -1,4 +1,4 @@
-# Assumptions
+## Assumptions
 
 Things taken to be true that are not proven here. An assumption that turns out
 false invalidates whatever depends on it, so each one names what it would break.

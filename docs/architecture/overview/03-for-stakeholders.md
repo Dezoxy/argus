@@ -1,10 +1,10 @@
-# For stakeholders
+## For stakeholders
 
 A reading path for someone deciding whether this should exist, and what it
 promises the people who use it. No hostnames, no protocols, no tables of
 settings. Four stops.
 
-## What it is and who uses it
+### What it is and who uses it
 
 argus is a private messenger you can only join by invitation. Members send
 messages; administrators mint the invitations and can see who exists, never
@@ -13,7 +13,7 @@ to reach it, Backblaze to hold encrypted files, Azure to hold its secrets.
 
 ![Context view: who uses argus and which outside services it depends on](embed:SystemContext)
 
-## The promise, and what happens when you send a message
+### The promise, and what happens when you send a message
 
 The promise is one sentence: **the server stores and forwards messages it
 cannot read.** Not "does not read" — *cannot*. It holds no key that would open
@@ -27,7 +27,7 @@ server performs is on bytes that are meaningless to it.
 - [What argus is](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/overview/01-what-argus-is.md): the guarantee in plain
   language, and the two things it does not cover
 
-## What it deliberately does not do
+### What it deliberately does not do
 
 The same decision that makes the promise possible removes features people
 expect. There is no search of message content, no moderation, no link
@@ -38,7 +38,7 @@ mean the operator holding something that could open your messages.
 - [Scope](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/overview/02-scope.md): what is in, what is out, and why
 - [ADR 4: store no recoverable secret on the server](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/decisions/0004-store-no-recoverable-secret-on-the-server.md)
 
-## What could go wrong
+### What could go wrong
 
 Three things, and only one is about cryptography.
 

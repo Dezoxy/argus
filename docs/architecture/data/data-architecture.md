@@ -1,8 +1,8 @@
-# Data
+## Data
 
 What is stored, how sensitive it is, where it lives and how long it stays.
 
-## Stores
+### Stores
 
 | Store | Holds | Classification | Residency |
 | --- | --- | --- | --- |
@@ -12,7 +12,7 @@ What is stored, how sensitive it is, where it lives and how long it stays.
 | Backblaze B2 (backups) | Nightly `age`-encrypted dumps of roles and database. | Ciphertext only; contains the cleartext metadata above once decrypted. | A separate private EU bucket under Object Lock. |
 | PostgreSQL (GlitchTip) | Error reports and stack traces. | Operational. Must never carry message content. | The VM's managed disk, EU. |
 
-## The line that matters
+### The line that matters
 
 The database holds two different kinds of thing and they deserve different
 language.
@@ -26,7 +26,7 @@ cleartext, because the server must route on it. Calling the whole database
 "encrypted" would be false, and is exactly the kind of claim this document
 exists to prevent.
 
-## Tenancy
+### Tenancy
 
 Every tenant-scoped table carries `tenant_id` and an enforced Row-Level Security
 policy. The application connects as a role that cannot bypass RLS, and the
@@ -36,7 +36,7 @@ even though the deployment currently runs as one shared tenant pool — privacy
 comes from argus-id-only discovery and end-to-end encryption, not from tenant
 walls.
 
-## Retention
+### Retention
 
 | Data | Retention | Enforced by |
 | --- | --- | --- |
@@ -49,7 +49,7 @@ walls.
 Backup reaping is a bucket rule rather than a script on purpose: a credential
 that can delete backups is a credential ransomware can use.
 
-## Subject rights
+### Subject rights
 
 Members can export their data and delete their account through the API. What
 deletion can reach is metadata and ciphertext held by the server — it cannot

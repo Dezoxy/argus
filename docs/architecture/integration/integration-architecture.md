@@ -1,4 +1,4 @@
-# Integration
+## Integration
 
 Every system outside the argus boundary, what it is relied on for, and what
 happens when it is not there.
@@ -15,7 +15,7 @@ happens when it is not there.
 | Browser push services | Content-free notifications to offline devices. | Notifications are silently lost. Messages still arrive when the client reconnects; delivery does not depend on push. |
 | Alert receiver | Where firing alerts are delivered. | Alerts are raised and go nowhere — a silent failure of the thing that reports failures. |
 
-## What crosses these interfaces
+### What crosses these interfaces
 
 Only two carry anything derived from user content, and both carry it as
 ciphertext: the attachment bucket and the backup bucket. Nothing readable
@@ -26,7 +26,7 @@ deliberately **content-free**: the payload carries no sender, no preview and no
 conversation identifier — only enough to wake the client, which then fetches and
 decrypts locally.
 
-## Coupling worth naming
+### Coupling worth naming
 
 The Content-Security-Policy pins the exact attachment bucket hostname, so the
 browser may reach that origin and no other. That makes the CSP and the bucket

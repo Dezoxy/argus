@@ -1,4 +1,4 @@
-# Configuration inventory (non-secret)
+## Configuration inventory (non-secret)
 
 Every **non-secret** configuration value the argus deployment depends on — GitHub
 repo variables, GitHub Actions context, the AWS OIDC trust model, Terraform
@@ -15,7 +15,7 @@ here they appear only as cross-references.
 > **`gh variable list -R Dezoxy/secmes` is the canonical source for the live
 > values** — the values quoted here are current at writing and may drift.
 
-## 0. Where config lives, and the chicken-and-egg rule
+### 0. Where config lives, and the chicken-and-egg rule
 
 | Tier | What lives here | Why |
 |---|---|---|
@@ -29,7 +29,7 @@ here they appear only as cross-references.
 `AWS_DEPLOY_ROLE_ARN`, `AWS_REGION`, `AWS_INSTANCE_ID`, and the `ENABLE_DEPLOY_AWS`
 gate. (See the deploy discussion in [`secrets-inventory.md`](secrets-inventory.md) §0.)
 
-## 1. Live GitHub repo variables
+### 1. Live GitHub repo variables
 
 All non-secret by definition (repo *variables*, not *secrets*).
 
@@ -51,7 +51,7 @@ All non-secret by definition (repo *variables*, not *secrets*).
 | `BACKUP_AGE_RECIPIENT` | `age1u3l07w20yf…drnse` | age **public** recipient for the nightly dump | templated into `argus-db-backup.service` | A **public** key; the private half is `argus-backup-age-key` in Key Vault — readable by the box's MI, so it does **not** protect backups from host compromise (see secrets-inventory §7) |
 | `ENABLE_42CRUNCH` | `false` | Toggles the 42Crunch CI audit (not the AWS path) | CI audit job | A CI feature flag |
 
-### DEPRECATED — delete (do not recreate)
+#### DEPRECATED — delete (do not recreate)
 `OIDC_AUDIENCE`, `OIDC_ISSUER`, `VITE_OIDC_CLIENT_ID`, `VITE_OIDC_ISSUER`,
 `VITE_OIDC_REDIRECT_URI` — leftovers from the decommissioned Zitadel/OIDC login
 (passkey pivot, PR #223). Confirmed dead: none appear in `cd-aws.yml`,
@@ -60,7 +60,7 @@ All non-secret by definition (repo *variables*, not *secrets*).
 `docs/architecture/deploy.md` still mentions them in stale prose — clean that up
 when convenient.
 
-## 2. GitHub Actions context (set by the workflow run, not repo vars)
+### 2. GitHub Actions context (set by the workflow run, not repo vars)
 
 | Name | Source | Purpose |
 |---|---|---|
@@ -73,7 +73,7 @@ when convenient.
 | `ARGUS_SKIP_GLITCHTIP` | literal `1` | Skip the GlitchTip tier on the lean box |
 | `ARGUS_COSIGN_WORKFLOW` | literal `.github/workflows/cd-aws.yml` | Which workflow's OIDC identity signed the images — verified before run |
 
-## 3. AWS / OIDC trust model — there are NO stored AWS credentials
+### 3. AWS / OIDC trust model — there are NO stored AWS credentials
 
 GitHub Actions mints a short-lived OIDC token; AWS STS exchanges it for **temporary**
 role credentials via `AssumeRoleWithWebIdentity`. Nothing long-lived is stored.
@@ -92,7 +92,7 @@ role credentials via `AssumeRoleWithWebIdentity`. Nothing long-lived is stored.
   parameter + `kms:Decrypt` constrained to `kms:ViaService = ssm.<region>...`. The
   app secrets are **not** here — they live in Azure Key Vault, read via Arc.
 
-## 4. Terraform variables (`infra/aws/terraform`) — non-secret defaults
+### 4. Terraform variables (`infra/aws/terraform`) — non-secret defaults
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -114,9 +114,9 @@ role credentials via `AssumeRoleWithWebIdentity`. Nothing long-lived is stored.
 > the Arc onboarding SP secret lives in Terraform **state** → use the encrypted,
 > locked S3 backend (`backend.hcl`).
 
-## 5. On-box environment & systemd templating
+### 5. On-box environment & systemd templating
 
-### 5a. Non-secret env `deploy.sh` consumes (exported by the SSM wrapper)
+#### 5a. Non-secret env `deploy.sh` consumes (exported by the SSM wrapper)
 `ARGUS_KEY_VAULT`, `IMAGE_TAG`, `GHCR_REGISTRY`, `GHCR_USER`, `GH_REPO`,
 `S3_BUCKET`, `S3_ACCESS_KEY_ID`, `B2_APP_KEY_ID`, `BACKUP_AGE_RECIPIENT`,
 `BACKUP_S3_BUCKET`, `B2_CORS_KEY_ID`, `S3_ENDPOINT`, `S3_REGION`,
@@ -124,7 +124,7 @@ role credentials via `AssumeRoleWithWebIdentity`. Nothing long-lived is stored.
 §1–§2). Hardcoded literals in `deploy.sh`: `ATTACHMENT_BUCKET` (= `S3_BUCKET`,
 CSP-1 invariant), `KV_API_VERSION=7.4`, the Arc HIMDS URL.
 
-### 5b. Notable container env (`compose.prod.yaml`, `${VAR:-default}`)
+#### 5b. Notable container env (`compose.prod.yaml`, `${VAR:-default}`)
 - `FRONTEND_ORIGIN=https://4rgus.com`, `WEBAUTHN_RP_ID=4rgus.com`,
   `WEBAUTHN_RP_NAME=argus` — **not set as vars on the AWS path; they fall back to
   these compose defaults, which is correct because the box serves publicly at
@@ -140,14 +140,14 @@ CSP-1 invariant), `KV_API_VERSION=7.4`, the Arc HIMDS URL.
   `POSTGRES_PASSWORD_FILE`, …) hold **paths under `/run/secrets/*`, not values** —
   the contents are the KV secrets.
 
-### 5c. systemd placeholders `deploy.sh` templates (all non-secret)
+#### 5c. systemd placeholders `deploy.sh` templates (all non-secret)
 `REPLACE_WITH_KEY_VAULT_NAME` ← `ARGUS_KEY_VAULT`; `REPLACE_WITH_B2_KEY_ID` ←
 `B2_APP_KEY_ID`; `REPLACE_WITH_AGE_PUBLIC_KEY` ← `BACKUP_AGE_RECIPIENT`;
 `REPLACE_WITH_BACKUP_BUCKET` ← `BACKUP_S3_BUCKET`; `REPLACE_WITH_ATTACHMENT_KEY_ID`
 ← `S3_ACCESS_KEY_ID`; `REPLACE_WITH_ATTACHMENT_BUCKET` ← `S3_BUCKET`. The matching
 secrets arrive as `LoadCredential` files; the units carry only non-secret values.
 
-## 6. id ↔ secret pairings
+### 6. id ↔ secret pairings
 
 The non-secret id lives in GitHub; the secret half lives in Key Vault.
 

@@ -1,4 +1,4 @@
-# Deployment
+## Deployment
 
 Two environments exist, and the difference between them is the most important
 thing on this page.
@@ -18,7 +18,7 @@ thing on this page.
 described as production is not running, and the environment that is running is
 labelled an experiment. Both are modelled, and each view says which it is.
 
-## The VM
+### The VM
 
 Everything runs on one machine, as Docker Compose services, plus a few native
 systemd units.
@@ -35,7 +35,7 @@ systemd units.
   They share a failure domain, which is stated in the model rather than left for
   someone to discover during an incident.
 
-## How a release reaches it
+### How a release reaches it
 
 A semver tag builds both images, scans them with Trivy, generates an SBOM with
 syft, and keyless-signs them with cosign. The VM pulls by digest and **verifies
@@ -46,7 +46,7 @@ Two gates, both deliberate: `vars.ENABLE_DEPLOY` as a master kill-switch, and
 the `prod` GitHub Environment's required reviewer — a human approving each
 release.
 
-## What portability bought
+### What portability bought
 
 `infra/stack/` is cloud-agnostic on purpose, and the AWS box is the proof rather
 than the claim: the same stack, the same signed images, a different cloud. That
