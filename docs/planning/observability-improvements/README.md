@@ -1,6 +1,7 @@
 # Observability Improvements — Roadmap
 
-Next steps after PR #325 (structured logs + distributed tracing + infra metrics + 5 dashboards).
+Next steps after PR #325 (structured logs + distributed tracing + infra
+metrics + 5 dashboards).
 
 Check the box when an idea is fully implemented and merged.
 

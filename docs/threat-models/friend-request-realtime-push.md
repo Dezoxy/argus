@@ -8,9 +8,10 @@ When user A sends a friend request to user B:
 
 ## Trust boundary
 
-The notification path is purely server-to-recipient. The sender (A) gets no signal about delivery
-outcome; the HTTP response remains a uniform 202 regardless of whether the row was written, the
-socket was reachable, or push was configured (R-friends-3).
+The notification path is purely server-to-recipient. The sender (A) gets no
+signal about delivery outcome; the HTTP response remains a uniform 202
+regardless of whether the row was written, the socket was reachable, or push was
+configured (R-friends-3).
 
 ## Invariants checked
 
@@ -25,19 +26,22 @@ socket was reachable, or push was configured (R-friends-3).
 
 ## Sender oracle (R-friends-3)
 
-The notify fires **only when `.returning({ id })` returns a row** — i.e. when a genuinely new or
-revived pending row was written. A re-send against a live-pending or accepted pair is a Drizzle
-ON-CONFLICT no-op and returns no rows; no event or push is emitted. This means:
+The notify fires **only when `.returning({ id })` returns a row** — i.e. when a
+genuinely new or revived pending row was written. A re-send against a
+live-pending or accepted pair is a Drizzle ON-CONFLICT no-op and returns no
+rows; no event or push is emitted. This means:
 
 - A cannot use repeated sends to infer whether B accepted (push silence ≠ accepted).
 - A cannot spam B's notifications by re-sending the same request.
 
 ## Recipient-scoped delivery
 
-The WS event carries only `tenantId + recipientSub`. The gateway iterates **all connected sockets**
-and matches on the verified `(tenantId, sub)` stored at authentication time — never client-supplied
-input. Two subs are emitted (`externalIdentityId` and `argusid:<argusId>`) so sockets authenticated
-under either token family receive the nudge (copied from the Welcome-delivery pattern).
+The WS event carries only `tenantId + recipientSub`. The gateway iterates **all
+connected sockets** and matches on the verified `(tenantId, sub)` stored at
+authentication time — never client-supplied input. Two subs are emitted
+(`externalIdentityId` and `argusid:<argusId>`) so sockets authenticated under
+either token family receive the nudge (copied from the Welcome-delivery
+pattern).
 
 The push notification fan-out uses the recipient's internal `userId` to query `push_subscriptions`
 within a `withTenant` transaction (RLS active), preventing cross-tenant reads.
@@ -50,8 +54,9 @@ friend-request send-rate limit on the HTTP layer and the 14-day TTL on pending r
 
 ## Metadata exposure
 
-The push payload `{type:'friend_request'}` confirms to an attacker with access to the push service
-that a friend request event occurred for this subscription. This matches the existing `new_message`
-push posture (confirmed in `docs/threat-models/web-push.md`): the push service sees only an opaque
-delivery, and the payload type is the minimal signal needed for the client to display a useful OS
-notification.
+The push payload `{type:'friend_request'}` confirms to an attacker with access
+to the push service that a friend request event occurred for this subscription.
+This matches the existing `new_message` push posture (confirmed in
+`docs/threat-models/web-push.md`): the push service sees only an opaque
+delivery, and the payload type is the minimal signal needed for the client to
+display a useful OS notification.

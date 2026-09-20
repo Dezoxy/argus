@@ -39,7 +39,8 @@ Audit date: 2026-06-11. Tool: `@axe-core/playwright` v4.11.x, Chromium.
 - Landing page `/`
 - Image attachment preview (skipped when no seed image is visible)
 
-All views must pass with **zero axe violations** tagged `wcag2a`, `wcag2aa`, `wcag21a`, `wcag21aa`.
+All views must pass with **zero axe violations** tagged `wcag2a`, `wcag2aa`,
+`wcag21a`, `wcag21aa`.
 
 ---
 
@@ -71,15 +72,23 @@ All views must pass with **zero axe violations** tagged `wcag2a`, `wcag2aa`, `wc
 
 ## Deferred items (not a WCAG 2.1 AA violation)
 
-- **Target size 44×44 px** (WCAG 2.5.5) — this is a **AAA** criterion under WCAG 2.1, not AA. Several icon buttons are smaller. Will be revisited if WCAG 2.2 AA is targeted.
-- **Live screen-reader pass (NVDA/VoiceOver)** — automated axe covers structural and role correctness; a manual AT pass is out of scope for this sprint but recommended before GA.
-- **`text-white/40` on icon-only interactive controls** — passes WCAG 1.4.11 (non-text contrast 3:1); kept at `/40` to preserve visual hierarchy. If the design bar is raised to AAA text contrast uniformly, bump to `/60`.
+- **Target size 44×44 px** (WCAG 2.5.5) — this is a **AAA** criterion under WCAG
+  2.1, not AA. Several icon buttons are smaller. Will be revisited if WCAG 2.2
+  AA is targeted.
+- **Live screen-reader pass (NVDA/VoiceOver)** — automated axe covers structural
+  and role correctness; a manual AT pass is out of scope for this sprint but
+  recommended before GA.
+- **`text-white/40` on icon-only interactive controls** — passes WCAG 1.4.11
+  (non-text contrast 3:1); kept at `/40` to preserve visual hierarchy. If the
+  design bar is raised to AAA text contrast uniformly, bump to `/60`.
 
 ---
 
 ## Security invariant check
 
-This checkpoint touches only frontend presentation layer — no new server paths, no new data stored or transmitted, no crypto changes. All six invariants from `AGENTS.md` are unaffected.
+This checkpoint touches only frontend presentation layer — no new server paths,
+no new data stored or transmitted, no crypto changes. All six invariants from
+`AGENTS.md` are unaffected.
 
 ---
 

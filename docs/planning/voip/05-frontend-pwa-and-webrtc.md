@@ -1,18 +1,44 @@
 # 05 — Frontend PWA & WebRTC client
 
-> Part of the argus VoIP planning set. Siblings: [00 — Overview & goals](./00-overview-and-goals.md) · [01 — Architecture & E2EE crypto model](./01-architecture-and-crypto-model.md) · [02 — Signaling protocol & call state machine](./02-signaling-protocol-and-state-machine.md) · [03 — Infrastructure: TURN/coturn & networking](./03-infrastructure-turn-and-networking.md) · [04 — Server API & database](./04-server-api-and-database.md) · [06 — Threat model & privacy](./06-threat-model-and-privacy.md) · [08 — Roadmap & delivery slices](./08-roadmap-and-delivery-slices.md) · [09 — Decision log & open questions](./09-decision-log-and-open-questions.md)
+> Part of the argus VoIP planning set. Siblings: [00 — Overview &
+> goals](./00-overview-and-goals.md) · [01 — Architecture & E2EE crypto
+> model](./01-architecture-and-crypto-model.md) · [02 — Signaling protocol &
+> call state machine](./02-signaling-protocol-and-state-machine.md) · [03 —
+> Infrastructure: TURN/coturn &
+> networking](./03-infrastructure-turn-and-networking.md) · [04 — Server API &
+> database](./04-server-api-and-database.md) · [06 — Threat model &
+> privacy](./06-threat-model-and-privacy.md) · [08 — Roadmap & delivery
+> slices](./08-roadmap-and-delivery-slices.md) · [09 — Decision log & open
+> questions](./09-decision-log-and-open-questions.md)
 >
-> **Locked scope this file conforms to:** the **V1 client is 1:1 AUDIO only**, **relay-only**, **foreground-ring only** (both apps open), **single-device per user**. **Video, ICE-restart/reconnection, push-wake + missed-call ledger, multi-device ring-all, and the metadata/prune chain are explicitly V1.1** (see [00 §4](./00-overview-and-goals.md) for the rationale and [08](./08-roadmap-and-delivery-slices.md) for the slice cut). WebRTC P2P media with a self-hosted coturn relay; IP privacy as a per-user setting **defaulting to relay-only**; **PWA only** (Capacitor is future). Media is E2EE browser-to-browser via DTLS-SRTP; coturn relays encrypted SRTP and never terminates media crypto (invariant 1).
+> **Locked scope this file conforms to:** the **V1 client is 1:1 AUDIO only**,
+> **relay-only**, **foreground-ring only** (both apps open), **single-device per
+> user**. **Video, ICE-restart/reconnection, push-wake + missed-call ledger,
+> multi-device ring-all, and the metadata/prune chain are explicitly V1.1** (see
+> [00 §4](./00-overview-and-goals.md) for the rationale and
+> [08](./08-roadmap-and-delivery-slices.md) for the slice cut). WebRTC P2P media
+> with a self-hosted coturn relay; IP privacy as a per-user setting **defaulting
+> to relay-only**; **PWA only** (Capacitor is future). Media is E2EE
+> browser-to-browser via DTLS-SRTP; coturn relays encrypted SRTP and never
+> terminates media crypto (invariant 1).
 
-This document is the client half of the plan: the WebRTC engine inside `apps/web`, the call UI state machine and where its components/hooks live, the **honest** PWA limitations for calling plus realistic mitigations, the V1.1 reconnection/ICE-restart UX, accessibility, and the Playwright e2e strategy with mocked media. Code below is **sketch-level** — enough to map each phase to PR-sized slices, not final implementation.
+This document is the client half of the plan: the WebRTC engine inside
+`apps/web`, the call UI state machine and where its components/hooks live, the
+**honest** PWA limitations for calling plus realistic mitigations, the V1.1
+reconnection/ICE-restart UX, accessibility, and the Playwright e2e strategy with
+mocked media. Code below is **sketch-level** — enough to map each phase to
+PR-sized slices, not final implementation.
 
-The file is written audio-first: anything video- or V1.1-only is **explicitly tagged `[V1.1]`** so the audio core stays legible and the slice cut in [08](./08-roadmap-and-delivery-slices.md) maps 1:1 to it.
+The file is written audio-first: anything video- or V1.1-only is **explicitly
+tagged `[V1.1]`** so the audio core stays legible and the slice cut in
+[08](./08-roadmap-and-delivery-slices.md) maps 1:1 to it.
 
 ---
 
 ## 0. Receivability terminology (used precisely everywhere)
 
-Per the chair ruling (S7), this plan never uses "ring"/"ringing" as a catch-all. Three distinct terms, used exactly:
+Per the chair ruling (S7), this plan never uses "ring"/"ringing" as a catch-all.
+Three distinct terms, used exactly:
 
 | Term | What it is | When it fires |
 |---|---|---|
@@ -20,13 +46,18 @@ Per the chair ruling (S7), this plan never uses "ring"/"ringing" as a catch-all.
 | **wake-banner** `[V1.1]` | An Android push that wakes a backgrounded PWA and shows a high-priority "Incoming call" banner that *usually* fires reliably. | Android, backgrounded PWA, V1.1 push-wake. |
 | **tap-to-join banner** `[V1.1]` | An iOS notification that is **not a ring** — no ringtone, no auto-launch, no lock-screen call UI. The user must *tap* it to open the app and join. | iOS, backgrounded/locked PWA, V1.1 push-wake. |
 
-The iOS-locked path is **never** called "ringing." If a hard "rings a locked phone" requirement appears, that is a Capacitor decision fork, not a PWA deferral (see [09 Q4](./09-decision-log-and-open-questions.md)).
+The iOS-locked path is **never** called "ringing." If a hard "rings a locked
+phone" requirement appears, that is a Capacitor decision fork, not a PWA
+deferral (see [09 Q4](./09-decision-log-and-open-questions.md)).
 
 ---
 
 ## 1. Where this lives in the existing tree
 
-The grounding pass mapped the exact insertion points. Nothing about media exists yet (`grep` for `getUserMedia`/`RTCPeerConnection`/`MediaStream` across `apps/web/src` returns zero), so this is greenfield against a known-good realtime spine.
+The grounding pass mapped the exact insertion points. Nothing about media exists
+yet (`grep` for `getUserMedia`/`RTCPeerConnection`/`MediaStream` across
+`apps/web/src` returns zero), so this is greenfield against a known-good
+realtime spine.
 
 | Concern | New/changed file | Notes |
 |---|---|---|
@@ -42,7 +73,12 @@ The grounding pass mapped the exact insertion points. Nothing about media exists
 | Relay-only setting UI | `apps/web/src/features/settings/` | Toggle bound to the per-user preference (column on `users` per [04](./04-server-api-and-database.md)). |
 | E2E | `apps/web/e2e/call.spec.ts` (new) + demo/fake media path | `context.grantPermissions(['microphone'])` + fake `getUserMedia`; DoD gates merges on the `e2e` job. |
 
-**Store choice:** the app has **no global store** (no Redux/Zustand) — state is React Context + hooks. Keep that. Call state belongs in a `useCall` hook plus a thin `CallContext` so `ChatHeader` (trigger) and a top-level `<CallLayer/>` (modals) can both reach it without prop-drilling through `ChatScreen`. Do **not** introduce a state library for one feature (project rule: no premature abstraction).
+**Store choice:** the app has **no global store** (no Redux/Zustand) — state is
+React Context + hooks. Keep that. Call state belongs in a `useCall` hook plus a
+thin `CallContext` so `ChatHeader` (trigger) and a top-level `<CallLayer/>`
+(modals) can both reach it without prop-drilling through `ChatScreen`. Do
+**not** introduce a state library for one feature (project rule: no premature
+abstraction).
 
 ---
 
@@ -50,7 +86,9 @@ The grounding pass mapped the exact insertion points. Nothing about media exists
 
 ### 2.1 The `RTCPeerConnection` lifecycle
 
-One `RTCPeerConnection` per call. The wrapper (`lib/peer-connection.ts`) is deliberately UI-free so it can be unit-tested and reasoned about independently of React re-renders.
+One `RTCPeerConnection` per call. The wrapper (`lib/peer-connection.ts`) is
+deliberately UI-free so it can be unit-tested and reasoned about independently
+of React re-renders.
 
 ```ts
 // apps/web/src/lib/peer-connection.ts  (sketch)
@@ -96,11 +134,19 @@ export function createPeer(opts: {
 new → connecting → connected → (disconnected ⇄ connecting on transient loss) → failed | closed
 ```
 
-`connectionState` (the aggregate) is what UI binds to; `iceConnectionState` is finer-grained and used only for diagnostics/logging-as-metadata. In V1, the `disconnected ⇄ connecting` self-heal is whatever the browser does for free — **we do not drive an ICE restart** (that's `[V1.1]`, §4).
+`connectionState` (the aggregate) is what UI binds to; `iceConnectionState` is
+finer-grained and used only for diagnostics/logging-as-metadata. In V1, the
+`disconnected ⇄ connecting` self-heal is whatever the browser does for free —
+**we do not drive an ICE restart** (that's `[V1.1]`, §4).
 
 ### 2.2 Offer/answer flow (caller and callee)
 
-Perfect-negotiation is overkill for strict 1:1 audio with a clear initiator — keep it simple with an explicit caller/callee role derived from who pressed the button. (Glare is near-impossible in 1:1 with a human-initiated call and a server-ordered signaling channel; the `initiator_user_id` on the call frame is the tiebreak if it ever happens — reject the later offer with `call_end{reason:'glare'}`.)
+Perfect-negotiation is overkill for strict 1:1 audio with a clear initiator —
+keep it simple with an explicit caller/callee role derived from who pressed the
+button. (Glare is near-impossible in 1:1 with a human-initiated call and a
+server-ordered signaling channel; the `initiator_user_id` on the call frame is
+the tiebreak if it ever happens — reject the later offer with
+`call_end{reason:'glare'}`.)
 
 ```
 Caller                                   Callee
@@ -121,7 +167,8 @@ DTLS-SRTP handshake (E2EE, browser↔browser)
 connected → audio flows (always via coturn relay in V1; default relay-only)
 ```
 
-`[V1.1]` Video adds a second `addTrack` (video) and the camera-acquisition rules of §2.3; the flow is otherwise identical.
+`[V1.1]` Video adds a second `addTrack` (video) and the camera-acquisition rules
+of §2.3; the flow is otherwise identical.
 
 ### 2.3 `getUserMedia` — audio (V1) and video `[V1.1]`
 
@@ -136,28 +183,57 @@ export async function getLocalStream(kind: 'audio' | 'video' /* [V1.1] */) {
 }
 ```
 
-- **V1 requests audio only** — an audio call must never trigger a camera prompt. `[V1.1]` the camera is requested only for video calls.
-- **Must** acquire media on the caller **before** sending the offer, and on the callee **only after accept** (don't light the mic — and `[V1.1]` the camera LED — while a call is merely ringing — a privacy expectation and a battery cost).
-- Permission state is read via `navigator.permissions.query({ name: 'microphone' })` to pre-flight the UI ("mic blocked — fix in browser settings") rather than failing mid-call. `[V1.1]` adds `'camera'`.
+- **V1 requests audio only** — an audio call must never trigger a camera prompt.
+  `[V1.1]` the camera is requested only for video calls.
+- **Must** acquire media on the caller **before** sending the offer, and on the
+  callee **only after accept** (don't light the mic — and `[V1.1]` the camera
+  LED — while a call is merely ringing — a privacy expectation and a battery
+  cost).
+- Permission state is read via `navigator.permissions.query({ name: 'microphone'
+  })` to pre-flight the UI ("mic blocked — fix in browser settings") rather than
+  failing mid-call. `[V1.1]` adds `'camera'`.
 
 ### 2.4 Relay-only enforcement (the privacy default)
 
-This is a locked decision and the highest-value privacy control in the whole feature. Two layers, both required:
+This is a locked decision and the highest-value privacy control in the whole
+feature. Two layers, both required:
 
 | Layer | Mechanism | Why both |
 |---|---|---|
 | Client | `iceTransportPolicy: 'relay'` when the user setting is relay-only (default) | Browser only generates/uses relay candidates; host/srflx never leave the device. |
 | Credential | Issue **relay-only-capable** TURN creds; for relay-only users the API may scope creds so direct is unusable | Defense-in-depth: a tampered client can't bypass privacy by flipping the flag, because without working STUN reflexive paths and with relay-scoped creds the only route is the relay. (coturn-side enforcement detailed in [03](./03-infrastructure-turn-and-networking.md).) |
 
-> **Honest caveat:** `iceTransportPolicy: 'relay'` is a *client* setting. A modified browser/client could ignore it. That's why the privacy guarantee must also be anchored server/relay-side for relay-only users — the client flag is the UX, the relay scoping is the enforcement. Per [WebRTC Softphone Security — best practices](https://dev.to/sheerbittech/webrtc-softphone-security-explained-encryption-browser-risks-best-practices-n91), forcing `relay` is the standard way to stop private-IP leakage, at the cost of latency and a hard dependency on TURN availability. We accept that cost as the default and let power users opt into `'all'`.
+> **Honest caveat:** `iceTransportPolicy: 'relay'` is a *client* setting. A
+> modified browser/client could ignore it. That's why the privacy guarantee must
+> also be anchored server/relay-side for relay-only users — the client flag is
+> the UX, the relay scoping is the enforcement. Per [WebRTC Softphone Security —
+> best
+> practices](https://dev.to/sheerbittech/webrtc-softphone-security-explained-encryption-browser-risks-best-practices-n91),
+> forcing `relay` is the standard way to stop private-IP leakage, at the cost of
+> latency and a hard dependency on TURN availability. We accept that cost as the
+> default and let power users opt into `'all'`.
 
-Opt-in to direct P2P (`'all'`) is a deliberate, explained setting toggle — the UI must state plainly: *"Faster calls, but the person you call can learn your IP address."*
+Opt-in to direct P2P (`'all'`) is a deliberate, explained setting toggle — the
+UI must state plainly: *"Faster calls, but the person you call can learn your IP
+address."*
 
-> **V1 operational consequence:** because relay-only is the default and coturn is the only media path for every default user, **coturn availability == calling availability**. This makes coturn uptime a **Phase-0 operational concern**, not a P3 nice-to-have: Phase-0 ships a coturn health/uptime alert and a one-page runbook stub (TURN down / over quota / cert expired), and the compose sketch carries a coturn healthcheck — see [03 §3.1](./03-infrastructure-turn-and-networking.md) and [08 P0](./08-roadmap-and-delivery-slices.md).
+> **V1 operational consequence:** because relay-only is the default and coturn
+> is the only media path for every default user, **coturn availability ==
+> calling availability**. This makes coturn uptime a **Phase-0 operational
+> concern**, not a P3 nice-to-have: Phase-0 ships a coturn health/uptime alert
+> and a one-page runbook stub (TURN down / over quota / cert expired), and the
+> compose sketch carries a coturn healthcheck — see [03
+> §3.1](./03-infrastructure-turn-and-networking.md) and [08
+> P0](./08-roadmap-and-delivery-slices.md).
 
 ### 2.5 Ephemeral TURN credentials
 
-Never ship a static TURN secret to the browser (invariant 2 — no secrets/creds in client or logs). Use the standard **time-limited REST credential** scheme ([WebRTC Softphone Security](https://dev.to/sheerbittech/webrtc-softphone-security-explained-encryption-browser-risks-best-practices-n91): "Never run an open relay; use REST API time-limited credentials… a token grants access for only the duration of that call"):
+Never ship a static TURN secret to the browser (invariant 2 — no secrets/creds
+in client or logs). Use the standard **time-limited REST credential** scheme
+([WebRTC Softphone
+Security](https://dev.to/sheerbittech/webrtc-softphone-security-explained-encryption-browser-risks-best-practices-n91):
+"Never run an open relay; use REST API time-limited credentials… a token grants
+access for only the duration of that call"):
 
 ```ts
 // apps/web/src/lib/turn-credentials.ts  (sketch)
@@ -173,25 +249,65 @@ export async function fetchTurnCreds(): Promise<RTCIceServer[]> {
 }
 ```
 
-- Creds are fetched **per call attempt**, valid for **600s** ([09 Q6](./09-decision-log-and-open-questions.md)), and never logged (the HMAC credential is a secret-class value).
-- The API endpoint must be authenticated + tenant-scoped and gated on an **accepted friendship** with the callee (currently friendships do *not* gate messaging — this gate would be **new** logic; see [04](./04-server-api-and-database.md)).
+- Creds are fetched **per call attempt**, valid for **600s** ([09
+  Q6](./09-decision-log-and-open-questions.md)), and never logged (the HMAC
+  credential is a secret-class value).
+- The API endpoint must be authenticated + tenant-scoped and gated on an
+  **accepted friendship** with the callee (currently friendships do *not* gate
+  messaging — this gate would be **new** logic; see
+  [04](./04-server-api-and-database.md)).
 
 ### 2.6 Crypto-blindness of signaling **and authenticated sender** (invariants 1 & 4)
 
-SDP and ICE candidates are metadata-revealing (codecs, IPs, relay addresses). Per [02](./02-signaling-protocol-and-state-machine.md), signaling payloads ride **inside MLS ciphertext** — the client encrypts `{kind:'call.offer'|'call.answer'|'call.ice'|'call.end', ...}` with the conversation's `Conversation.encrypt`, and the server/gateway forwards the opaque blob exactly as it forwards chat ciphertext. The gateway sees `ciphertext/alg/epoch` only; it never parses SDP.
+SDP and ICE candidates are metadata-revealing (codecs, IPs, relay addresses).
+Per [02](./02-signaling-protocol-and-state-machine.md), signaling payloads ride
+**inside MLS ciphertext** — the client encrypts
+`{kind:'call.offer'|'call.answer'|'call.ice'|'call.end', ...}` with the
+conversation's `Conversation.encrypt`, and the server/gateway forwards the
+opaque blob exactly as it forwards chat ciphertext. The gateway sees
+`ciphertext/alg/epoch` only; it never parses SDP.
 
-**This is NOT zero-new-crypto.** The MITM defense — binding the call to a verified sender so a malicious server can't splice in its own offer — requires the client to know *which MLS member encrypted the call signal*. Today `packages/crypto`'s `decrypt()` returns a **bare string and surfaces no sender identity**. So V1 needs a **new, crypto-reviewer-gated authenticated-sender decrypt path** in `packages/crypto` that returns `{ plaintext, senderLeafIndex/senderCredential }`, letting `useCall` reject any `call_offer` whose authenticated sender is not the expected conversation peer. **This new path is a hard Phase-0 predecessor of the first connecting call** — without it there is no sender authentication and the "server is crypto-blind but calls are still MITM-safe" claim does not hold. Do not describe this as "reuse only." See [01](./01-architecture-and-crypto-model.md) and the Phase-0 line in [08](./08-roadmap-and-delivery-slices.md).
+**This is NOT zero-new-crypto.** The MITM defense — binding the call to a
+verified sender so a malicious server can't splice in its own offer — requires
+the client to know *which MLS member encrypted the call signal*. Today
+`packages/crypto`'s `decrypt()` returns a **bare string and surfaces no sender
+identity**. So V1 needs a **new, crypto-reviewer-gated authenticated-sender
+decrypt path** in `packages/crypto` that returns `{ plaintext,
+senderLeafIndex/senderCredential }`, letting `useCall` reject any `call_offer`
+whose authenticated sender is not the expected conversation peer. **This new
+path is a hard Phase-0 predecessor of the first connecting call** — without it
+there is no sender authentication and the "server is crypto-blind but calls are
+still MITM-safe" claim does not hold. Do not describe this as "reuse only." See
+[01](./01-architecture-and-crypto-model.md) and the Phase-0 line in
+[08](./08-roadmap-and-delivery-slices.md).
 
-The DTLS-SRTP fingerprint may **additionally** `[V1.1]` be bound to the MLS exporter secret (`mlsExporter`, available but unexposed today) — but per the chair ruling ([09 Q5](./09-decision-log-and-open-questions.md)) the exporter binding is **not in V1**; the exporter shim is an async follow-up (see [08 S12](./08-roadmap-and-delivery-slices.md)). **Media itself is E2EE by DTLS-SRTP regardless** — coturn relays ciphertext.
+The DTLS-SRTP fingerprint may **additionally** `[V1.1]` be bound to the MLS
+exporter secret (`mlsExporter`, available but unexposed today) — but per the
+chair ruling ([09 Q5](./09-decision-log-and-open-questions.md)) the exporter
+binding is **not in V1**; the exporter shim is an async follow-up (see [08
+S12](./08-roadmap-and-delivery-slices.md)). **Media itself is E2EE by DTLS-SRTP
+regardless** — coturn relays ciphertext.
 
 ### 2.7 Trickle ICE
 
-Trickle is mandatory, not optional — it's the difference between ~1s and ~5s call setup. Each local candidate is sent immediately via `call_ice` as `onicecandidate` fires; remote candidates are `addIceCandidate`'d as they arrive.
+Trickle is mandatory, not optional — it's the difference between ~1s and ~5s
+call setup. Each local candidate is sent immediately via `call_ice` as
+`onicecandidate` fires; remote candidates are `addIceCandidate`'d as they
+arrive.
 
-> **Hard problem flagged in grounding:** the realtime layer is **best-effort, drop-if-offline, no backfill**. For chat, REST backfill saves a dropped frame. **Call signaling has no backfill — a dropped ICE candidate or offer silently breaks the call.** V1 mitigations:
-> - **End-of-candidates + short buffer:** the *initiating* side may also generate a non-trickle full offer as a fallback; or buffer the candidate list and resend on `iceConnectionState === 'disconnected'`.
-> - **Bounded resend:** resend unacked offer/answer up to N times with backoff until the peer's first ICE arrives (implicit ack).
-> - **Correct failure mode (V1):** if signaling can't complete, the call **fails fast** with a clear "Couldn't connect" — never a silent black screen. This is the right failure mode and is acceptable for V1. (Mid-call ICE-restart recovery is `[V1.1]`, §4.)
+> **Hard problem flagged in grounding:** the realtime layer is **best-effort,
+> drop-if-offline, no backfill**. For chat, REST backfill saves a dropped frame.
+> **Call signaling has no backfill — a dropped ICE candidate or offer silently
+> breaks the call.** V1 mitigations:
+> - **End-of-candidates + short buffer:** the *initiating* side may also
+>   generate a non-trickle full offer as a fallback; or buffer the candidate
+>   list and resend on `iceConnectionState === 'disconnected'`.
+> - **Bounded resend:** resend unacked offer/answer up to N times with backoff
+>   until the peer's first ICE arrives (implicit ack).
+> - **Correct failure mode (V1):** if signaling can't complete, the call **fails
+>   fast** with a clear "Couldn't connect" — never a silent black screen. This
+>   is the right failure mode and is acceptable for V1. (Mid-call ICE-restart
+>   recovery is `[V1.1]`, §4.)
 
 ### 2.8 In-call controls
 
@@ -210,7 +326,9 @@ Trickle is mandatory, not optional — it's the difference between ~1s and ~5s c
 
 ### 3.1 States
 
-The **V1 state machine** is the solid path below. `reconnecting` is `[V1.1]` (dashed): in V1, transport loss that the browser can't self-heal goes straight to `ended{reason:'connection-lost'}`.
+The **V1 state machine** is the solid path below. `reconnecting` is `[V1.1]`
+(dashed): in V1, transport loss that the browser can't self-heal goes straight
+to `ended{reason:'connection-lost'}`.
 
 ```
         ┌─────────┐  start (caller)      ┌─────────┐
@@ -274,36 +392,71 @@ export function useCall(deps: { signaling: CallSignaling; conversation: Conversa
 }
 ```
 
-`CallContext` wraps `useCall` once near `ChatScreen` so `ChatHeader` triggers it and a top-level `<CallLayer/>` renders the modals/screen. Demo mode (`VITE_DEMO_MODE=1`, which nulls the real managers) needs a fake signaling + fake media path so the UI is e2e-testable (§6).
+`CallContext` wraps `useCall` once near `ChatScreen` so `ChatHeader` triggers it
+and a top-level `<CallLayer/>` renders the modals/screen. Demo mode
+(`VITE_DEMO_MODE=1`, which nulls the real managers) needs a fake signaling +
+fake media path so the UI is e2e-testable (§6).
 
 ### 3.3 Single-device per user (V1)
 
-V1 is **single-device per user** — this is one of the simplifications the audio-first cut buys (it also sidesteps the multi-device-MLS prerequisite; see [00 §4](./00-overview-and-goals.md)). The gateway routes per `(tenant, sub)` and has **no `deviceId` dimension**, so an incoming-call notify already fans out to all of a user's sockets; in V1 we assume **one active socket per user** and do not implement answered-elsewhere arbitration.
+V1 is **single-device per user** — this is one of the simplifications the
+audio-first cut buys (it also sidesteps the multi-device-MLS prerequisite; see
+[00 §4](./00-overview-and-goals.md)). The gateway routes per `(tenant, sub)` and
+has **no `deviceId` dimension**, so an incoming-call notify already fans out to
+all of a user's sockets; in V1 we assume **one active socket per user** and do
+not implement answered-elsewhere arbitration.
 
-`[V1.1] multi-device ring-all`: every device rings, the **first to accept wins**, and the accept broadcasts a `call_cancel`-style frame so the others stop ringing (CallKit-style "answered elsewhere"). True per-device addressing requires adding a device dimension to `VerifiedAuth` — out of scope for V1, noted in [02](./02-signaling-protocol-and-state-machine.md).
+`[V1.1] multi-device ring-all`: every device rings, the **first to accept
+wins**, and the accept broadcasts a `call_cancel`-style frame so the others stop
+ringing (CallKit-style "answered elsewhere"). True per-device addressing
+requires adding a device dimension to `VerifiedAuth` — out of scope for V1,
+noted in [02](./02-signaling-protocol-and-state-machine.md).
 
 ---
 
 ## 4. Reconnection & ICE-restart UX — `[V1.1]`
 
-> **This entire section is V1.1.** In V1, a `failed` connection ends the call with a clear "Couldn't connect / call again" message — there is no in-call recovery. The cut is deliberate (see [00 §4](./00-overview-and-goals.md) and [08](./08-roadmap-and-delivery-slices.md)).
+> **This entire section is V1.1.** In V1, a `failed` connection ends the call
+> with a clear "Couldn't connect / call again" message — there is no in-call
+> recovery. The cut is deliberate (see [00 §4](./00-overview-and-goals.md) and
+> [08](./08-roadmap-and-delivery-slices.md)).
 
-Network changes (Wi-Fi→cellular, NAT rebind) are the common case, not the exception, so V1.1 adds:
+Network changes (Wi-Fi→cellular, NAT rebind) are the common case, not the
+exception, so V1.1 adds:
 
-- On `connectionState === 'disconnected'`: enter `reconnecting`, keep playing the last audio buffer, **don't** tear down — many disconnects self-heal in seconds.
-- On `connectionState === 'failed'`: perform an **ICE restart** — `pc.createOffer({ iceRestart: true })`, send a fresh `call_offer` over signaling, re-gather candidates (re-fetch TURN creds if the old ones expired, §2.5).
-- Give-up timer (e.g. 30s in `reconnecting`) → `ended{reason:'connection-lost'}` with a clear message and a "Call again" affordance.
-- The DTLS-SRTP session survives an ICE restart (only transport changes), so no re-keying is needed.
+- On `connectionState === 'disconnected'`: enter `reconnecting`, keep playing
+  the last audio buffer, **don't** tear down — many disconnects self-heal in
+  seconds.
+- On `connectionState === 'failed'`: perform an **ICE restart** —
+  `pc.createOffer({ iceRestart: true })`, send a fresh `call_offer` over
+  signaling, re-gather candidates (re-fetch TURN creds if the old ones expired,
+  §2.5).
+- Give-up timer (e.g. 30s in `reconnecting`) → `ended{reason:'connection-lost'}`
+  with a clear message and a "Call again" affordance.
+- The DTLS-SRTP session survives an ICE restart (only transport changes), so no
+  re-keying is needed.
 
-> **Operational note (carried into V1.1):** a **coturn restart drops ALL active relayed calls**, and ICE-restart is the only recovery — which is precisely why reconnection lands with V1.1 push-wake rather than V1. See the failure-modes row in [08](./08-roadmap-and-delivery-slices.md) and [06 §11](./06-threat-model-and-privacy.md). coturn must run `restart: unless-stopped` and be **excluded from routine `--force-recreate`** unless its config/image actually changed.
+> **Operational note (carried into V1.1):** a **coturn restart drops ALL active
+> relayed calls**, and ICE-restart is the only recovery — which is precisely why
+> reconnection lands with V1.1 push-wake rather than V1. See the failure-modes
+> row in [08](./08-roadmap-and-delivery-slices.md) and [06
+> §11](./06-threat-model-and-privacy.md). coturn must run `restart:
+> unless-stopped` and be **excluded from routine `--force-recreate`** unless its
+> config/image actually changed.
 
-Because signaling has no backfill (§2.7), the ICE-restart offer itself can be lost — apply the same bounded-resend tactic to the restart offer.
+Because signaling has no backfill (§2.7), the ICE-restart offer itself can be
+lost — apply the same bounded-resend tactic to the restart offer.
 
 ---
 
 ## 5. HONEST PWA limitations & mitigations
 
-This is the section to **not** sugarcoat. argus is PWA-only today; native wrappers (Capacitor) are future. Calling is the single hardest feature to deliver well in a PWA, and the limits are real. **V1's foreground-ring-only scope sidesteps the worst of these** (no push-wake means iOS receivability is not over-promised); the push-dependent mitigations below are therefore tagged `[V1.1]`.
+This is the section to **not** sugarcoat. argus is PWA-only today; native
+wrappers (Capacitor) are future. Calling is the single hardest feature to
+deliver well in a PWA, and the limits are real. **V1's foreground-ring-only
+scope sidesteps the worst of these** (no push-wake means iOS receivability is
+not over-promised); the push-dependent mitigations below are therefore tagged
+`[V1.1]`.
 
 ### 5.1 The limitations
 
@@ -318,29 +471,75 @@ This is the section to **not** sugarcoat. argus is PWA-only today; native wrappe
 
 ### 5.2 Declarative Web Push — a partial improvement, not a fix `[V1.1]`
 
-Safari 18.5 / WWDC 2025 introduced **Declarative Web Push**: the push payload itself declaratively describes the notification, reducing JS overhead and improving delivery reliability ([WWDC 2025 — Declarative Web Push](https://dev.to/arshtechpro/wwdc-2025-declarative-web-push-dn4)). This **helps** the V1.1 "show a reliable incoming-call notification" path but does **not** grant CallKit-style ringing — it's a more reliable **tap-to-join banner**, still tap-to-act, still installed-PWA-only on iOS.
+Safari 18.5 / WWDC 2025 introduced **Declarative Web Push**: the push payload
+itself declaratively describes the notification, reducing JS overhead and
+improving delivery reliability ([WWDC 2025 — Declarative Web
+Push](https://dev.to/arshtechpro/wwdc-2025-declarative-web-push-dn4)). This
+**helps** the V1.1 "show a reliable incoming-call notification" path but does
+**not** grant CallKit-style ringing — it's a more reliable **tap-to-join
+banner**, still tap-to-act, still installed-PWA-only on iOS.
 
 ### 5.3 Mitigations (tiered)
 
 **Must (V1):**
-- **Foreground ring is the primary — and only — V1 path.** When the PWA is open/visible, **ring** via WS instantly (no push dependency) with an in-app `IncomingCallModal` + ringtone (played after the first user gesture in the session to satisfy autoplay; otherwise fall back to a visual-only ring + the OS notification sound).
-- **Set honest expectations in-product.** A one-time explainer: *"Calls work best with argus open on both devices. You'll see an incoming call only while argus is open. Reliable background calling is coming."* Don't let users discover this via a missed call. Surface **call-readiness as a warning, not a hard block** ([09 Q4](./09-decision-log-and-open-questions.md)).
-- **Screen Wake Lock during active calls.** Acquire `navigator.wakeLock.request('screen')` on `in-call` so the screen doesn't sleep mid-call; release on end. Re-acquire on `visibilitychange` (the lock is dropped when the tab is hidden).
-- **Handle permission denial gracefully.** If `getUserMedia` throws `NotAllowedError`/`NotFoundError`: don't crash the call — show "Microphone access is blocked. Enable it in your browser settings to make calls," with a deep-link hint. Pre-flight with `permissions.query` so the trigger button can warn before dialing.
-- **Autoplay-safe remote media.** Attach the remote stream to an `<audio autoplay>` element; call `.play()` inside the accept gesture; if it rejects, surface a "Tap to unmute" control rather than failing silently. (`[V1.1]` video uses `<video autoplay playsinline>` — `playsinline` is mandatory on iOS or video goes fullscreen.)
+- **Foreground ring is the primary — and only — V1 path.** When the PWA is
+  open/visible, **ring** via WS instantly (no push dependency) with an in-app
+  `IncomingCallModal` + ringtone (played after the first user gesture in the
+  session to satisfy autoplay; otherwise fall back to a visual-only ring + the
+  OS notification sound).
+- **Set honest expectations in-product.** A one-time explainer: *"Calls work
+  best with argus open on both devices. You'll see an incoming call only while
+  argus is open. Reliable background calling is coming."* Don't let users
+  discover this via a missed call. Surface **call-readiness as a warning, not a
+  hard block** ([09 Q4](./09-decision-log-and-open-questions.md)).
+- **Screen Wake Lock during active calls.** Acquire
+  `navigator.wakeLock.request('screen')` on `in-call` so the screen doesn't
+  sleep mid-call; release on end. Re-acquire on `visibilitychange` (the lock is
+  dropped when the tab is hidden).
+- **Handle permission denial gracefully.** If `getUserMedia` throws
+  `NotAllowedError`/`NotFoundError`: don't crash the call — show "Microphone
+  access is blocked. Enable it in your browser settings to make calls," with a
+  deep-link hint. Pre-flight with `permissions.query` so the trigger button can
+  warn before dialing.
+- **Autoplay-safe remote media.** Attach the remote stream to an `<audio
+  autoplay>` element; call `.play()` inside the accept gesture; if it rejects,
+  surface a "Tap to unmute" control rather than failing silently. (`[V1.1]`
+  video uses `<video autoplay playsinline>` — `playsinline` is mandatory on iOS
+  or video goes fullscreen.)
 
 **Should `[V1.1]`:**
-- **Push-wake + missed-call ledger.** Add the content-free `incoming_call` push branch (§5.4) so backgrounded Android gets a **wake-banner** and iOS gets a **tap-to-join banner**. If the callee doesn't join, the caller's `call_end{reason:'no-answer'}` produces a normal encrypted chat "Missed call" so it's visible on next open — graceful degradation. This is where the metadata/ledger + 30-day retention + prune chain lands (see [04](./04-server-api-and-database.md), [09 Q3](./09-decision-log-and-open-questions.md)).
-- **Connection-quality indicator** from `getStats()` (bitrate/packet-loss) shown as bars; metadata only.
+- **Push-wake + missed-call ledger.** Add the content-free `incoming_call` push
+  branch (§5.4) so backgrounded Android gets a **wake-banner** and iOS gets a
+  **tap-to-join banner**. If the callee doesn't join, the caller's
+  `call_end{reason:'no-answer'}` produces a normal encrypted chat "Missed call"
+  so it's visible on next open — graceful degradation. This is where the
+  metadata/ledger + 30-day retention + prune chain lands (see
+  [04](./04-server-api-and-database.md), [09
+  Q3](./09-decision-log-and-open-questions.md)).
+- **Connection-quality indicator** from `getStats()` (bitrate/packet-loss) shown
+  as bars; metadata only.
 
 **Enterprise-optional / future:**
-- **Capacitor wrapper** to get real CallKit/ConnectionService, true lock-screen **ring**, and background call UI. This is the *only* way to match native calling reliability and is explicitly a future phase. If "rings a locked phone" ever becomes a hard requirement, Capacitor is a **V1 prerequisite — a decision fork, not a deferral** ([09 Q4](./09-decision-log-and-open-questions.md)). Documented here so the PWA architecture (signaling, peer wrapper, hooks) stays wrapper-portable.
+- **Capacitor wrapper** to get real CallKit/ConnectionService, true lock-screen
+  **ring**, and background call UI. This is the *only* way to match native
+  calling reliability and is explicitly a future phase. If "rings a locked
+  phone" ever becomes a hard requirement, Capacitor is a **V1 prerequisite — a
+  decision fork, not a deferral** ([09
+  Q4](./09-decision-log-and-open-questions.md)). Documented here so the PWA
+  architecture (signaling, peer wrapper, hooks) stays wrapper-portable.
 
-> **Bottom line for the solo EU dev:** **V1 PWA calling is good when both users have the app open** (real **ring**), and that is the only thing it promises. `[V1.1]` adds an **acceptable** tier when installed + notifications on (Android wake-banner; iOS tap-to-join banner), and **never** promises WhatsApp-grade ringing of a locked iPhone without Capacitor.
+> **Bottom line for the solo EU dev:** **V1 PWA calling is good when both users
+> have the app open** (real **ring**), and that is the only thing it promises.
+> `[V1.1]` adds an **acceptable** tier when installed + notifications on
+> (Android wake-banner; iOS tap-to-join banner), and **never** promises
+> WhatsApp-grade ringing of a locked iPhone without Capacitor.
 
 ### 5.4 Service-worker push handler sketch — `[V1.1]`
 
-> **V1 has no push-wake.** This handler is the V1.1 deliverable. It extends the existing `apps/web/src/sw.ts` handler (today: generic `{"type":"new_message"}` → "New message"). The push stays **content-free** (invariant 2): no caller name, no conversation id, no SDP — just a type.
+> **V1 has no push-wake.** This handler is the V1.1 deliverable. It extends the
+> existing `apps/web/src/sw.ts` handler (today: generic `{"type":"new_message"}`
+> → "New message"). The push stays **content-free** (invariant 2): no caller
+> name, no conversation id, no SDP — just a type.
 
 ```ts
 // apps/web/src/sw.ts  (additions, sketch) — [V1.1]
@@ -375,30 +574,48 @@ self.addEventListener('notificationclick', (event: NotificationEvent) => {
 });
 ```
 
-The SW deliberately does **not** parse SDP or know who is calling — it surfaces a generic banner; the foreground page does the crypto-aware work after focus. On Android this is a **wake-banner**; on iOS it is a **tap-to-join banner** (not a ring).
+The SW deliberately does **not** parse SDP or know who is calling — it surfaces
+a generic banner; the foreground page does the crypto-aware work after focus. On
+Android this is a **wake-banner**; on iOS it is a **tap-to-join banner** (not a
+ring).
 
 ---
 
 ## 6. Accessibility
 
-The repo already runs `a11y-responsive.spec.ts` + `wcag-audit.spec.ts` in e2e — call UI must not regress them.
+The repo already runs `a11y-responsive.spec.ts` + `wcag-audit.spec.ts` in e2e —
+call UI must not regress them.
 
-- **Roles & focus:** `IncomingCallModal`/`OutgoingCallModal` use the existing `Modal` (focus-trap, `role="dialog"`, `aria-modal`). On a **ring**, move focus to **Accept**; Escape declines.
-- **Live regions:** state changes ("Connecting", `[V1.1]` "Reconnecting", "Call ended") announced via `aria-live="polite"`; an incoming **ring** uses `aria-live="assertive"` (or `role="alert"`).
-- **Buttons:** all controls keyboard-reachable with `aria-label` + `aria-pressed` for toggles (mute; `[V1.1]` camera). The existing `ChatHeader` `Phone`/`Video` buttons already have labels ("Start voice call"/"Start video call") — keep the voice label; the video trigger is `[V1.1]`.
-- **Captions of state, not media:** show textual call status alongside icons (don't rely on color/icon alone — WCAG 1.4.1).
+- **Roles & focus:** `IncomingCallModal`/`OutgoingCallModal` use the existing
+  `Modal` (focus-trap, `role="dialog"`, `aria-modal`). On a **ring**, move focus
+  to **Accept**; Escape declines.
+- **Live regions:** state changes ("Connecting", `[V1.1]` "Reconnecting", "Call
+  ended") announced via `aria-live="polite"`; an incoming **ring** uses
+  `aria-live="assertive"` (or `role="alert"`).
+- **Buttons:** all controls keyboard-reachable with `aria-label` +
+  `aria-pressed` for toggles (mute; `[V1.1]` camera). The existing `ChatHeader`
+  `Phone`/`Video` buttons already have labels ("Start voice call"/"Start video
+  call") — keep the voice label; the video trigger is `[V1.1]`.
+- **Captions of state, not media:** show textual call status alongside icons
+  (don't rely on color/icon alone — WCAG 1.4.1).
 - **Reduced motion:** honor `prefers-reduced-motion` for the ringing pulse animation.
-- **Non-visual ring:** OS notification sound + vibration where available so the call isn't purely visual.
+- **Non-visual ring:** OS notification sound + vibration where available so the
+  call isn't purely visual.
 
 ---
 
 ## 7. Playwright e2e strategy (DoD gate)
 
-The DoD makes the `e2e` CI job gate merges: new user-facing flows get an E2E test, and removed/renamed UI interactions must update their assertions in the same commit. The chat already runs in **demo mode** (`VITE_DEMO_MODE=1`, OIDC blanked, managers nulled, seed data like "Sarah Chen"). Calling needs a fake media + fake signaling path under that flag. V1 specs cover **audio only**.
+The DoD makes the `e2e` CI job gate merges: new user-facing flows get an E2E
+test, and removed/renamed UI interactions must update their assertions in the
+same commit. The chat already runs in **demo mode** (`VITE_DEMO_MODE=1`, OIDC
+blanked, managers nulled, seed data like "Sarah Chen"). Calling needs a fake
+media + fake signaling path under that flag. V1 specs cover **audio only**.
 
 ### 7.1 Fake media
 
-Chromium supports fake devices via launch flags — wire them in `playwright.config.ts` for the call spec (or a dedicated project):
+Chromium supports fake devices via launch flags — wire them in
+`playwright.config.ts` for the call spec (or a dedicated project):
 
 ```ts
 // apps/web/playwright.config.ts  (additions, sketch)
@@ -421,7 +638,9 @@ await context.grantPermissions(['microphone'], { origin: 'http://localhost:5173'
 
 ### 7.2 What to test (single-page, no real second peer)
 
-A true two-browser P2P call is heavy and flaky in CI. For V1 e2e, **mock the signaling + peer** in demo mode so the spec exercises the **UI state machine and controls**, not real ICE:
+A true two-browser P2P call is heavy and flaky in CI. For V1 e2e, **mock the
+signaling + peer** in demo mode so the spec exercises the **UI state machine and
+controls**, not real ICE:
 
 | Spec | Asserts |
 |---|---|
@@ -433,17 +652,28 @@ A true two-browser P2P call is heavy and flaky in CI. For V1 e2e, **mock the sig
 | Relay-only setting | Toggle persists; the demo peer factory receives `iceTransportPolicy:'relay'` by default, `'all'` only after opt-in (assert via an exposed test hook). |
 | A11y | `call.spec` reuses the axe pass; focus lands on Accept; Escape declines. |
 
-> The **real** P2P/ICE/coturn path is verified by an integration smoke (two headless contexts on a dev coturn) **outside** the merge-gating e2e job, because UDP-relay flows in CI are environment-fragile. Keep the merge gate on the deterministic mocked-media specs; run the live two-peer smoke as a non-gating nightly (mirrors the existing nightly DAST posture).
+> The **real** P2P/ICE/coturn path is verified by an integration smoke (two
+> headless contexts on a dev coturn) **outside** the merge-gating e2e job,
+> because UDP-relay flows in CI are environment-fragile. Keep the merge gate on
+> the deterministic mocked-media specs; run the live two-peer smoke as a
+> non-gating nightly (mirrors the existing nightly DAST posture).
 
 ### 7.3 Demo/fake path
 
-`VITE_DEMO_MODE=1` already nulls the real managers; add a `createDemoCallSignaling()` and a `createDemoPeer()` (resolves tracks from the fake device, never opens a real `RTCPeerConnection` unless a flag requests it) so `useCall` is fully drivable from the spec. The demo signaling stub also exposes an authenticated-sender field so the §2.6 rejection path is testable. This mirrors how chat demo seeds render without real auth.
+`VITE_DEMO_MODE=1` already nulls the real managers; add a
+`createDemoCallSignaling()` and a `createDemoPeer()` (resolves tracks from the
+fake device, never opens a real `RTCPeerConnection` unless a flag requests it)
+so `useCall` is fully drivable from the spec. The demo signaling stub also
+exposes an authenticated-sender field so the §2.6 rejection path is testable.
+This mirrors how chat demo seeds render without real auth.
 
 ---
 
 ## 8. Phase → PR-sized slices
 
-Audio-core slices map 1:1 to the ~9-slice critical path in [08](./08-roadmap-and-delivery-slices.md). `[V1.1]` slices are listed but deferred.
+Audio-core slices map 1:1 to the ~9-slice critical path in
+[08](./08-roadmap-and-delivery-slices.md). `[V1.1]` slices are listed but
+deferred.
 
 | Slice | Phase | Scope | Gate |
 |---|---|---|---|
@@ -463,7 +693,17 @@ Audio-core slices map 1:1 to the ~9-slice critical path in [08](./08-roadmap-and
 
 ## Sources
 
-- [WebRTC Softphone Security Explained — Encryption, Browser Risks, Best Practices (2025)](https://dev.to/sheerbittech/webrtc-softphone-security-explained-encryption-browser-risks-best-practices-n91) — `iceTransportPolicy: relay` for IP-leak prevention; time-limited TURN REST credentials; DTLS 1.3 migration.
-- [PWA iOS Limitations and Safari Support — 2026 guide (MagicBell)](https://www.magicbell.com/blog/pwa-ios-limitations-safari-support-complete-guide) — installed-PWA-only push, `userVisibleOnly`, no silent push.
-- [PWA Push Notifications on iOS in 2026: What Really Works](https://webscraft.org/blog/pwa-pushspovischennya-na-ios-u-2026-scho-realno-pratsyuye?lang=en) — iOS 16.4+ requirement, disappearing subscriptions.
-- [WWDC 2025 — Declarative Web Push (DEV)](https://dev.to/arshtechpro/wwdc-2025-declarative-web-push-dn4) — Safari 18.5 declarative push, reduced JS overhead, still tappable banner not CallKit.
+- [WebRTC Softphone Security Explained — Encryption, Browser Risks, Best
+  Practices
+  (2025)](https://dev.to/sheerbittech/webrtc-softphone-security-explained-encryption-browser-risks-best-practices-n91)
+  — `iceTransportPolicy: relay` for IP-leak prevention; time-limited TURN REST
+  credentials; DTLS 1.3 migration.
+- [PWA iOS Limitations and Safari Support — 2026 guide
+  (MagicBell)](https://www.magicbell.com/blog/pwa-ios-limitations-safari-support-complete-guide)
+  — installed-PWA-only push, `userVisibleOnly`, no silent push.
+- [PWA Push Notifications on iOS in 2026: What Really
+  Works](https://webscraft.org/blog/pwa-pushspovischennya-na-ios-u-2026-scho-realno-pratsyuye?lang=en)
+  — iOS 16.4+ requirement, disappearing subscriptions.
+- [WWDC 2025 — Declarative Web Push
+  (DEV)](https://dev.to/arshtechpro/wwdc-2025-declarative-web-push-dn4) — Safari
+  18.5 declarative push, reduced JS overhead, still tappable banner not CallKit.

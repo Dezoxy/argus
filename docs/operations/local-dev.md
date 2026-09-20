@@ -1,11 +1,15 @@
 # Local development (Docker, no Azure)
 
-Run the whole stack on your machine with Docker Compose — the **same** Compose stack that runs in production on the single Azure VM, just with local backing services (MinIO standing in for Backblaze B2) and dev secrets.
+Run the whole stack on your machine with Docker Compose — the **same** Compose
+stack that runs in production on the single Azure VM, just with local backing
+services (MinIO standing in for Backblaze B2) and dev secrets.
 
 ## Prerequisites
 
 - Docker Desktop (or Docker Engine) running
-- Node + pnpm (via `corepack enable`) — required for the documented flow below (`make migrate` / `make seed` / `make api-dev` run on the host and call `pnpm`)
+- Node + pnpm (via `corepack enable`) — required for the documented flow below
+  (`make migrate` / `make seed` / `make api-dev` run on the host and call
+  `pnpm`)
 
 ## Start / stop
 
@@ -19,7 +23,9 @@ make down                  # stop (keeps data)
 make reset                 # stop + wipe data volumes
 ```
 
-The API runs on the host via `make api-dev` — the Compose `api` service is `app`-profile-gated, so `make up` does **not** start it. See [`local-auth.md`](local-auth.md) for the passkey login flow.
+The API runs on the host via `make api-dev` — the Compose `api` service is
+`app`-profile-gated, so `make up` does **not** start it. See
+[`local-auth.md`](local-auth.md) for the passkey login flow.
 
 ## What you get
 
@@ -33,7 +39,8 @@ The API runs on the host via `make api-dev` — the Compose `api` service is `ap
 
 ## Service mapping (local → production)
 
-Production is the **same Compose stack** on the single Azure VM, so the mapping is nearly 1:1:
+Production is the **same Compose stack** on the single Azure VM, so the mapping
+is nearly 1:1:
 
 | Local (Compose) | Production (VM, Docker Compose) |
 |---|---|
@@ -42,11 +49,18 @@ Production is the **same Compose stack** on the single Azure VM, so the mapping 
 | `minio` | Backblaze B2 (S3-compatible) |
 | `api` (built image) | `api` container on the VM (same image) |
 
-Production runs from a separate **`compose.prod.yaml`** (standalone — not layered over this file): self-hosted Postgres + Redis, the `api`, a Caddy single-origin router that serves the PWA + proxies `/api`,`/ws`, and a cloudflared tunnel. The differences are config (B2 vs MinIO, Cloudflare Tunnel ingress, Key Vault secrets, no published ports), not architecture. See `docs/architecture/deploy.md`. This file (`compose.yaml`) stays the local-dev source.
+Production runs from a separate **`compose.prod.yaml`** (standalone — not
+layered over this file): self-hosted Postgres + Redis, the `api`, a Caddy
+single-origin router that serves the PWA + proxies `/api`,`/ws`, and a
+cloudflared tunnel. The differences are config (B2 vs MinIO, Cloudflare Tunnel
+ingress, Key Vault secrets, no published ports), not architecture. See
+`docs/architecture/deploy.md`. This file (`compose.yaml`) stays the local-dev
+source.
 
 ## Develop against it from the host (hot reload)
 
-`make api-dev` runs the API on the host in watch mode (Nest `--watch`) against the Docker backing services. For the PWA with hot reload:
+`make api-dev` runs the API on the host in watch mode (Nest `--watch`) against
+the Docker backing services. For the PWA with hot reload:
 
 ```bash
 pnpm --filter @argus/web dev   # Vite dev server on http://localhost:5173
@@ -55,5 +69,7 @@ pnpm --filter @argus/web dev   # Vite dev server on http://localhost:5173
 ## Notes
 
 - All credentials here are **local-only throwaway values**, never real secrets.
-- Auth is **passkey-only** — Zitadel/OIDC was decommissioned in Phase 6. See [`local-auth.md`](local-auth.md) for how to log in locally.
-- Data persists in named volumes (`pgdata`, `miniodata`) across `make down`; use `make reset` to start clean.
+- Auth is **passkey-only** — Zitadel/OIDC was decommissioned in Phase 6. See
+  [`local-auth.md`](local-auth.md) for how to log in locally.
+- Data persists in named volumes (`pgdata`, `miniodata`) across `make down`; use
+  `make reset` to start clean.

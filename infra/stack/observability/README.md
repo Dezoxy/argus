@@ -1,7 +1,8 @@
 # Observability stack (roadmap #47, Slice B + #47b logs)
 
-Prometheus + Grafana + Alertmanager (metrics, #47) and **Loki + Alloy** (centralized logs, #47b) for the argus
-VM. **Built as code; gated, not armed** (like the rest of the deploy track). Threat models:
+Prometheus + Grafana + Alertmanager (metrics, #47) and **Loki + Alloy**
+(centralized logs, #47b) for the argus VM. **Built as code; gated, not armed**
+(like the rest of the deploy track). Threat models:
 [`observability.md`](../../../docs/threat-models/observability.md) (metrics) +
 [`centralized-logs.md`](../../../docs/threat-models/centralized-logs.md) (logs).
 
@@ -29,31 +30,39 @@ container stdout (json logs) ──Alloy (ro tail, no socket, scrub)──▶ lo
 
 ## Security model (see the threat model)
 
-- **`/metrics` is content-blind** — counts/latencies/process stats with `{method, route-template, status}`
-  labels only; never content, keys, tokens, PII, ids, or query strings.
-- **Internal-only** — Prometheus + Alertmanager **and Loki + Alloy** have **no published ports** and aren't
-  routed by Caddy. Only **Grafana** has ingress, behind **Cloudflare Access** + its own login.
+- **`/metrics` is content-blind** — counts/latencies/process stats with
+  `{method, route-template, status}` labels only; never content, keys, tokens,
+  PII, ids, or query strings.
+- **Internal-only** — Prometheus + Alertmanager **and Loki + Alloy** have **no
+  published ports** and aren't routed by Caddy. Only **Grafana** has ingress,
+  behind **Cloudflare Access** + its own login.
 - **Secrets via Key Vault** — Grafana's admin password is delivered as a credential file
   (`GF_SECURITY_ADMIN_PASSWORD__FILE`); no secret values live in this tree.
-- **Logs are IDs/metadata only** — Alloy tails container logs from a **read-only** `/var/lib/docker/containers`
-  mount with **NO Docker socket** (a socket is daemon-root-equivalent); it runs uid 0 only to read the
-  root-owned logs, bounded by `cap_drop:[ALL]` + read-only rootfs. A scrub stage masks any
-  bearer/JWT/presigned-URL value as defense-in-depth on top of the app's IDs-only logging discipline.
+- **Logs are IDs/metadata only** — Alloy tails container logs from a
+  **read-only** `/var/lib/docker/containers` mount with **NO Docker socket** (a
+  socket is daemon-root-equivalent); it runs uid 0 only to read the root-owned
+  logs, bounded by `cap_drop:[ALL]` + read-only rootfs. A scrub stage masks any
+  bearer/JWT/presigned-URL value as defense-in-depth on top of the app's
+  IDs-only logging discipline.
 
 ## Log labels
 
-Grafana incident dashboards use Loki's `service` label as the primary service dimension. Compose writes
-`com.docker.compose.service` into Docker json-file attrs, and Alloy promotes that attr to both `service` and
-`service_name` without mounting the Docker socket. The `container` label still exists only to keep each Docker
-log file in a separate Loki stream; dashboards must not expose container IDs as the main service filter.
+Grafana incident dashboards use Loki's `service` label as the primary service
+dimension. Compose writes `com.docker.compose.service` into Docker json-file
+attrs, and Alloy promotes that attr to both `service` and `service_name` without
+mounting the Docker socket. The `container` label still exists only to keep each
+Docker log file in a separate Loki stream; dashboards must not expose container
+IDs as the main service filter.
 
-Structured app logs may also carry low-cardinality `level` and `context` labels. Non-Pino services such as
-Prometheus, Grafana, Loki, and Alloy do not reliably emit those labels, so their dashboard panels must query by
-`service` and parse/filter the log line instead of requiring Pino-only labels.
+Structured app logs may also carry low-cardinality `level` and `context` labels.
+Non-Pino services such as Prometheus, Grafana, Loki, and Alloy do not reliably
+emit those labels, so their dashboard panels must query by `service` and
+parse/filter the log line instead of requiring Pino-only labels.
 
-`coturn` is the intentional exception: it uses Docker's `local` logging driver with short retention so relay
-metadata stays off long-term Loki storage. Debug coturn from local rotated container logs and Prometheus health
-signals, not the centralized logs dashboard.
+`coturn` is the intentional exception: it uses Docker's `local` logging driver
+with short retention so relay metadata stays off long-term Loki storage. Debug
+coturn from local rotated container logs and Prometheus health signals, not the
+centralized logs dashboard.
 
 CI enforces this with `scripts/check-observability-log-labels.sh` in the `compose-guard` job.
 

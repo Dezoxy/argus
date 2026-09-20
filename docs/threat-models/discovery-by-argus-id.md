@@ -8,7 +8,10 @@
 
 ## 1. What this feature does
 
-Allows an authenticated user to look up a peer by their exact argus-id (e.g. `argus-k7m2q9x4f3n8p1w5-otter`). Returns minimal identity metadata: `userId`, `argusId`, `displayName`, `avatarSeed`. The returned `userId` feeds directly into the existing conversation-create flow.
+Allows an authenticated user to look up a peer by their exact argus-id (e.g.
+`argus-k7m2q9x4f3n8p1w5-otter`). Returns minimal identity metadata: `userId`,
+`argusId`, `displayName`, `avatarSeed`. The returned `userId` feeds directly
+into the existing conversation-create flow.
 
 This replaces `GET /users` (browsable tenant directory) which is removed in Phase 5.
 
@@ -30,9 +33,14 @@ This replaces `GET /users` (browsable tenant directory) which is removed in Phas
 
 ## 3. Enumeration resistance analysis
 
-The argus-id space is `16 chars × unambiguous-28-char alphabet × N animals`. At 10 req/min per IP, exhausting even a 1000-user pool by brute force would require ~10^21 requests — not a practical attack. The rate limit exists to make scanning the space visible in logs and expensive for attackers, not as the sole control.
+The argus-id space is `16 chars × unambiguous-28-char alphabet × N animals`. At
+10 req/min per IP, exhausting even a 1000-user pool by brute force would require
+~10^21 requests — not a practical attack. The rate limit exists to make scanning
+the space visible in logs and expensive for attackers, not as the sole control.
 
-The exact-match SQL predicate (`WHERE argus_id = $1`) scans at most one row via the `users_argus_id_idx` index. Prefix patterns (`LIKE 'argus-k7m2%'`) are not exposed.
+The exact-match SQL predicate (`WHERE argus_id = $1`) scans at most one row via
+the `users_argus_id_idx` index. Prefix patterns (`LIKE 'argus-k7m2%'`) are not
+exposed.
 
 ---
 
@@ -53,7 +61,8 @@ The exact-match SQL predicate (`WHERE argus_id = $1`) scans at most one row via 
 
 `users.lookup` audit event on every call (regardless of found/not-found) with:
 - `actorSub` (the caller's argus-id subject)
-- `targetArgusId` (the queried id — not the userId; this is the non-PII "what was searched for")
+- `targetArgusId` (the queried id — not the userId; this is the non-PII "what
+  was searched for")
 - `found: true | false`
 - IP + UA metadata
 
@@ -63,4 +72,6 @@ Never log `displayName`, `email`, or `avatarSeed` in audit events.
 
 ## 6. Supersedes
 
-`docs/threat-models/user-directory.md` — the browsable `GET /users` endpoint is replaced by this exact-match path in Phase 4 (endpoint removed in Phase 5). The old threat model remains for historical reference but is marked retired.
+`docs/threat-models/user-directory.md` — the browsable `GET /users` endpoint is
+replaced by this exact-match path in Phase 4 (endpoint removed in Phase 5). The
+old threat model remains for historical reference but is marked retired.

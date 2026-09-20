@@ -1,6 +1,8 @@
 # coturn — TURN relay for VoIP V1
 
-Self-hosted TURN relay for argus 1:1 calling. coturn runs as a Compose service (added in PR 7) and needs three secrets delivered by `argus-secrets` (added in PR 6).
+Self-hosted TURN relay for argus 1:1 calling. coturn runs as a Compose service
+(added in PR 7) and needs three secrets delivered by `argus-secrets` (added in
+PR 6).
 
 ## Secrets
 
@@ -23,7 +25,9 @@ dig turn.4rgus.com
 # → should return the VM's EIP, not a Cloudflare proxy IP
 ```
 
-The `turn.4rgus.com` A record is a grey-cloud (DNS-only) record added in the cloudflare-terraform repo. Confirm it's live before issuing the cert (the DNS-01 challenge needs to resolve).
+The `turn.4rgus.com` A record is a grey-cloud (DNS-only) record added in the
+cloudflare-terraform repo. Confirm it's live before issuing the cert (the DNS-01
+challenge needs to resolve).
 
 ### 2. Issue the TURNS TLS cert
 
@@ -40,10 +44,12 @@ The script:
 - Validates the cert (expiry + domain match).
 - Uploads `argus-turn-tls-cert` and `argus-turn-tls-key` to Key Vault via `--file` (not argv).
 - Bakes vault name + EC2 instance ID + region into `/opt/acme.sh/deploy/argus_turn_cert.conf` (mode 0600).
-- Installs an acme.sh renewal cron + a deploy hook (`argus_turn_cert_deploy()`) that re-uploads to KV and
-  triggers `systemctl restart argus-secrets && docker kill -s HUP coturn` on the VM via SSM on each renewal.
+- Installs an acme.sh renewal cron + a deploy hook (`argus_turn_cert_deploy()`)
+  that re-uploads to KV and triggers `systemctl restart argus-secrets && docker
+  kill -s HUP coturn` on the VM via SSM on each renewal.
 
-For the Cloudflare API token: Dashboard → Profile → API Tokens → Create Token → "Edit zone DNS" template → scope to zone `4rgus.com`.
+For the Cloudflare API token: Dashboard → Profile → API Tokens → Create Token →
+"Edit zone DNS" template → scope to zone `4rgus.com`.
 
 ### 3. Provision the HMAC shared secret
 
@@ -53,7 +59,8 @@ bash infra/aws/scripts/populate-keyvault.sh [--vault <name>]
 # argus-turn-shared-secret will be generated and stored. Existing secrets are skipped (idempotent).
 ```
 
-Or, if populate-keyvault.sh was already run for other secrets, run it again — it skips existing values.
+Or, if populate-keyvault.sh was already run for other secrets, run it again — it
+skips existing values.
 
 ### 4. Verify Key Vault contents
 
@@ -76,7 +83,12 @@ ls -la /run/argus/secrets/turn_*
 
 ## Certificate renewal
 
-`issue-turn-cert.sh` installs an acme.sh cron entry that checks for renewal roughly every 60 days. Let's Encrypt certs are 90-day; acme.sh renews at 60 days remaining. On renewal, the deploy hook (`/opt/acme.sh/deploy/argus-turn-cert.sh`) re-uploads to Key Vault and sends SIGHUP to the coturn container — coturn reloads its TLS config gracefully without dropping active relay allocations.
+`issue-turn-cert.sh` installs an acme.sh cron entry that checks for renewal
+roughly every 60 days. Let's Encrypt certs are 90-day; acme.sh renews at 60 days
+remaining. On renewal, the deploy hook
+(`/opt/acme.sh/deploy/argus-turn-cert.sh`) re-uploads to Key Vault and sends
+SIGHUP to the coturn container — coturn reloads its TLS config gracefully
+without dropping active relay allocations.
 
 To force a renewal manually:
 
