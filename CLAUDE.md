@@ -266,10 +266,13 @@ Claude-Code-specific tooling that serves it.
 - **Every skill is mirrored byte-for-byte into `.agents/skills/`**, and
   `make docs` fails when a mirror drifts. That mirror is what makes these
   usable by Codex and any other agent, which is the point of importing them
-  rather than relying on a machine-local install. A consequence worth knowing:
-  an imported skill **cannot use relative links** — the same path would have to
-  resolve from both `.claude/skills/` and `.agents/skills/` — so it links by
-  absolute URL instead.
+  rather than relying on a machine-local install.
+- **A link inside a mirrored skill must resolve from both copies**, since the
+  two are byte-identical. So a relative link is fine when its target is
+  mirrored too — a file inside the same skill directory, or a sibling skill —
+  and must be an **absolute URL** when it points anywhere else, such as
+  `.claude/rules/ecc/`, which exists under `.claude/` only. `SELF_REPO` is set,
+  so `check_self_links` verifies those absolute links resolve on disk.
 - **Hooks + permissions** (`.claude/settings.json`): destructive-bash guard +
   edit-time invariant checks. Open `/hooks` once (or restart) to activate after
   a fresh clone.
