@@ -63,10 +63,14 @@ make pdf      # the whole thing as one PDF
 
 ## Decisions
 
-Architecture Decision Records go in [`decisions/`](decisions/), one file per
+Architecture Decision Records go in `docs/architecture/decisions/`, one file per
 decision, named `NNNN-short-title.md`, using
 [the template](templates/adr.md). A changed decision gets a **new** record with
 reciprocal supersedes links — decision history is never rewritten.
+
+That folder does not exist yet — git does not track an empty directory, and
+`decisions/` may hold nothing but ADRs, so there is no placeholder file to put
+in it. It appears with the first record.
 
 No ADRs are recorded yet. The decisions worth capturing are already made and
 documented as prose (MLS library choice, passkey-only auth after the Zitadel
