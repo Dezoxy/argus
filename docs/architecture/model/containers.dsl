@@ -18,7 +18,7 @@ argus = softwareSystem "Argus" "Invite-only, end-to-end-encrypted messenger, ins
 
     group "Application" {
         webPwa = container "Web PWA" "Runs every cryptographic operation: MLS group state, device keys, attachment encryption, passkey ceremonies. Plaintext and message keys never leave it." "React 19, Vite 8, TypeScript" "Layer App,Web UI"
-        api = container "API" "One process serving the REST API and the WebSocket gateway. Routes ciphertext, holds identity, the key directory, friends, calls, admin and GDPR. Never decrypts message content." "NestJS 11, Node 24" "Layer App"
+        api = container "API" "One process serving the REST API and the WebSocket gateway. Routes ciphertext, holds identity, the key directory, friends, calls, admin and GDPR. Never decrypts message content." "NestJS 11, Node 25" "Layer App"
     }
 
     group "Data" {
