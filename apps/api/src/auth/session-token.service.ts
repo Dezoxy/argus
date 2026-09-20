@@ -1,4 +1,4 @@
-// Session-signing is server-auth infrastructure — see docs/threat-models/session-tokens.md §invariant-4.
+// Session-signing is server-auth infrastructure — see docs/security/threat-models/session-tokens.md §invariant-4.
 import { randomBytes, createHash } from 'node:crypto';
 
 import { Inject, Injectable, UnauthorizedException } from '@nestjs/common';
@@ -92,7 +92,7 @@ export class SessionTokenService {
   /**
    * Rotate a refresh token (single-use). Implements reuse-detection: presenting a revoked token
    * is treated as theft and triggers full-family revocation.
-   * See docs/threat-models/session-tokens.md §refresh-reuse-detection.
+   * See docs/security/threat-models/session-tokens.md §refresh-reuse-detection.
    */
   async rotateRefresh(refreshToken: string): Promise<MintedSession> {
     try {

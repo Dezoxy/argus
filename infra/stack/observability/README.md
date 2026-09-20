@@ -3,8 +3,8 @@
 Prometheus + Grafana + Alertmanager (metrics, #47) and **Loki + Alloy**
 (centralized logs, #47b) for the argus VM. **Built as code; gated, not armed**
 (like the rest of the deploy track). Threat models:
-[`observability.md`](../../../docs/threat-models/observability.md) (metrics) +
-[`centralized-logs.md`](../../../docs/threat-models/centralized-logs.md) (logs).
+[`observability.md`](../../../docs/security/threat-models/observability.md) (metrics) +
+[`centralized-logs.md`](../../../docs/security/threat-models/centralized-logs.md) (logs).
 
 ```
 api:9090 /metrics (content-blind, internal)  ──scrape──▶ prometheus ──▶ alertmanager (alerts)

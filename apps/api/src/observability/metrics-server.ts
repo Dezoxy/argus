@@ -7,7 +7,7 @@ import { registry as defaultRegistry } from './metrics.js';
 const log = pino({ ...pinoConfig, name: 'Metrics' });
 
 // Serves the Prometheus registry on a SEPARATE internal port (default 9090), distinct from the app's main
-// port. Rationale (docs/threat-models/observability.md): /metrics is operational metadata that must stay
+// port. Rationale (docs/security/threat-models/observability.md): /metrics is operational metadata that must stay
 // internal — a separate listener is never proxied by Caddy and has no published host port, so only Prometheus
 // on the internal Docker network can scrape it. It is NOT a Nest route, so it bypasses the global JWT guard +
 // throttler by construction (no public principal can reach it). Only GET /metrics is served; everything else

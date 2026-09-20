@@ -7,7 +7,7 @@ import { surfaceEnterMotion } from '../features/ui';
 // Standalone admin (breakglass) login page on its own path (/admin) — off the public landing. In production
 // this path, and the breakglass/admin API, are reachable ONLY through Cloudflare Access: Caddy returns 404
 // unless the request carries the Access-injected header (see infra/stack/caddy/Caddyfile +
-// docs/threat-models/admin-access-gating.md). NOT wrapped in RequireAuth — it's the unauthenticated door used
+// docs/security/threat-models/admin-access-gating.md). NOT wrapped in RequireAuth — it's the unauthenticated door used
 // to obtain an admin session. In dev (no Caddy/Access) it renders directly, exactly like before.
 export default function AdminLoginRoute() {
   const { ready, profile } = useAuth();

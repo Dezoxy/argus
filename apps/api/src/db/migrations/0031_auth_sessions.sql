@@ -10,7 +10,7 @@
 --   We set app.session_refresh_hash GUC transaction-locally; the policy exposes only the matching row.
 --   Unset GUC → current_setting returns NULL → refresh_token_hash = NULL is UNKNOWN → no rows.
 --   The tenant_id read from this row is then used for withTenant() — it is server-derived, not
---   client-supplied. See docs/threat-models/session-tokens.md §guc-carve-out.
+--   client-supplied. See docs/security/threat-models/session-tokens.md §guc-carve-out.
 
 CREATE TABLE auth_sessions (
   id                 uuid        PRIMARY KEY DEFAULT gen_random_uuid(),

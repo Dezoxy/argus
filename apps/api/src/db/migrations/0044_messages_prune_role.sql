@@ -4,7 +4,7 @@
 -- confine it to ONLY rows past the 90-day ceiling, metadata-only (never ciphertext). It also closes the
 -- #262 OR-combine bypass for `messages` (re-scope the isolation policy TO argus_app, same migration that
 -- first grants the prune role a policy). The TTL worker that actually reaps is slice 4; conversation_commits
--- is slice 5. See docs/threat-models/message-retention.md (§3 #262 + history-fork, §7 conditions 1-2).
+-- is slice 5. See docs/security/threat-models/message-retention.md (§3 #262 + history-fork, §7 conditions 1-2).
 --
 -- Design (mirrors 0043_audit_prune_role for audit_events/auth_sessions): argus_msg_prune is cross-tenant
 -- but, by RLS, can ONLY ever see/delete rows past their window — never a live row, never the ciphertext

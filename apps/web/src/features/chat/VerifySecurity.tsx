@@ -13,7 +13,7 @@ import type { SafeUiError } from '../../lib/safe-ui-error';
  * Out-of-band safety-number verification (checkpoint 20) — the MITM defense. The number is derived from
  * both devices' identity keys (@argus/crypto `safetyNumber`); users compare it on a trusted channel.
  * A mismatch means a key was swapped. Demo: the number is for the local loopback peer; the live flow
- * uses the remote peer's published key. See docs/threat-models/fingerprint-verification.md.
+ * uses the remote peer's published key. See docs/security/threat-models/fingerprint-verification.md.
  */
 interface VerifySecurityProps {
   peerName: string;

@@ -44,7 +44,7 @@ Today every inbound byte arrives via an **outbound** Cloudflare Tunnel
 (`cloudflared` dials `caddy:8080`; no host ports; Azure NSG is
 `deny-all-inbound`; CI job `compose-guard` in `.github/workflows/ci.yml` fails
 the build if `docker compose config` reports any published port). See
-`docs/threat-models/vm-ingress.md`.
+`docs/security/threat-models/vm-ingress.md`.
 
 WebRTC media needs UDP that the client can reach **directly**:
 
@@ -215,7 +215,7 @@ accident*. Don't rely on that. Tighten the guard to:
    `coturn`. Any other host-network service fails CI.
 
 This keeps the invariant *visible and enforced* rather than silently
-circumvented. Update `docs/threat-models/vm-ingress.md` in the same PR — it
+circumvented. Update `docs/security/threat-models/vm-ingress.md` in the same PR — it
 currently asserts the tunnel is the *only* ingress; that sentence becomes false
 the moment coturn ships.
 
@@ -231,7 +231,7 @@ exactly the TURN ports from the internet. The Standard public IP accepts inbound
 once an NSG rule permits it.
 
 ```hcl
-# TURN/STUN — the single sanctioned non-tunnel ingress. See docs/threat-models/voip-turn.md
+# TURN/STUN — the single sanctioned non-tunnel ingress. See docs/security/threat-models/voip-turn.md
 resource "azurerm_network_security_rule" "turn_udp" {
   name                        = "allow-turn-stun-udp"
   priority                    = 200
@@ -291,7 +291,7 @@ discoverable; the threat-model note owns that trade-off explicitly. (When Option
 (d) becomes the default before video, this record re-points at the dedicated
 relay's IP and the app VM stays hidden.)
 
-### The security story to tell (for the threat-model note `docs/threat-models/voip-turn.md`)
+### The security story to tell (for the threat-model note `docs/security/threat-models/voip-turn.md`)
 > The platform opens exactly three inbound port groups (STUN/TURN 3478, TURNS
 > 5349, a 100-port UDP relay range) on the VM's public IP, gated by an NSG
 > default-deny with three narrow allows. coturn runs non-root, read-only,
@@ -311,10 +311,10 @@ ROPA/DPIA") is:
 
 | Artifact | Action | What VoIP adds |
 | --- | --- | --- |
-| `docs/gdpr/data-residency.md` | **Revise** | Add the coturn relay row — EU-region relay, what transits it (encrypted SRTP + peer IPs), retention window. |
-| `docs/gdpr/article-30-records.md` | **Revise** | New processing activity (1:1 calling), personal-data category (peer IP at the relay, call-graph/timing metadata), APNs/FCM sub-processor (V1.1 push only), and the **30-day** retention row (Q3 ruling). |
-| `docs/threat-models/metadata-exposure.md` | **Extend** | Add call-graph, call-timing, and relay-peer-IP rows. |
-| `docs/gdpr/dpia-voip-calling.md` | **Create** | Legal basis per activity (call setup, relay, V1.1 push/missed-call ledger). |
+| `docs/compliance/data-residency.md` | **Revise** | Add the coturn relay row — EU-region relay, what transits it (encrypted SRTP + peer IPs), retention window. |
+| `docs/compliance/article-30-records.md` | **Revise** | New processing activity (1:1 calling), personal-data category (peer IP at the relay, call-graph/timing metadata), APNs/FCM sub-processor (V1.1 push only), and the **30-day** retention row (Q3 ruling). |
+| `docs/security/threat-models/metadata-exposure.md` | **Extend** | Add call-graph, call-timing, and relay-peer-IP rows. |
+| `docs/compliance/dpia-voip-calling.md` | **Create** | Legal basis per activity (call setup, relay, V1.1 push/missed-call ledger). |
 
 coturn's relay row in `data-residency.md` and the relay-peer-IP row in
 `metadata-exposure.md` are the two this file directly feeds.
@@ -637,7 +637,7 @@ deliverables are **Phase-0**, shipped with the relay, not deferred.
 
 | Slice | Scope | Gates |
 | --- | --- | --- |
-| **T-1** | Threat-model note `docs/threat-models/voip-turn.md` (the §4 security story) + revise `vm-ingress.md` + the GDPR/threat-model Phase-0 bundle rows this file feeds (`data-residency.md` coturn-relay row, `metadata-exposure.md` relay-peer-IP row) | Required *before* infra code (DoD: security-relevant feature → threat model first) |
+| **T-1** | Threat-model note `docs/security/threat-models/voip-turn.md` (the §4 security story) + revise `vm-ingress.md` + the GDPR/threat-model Phase-0 bundle rows this file feeds (`data-residency.md` coturn-relay row, `metadata-exposure.md` relay-peer-IP row) | Required *before* infra code (DoD: security-relevant feature → threat model first) |
 | **T-2** | Terraform NSG inbound rules (Azure + AWS parity) + `turn.4rgus.com` DNS-only record | `infra-reviewer`; **manual `terraform apply` confirmation** (never auto) |
 | **T-3** | Key Vault secret + cert delivery: add `turn-shared-secret`, `turn_tls_cert/key` to `fetch-keyvault-secrets.sh`; DNS-01 cert issuance | `infra-reviewer`, `security-boundary-auditor` |
 | **T-4** | `coturn` Compose service (incl. healthcheck + `restart: unless-stopped`) + `turnserver.conf` + `compose-guard` exception (assert single host-net service == coturn) | `infra-reviewer`; CI `compose-guard` updated |

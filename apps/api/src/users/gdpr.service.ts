@@ -343,7 +343,7 @@ export class GdprService {
    * generate a grant; the content keys lived in MLS envelopes only, never in this DB.
    *
    * NOTE: auth is passkey-only (Zitadel/OIDC decommissioned in Phase 6). No external IdP step
-   * is needed. See docs/threat-models/gdpr.md §6 for the full runbook.
+   * is needed. See docs/security/threat-models/gdpr.md §6 for the full runbook.
    */
   async deleteAccount(auth: VerifiedAuth): Promise<void> {
     // 1. DB transaction: resolve user id, handle NO-ACTION FKs, then delete the user row.

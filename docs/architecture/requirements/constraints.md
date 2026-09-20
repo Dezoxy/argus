@@ -11,7 +11,7 @@ a decision that says so explicitly.
 | C-03 | All application code is TypeScript, strict and ESM, and the same crypto code runs in the browser. | One person maintains client, server and shared contracts. | A second server language; a crypto core that cannot run client-side. |
 | C-04 | The deployment is one small VM operated by one person. | No team, no on-call rotation. | Anything needing a cluster, a platform team, or attention at 03:00. |
 | C-05 | Running cost must stay proportionate to a project with no revenue. | Self-funded. | Managed Kubernetes, multi-region, per-seat SaaS in the critical path. |
-| C-06 | Personal data stays in the EU. | GDPR; the stated residency commitment in [`docs/gdpr/`](https://github.com/Dezoxy/secmes/blob/main/docs/gdpr/data-residency.md). | Non-EU regions for anything holding user data or backups. |
+| C-06 | Personal data stays in the EU. | GDPR; the stated residency commitment in [`docs/compliance/`](https://github.com/Dezoxy/secmes/blob/main/docs/compliance/data-residency.md). | Non-EU regions for anything holding user data or backups. |
 
 ## What a constraint costs
 

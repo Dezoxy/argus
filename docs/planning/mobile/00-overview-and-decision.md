@@ -182,7 +182,7 @@ Load-bearing source references (verified this audit):
    proof-of-possession + OOB safety numbers, PRF-independent), and avoids the
    iOS PRF coupling (iCloud Keychain + platform-passkey-only). **Retires CHECK
    4a** — Phase 0 drops from two framework-invalidating gates to one. New
-   deliverable: `docs/threat-models/native-keystore-unlock.md` (written before
+   deliverable: `docs/security/threat-models/native-keystore-unlock.md` (written before
    native keystore code lands).
 1. **Wipe-on-fresh-install:** iOS Keychain survives app uninstall under the same
    bundle ID. Recommend wiping a detected fresh install's orphaned root key to

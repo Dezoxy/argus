@@ -2,7 +2,7 @@
 # argus — message-retention TTL prune worker (Track 4 slice 4 — the v1 deletion). Standalone; runs on the VM
 # via a systemd timer (see argus-message-retention.{service,timer}). Enforces the hard retention CEILING the
 # server promises as a transient relay:
-#   • messages — delete rows older than 90 days (the ceiling reviewed in docs/threat-models/message-retention.md
+#   • messages — delete rows older than 90 days (the ceiling reviewed in docs/security/threat-models/message-retention.md
 #     and DB-enforced by migration 0044's argus_msg_prune RLS policies). This is the ONLY deletion this track
 #     ships in v1: a flat TTL, no per-device delivery gate (Codex P1 — deferred behind a per-device-tracking
 #     prerequisite). A device returning within 90 days catches up via the slice-1 prune-safe backfill cursor.

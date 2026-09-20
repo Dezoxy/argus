@@ -1,6 +1,6 @@
 -- 0037_admin_credentials — Breakglass admin credential table.
 -- Phase 3 of the private-messenger redesign (private-messenger-redesign-plan.md:261-286).
--- Threat model: docs/threat-models/breakglass-admin.md.
+-- Threat model: docs/security/threat-models/breakglass-admin.md.
 
 -- Stores Argon2id-hashed admin password + lockout state. FORCE RLS + leading tenant_id index
 -- (invariant #3). Must never become a global no-RLS routing table, even for a single-tenant deployment.

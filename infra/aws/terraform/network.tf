@@ -80,7 +80,7 @@ resource "aws_vpc_security_group_ingress_rule" "ssh" {
 # IPv4-only: this VPC has no IPv6 CIDR, no IPv6 subnet, and no ::/0 route — adding ::/0 SG rules
 # without the underlying network plumbing is a no-op. IPv6 TURN support requires VPC redesign
 # (aws_vpc ipv6_cidr_block, subnet ipv6_cidr_block, route ::/0 → igw + instance IPv6 assignment).
-# See docs/threat-models/voip-turn.md §Threat — Spoofing the origin.
+# See docs/security/threat-models/voip-turn.md §Threat — Spoofing the origin.
 resource "aws_vpc_security_group_ingress_rule" "turn_3478_udp" {
   security_group_id = aws_security_group.instance.id
   description       = "STUN/TURN UDP 3478 (coturn)"

@@ -1,5 +1,5 @@
-// Server-auth infrastructure — see docs/threat-models/passkey-auth.md and
-// docs/threat-models/registration-and-tenancy.md.
+// Server-auth infrastructure — see docs/security/threat-models/passkey-auth.md and
+// docs/security/threat-models/registration-and-tenancy.md.
 import { randomBytes, createHash } from 'node:crypto';
 
 import { authAttempts } from '../observability/metrics.js';
@@ -35,7 +35,7 @@ import { AuditService } from '../audit/audit.service.js';
 
 // Fixed single-tenant UUID — all Phase 2 passkey users live here. Must be a valid RFC-4122 UUID
 // (version + variant nibbles) so it passes the contracts' strict z.string().uuid() on /me etc.
-// See docs/threat-models/registration-and-tenancy.md §T6.
+// See docs/security/threat-models/registration-and-tenancy.md §T6.
 export const DEFAULT_TENANT_ID = '00000000-0000-4000-8000-000000000001';
 
 const MAX_ATTEMPTS = 5;
@@ -122,7 +122,7 @@ export class WebAuthnService {
     if (invite.expiresAt < new Date()) throw new UnauthorizedException(INVALID);
 
     // Generate argus_id once and persist it. The SAME value must flow through options → verify →
-    // user insert — see docs/threat-models/registration-and-tenancy.md §T1.
+    // user insert — see docs/security/threat-models/registration-and-tenancy.md §T1.
     for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
       const argusId = generateArgusId();
       const challengeBytes = randomBytes(32);
@@ -193,7 +193,7 @@ export class WebAuthnService {
    * - insert user + user_tenant_index + webauthn_credential
    * Then (post-commit) mint the first session.
    *
-   * See docs/threat-models/registration-and-tenancy.md §T2.
+   * See docs/security/threat-models/registration-and-tenancy.md §T2.
    */
   async verifyRegistration(
     ceremonyId: string,

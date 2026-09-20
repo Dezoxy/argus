@@ -96,7 +96,7 @@ metadata; the operator still sees relay-side 5-tuples, which is inherent to
 running the relay. The call-graph/call-timing/relay-peer-IP exposure is
 enumerated in
 [./06-threat-model-and-privacy.md](./06-threat-model-and-privacy.md) and lands
-as new rows in `docs/threat-models/metadata-exposure.md`.
+as new rows in `docs/security/threat-models/metadata-exposure.md`.
 
 ---
 
@@ -528,12 +528,12 @@ sequenceDiagram
   ephemeral best-effort drop semantics are written up in
   [./06-threat-model-and-privacy.md](./06-threat-model-and-privacy.md) and land
   as updates to the four canonical repo artifacts — revise
-  `docs/gdpr/data-residency.md` (coturn relay row), revise
-  `docs/gdpr/article-30-records.md` (new processing activity + APNs/FCM
+  `docs/compliance/data-residency.md` (coturn relay row), revise
+  `docs/compliance/article-30-records.md` (new processing activity + APNs/FCM
   sub-processor + retention), **extend**
-  `docs/threat-models/metadata-exposure.md`
+  `docs/security/threat-models/metadata-exposure.md`
   (call-graph/call-timing/relay-peer-IP rows), and **create**
-  `docs/gdpr/dpia-voip-calling.md` (legal basis per activity).
+  `docs/compliance/dpia-voip-calling.md` (legal basis per activity).
 
 ---
 

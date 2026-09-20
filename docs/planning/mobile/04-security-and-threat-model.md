@@ -75,7 +75,7 @@ is what **recovers** a real non-exportability boundary (for the root), while the
 biometric gate replicates PRF's user-presence property one-for-one (same Face ID
 / fingerprint, same Secure Enclave). It also drops the iOS PRF coupling
 (iCloud-Keychain + platform-passkey-only) and removes a three-vendor byte-parity
-dependency. Full analysis in `docs/threat-models/native-keystore-unlock.md` (to
+dependency. Full analysis in `docs/security/threat-models/native-keystore-unlock.md` (to
 be written before the native keystore lands).
 
 ## 3. Push privacy — preserve the content-free invariant
@@ -177,7 +177,7 @@ cryptographic binding (or simply keeping the token out of JS) is stronger and
 cheaper than App Attest / Play Integrity, so this does **not** reopen the
 deferral. Final mechanism settled in the Phase-1 `security-architect` pass; see
 [03](./03-roadmap-ios-then-android.md) Phase 1; full design in
-`docs/threat-models/native-refresh-pop.md` (before the contract lands).
+`docs/security/threat-models/native-refresh-pop.md` (before the contract lands).
 
 ## 7. Impact on the six invariants
 
@@ -193,7 +193,7 @@ deferral. Final mechanism settled in the Phase-1 `security-architect` pass; see
 ## 8. Implementation slices (each with its gate)
 
 - **0** (docs, before any native keystore code): write
-  `docs/threat-models/native-keystore-unlock.md` — native at-rest model, the
+  `docs/security/threat-models/native-keystore-unlock.md` — native at-rest model, the
   non-extractability story both directions, threat table (stolen-locked /
   coerced-unlocked / malicious-bundle-or-rooted / server-compromise),
   authz-independence from PRF, StrongBox-absence fallback, wipe-on-fresh-install
@@ -257,7 +257,7 @@ forced minimum versions.
 - `packages/crypto/src/seal.ts` (`importUnlockKey` non-extractable — the downgrade site)
 - `apps/web/src/lib/prf.ts:26` (fixed `APP_PRF_SALT`)
 - `apps/api/src/auth/webauthn.service.ts:79-80` (`rpID`/`expectedOrigin` pins to widen)
-- `docs/threat-models/prf-keystore-unlock.md` (unlock model + PRF-strip)
-- `docs/threat-models/web-push.md` (content-free push template to preserve)
-- `docs/threat-models/voip-calling.md` (authenticated-sender Phase-0 blocker + §14 invariant checklist)
-- `docs/threat-models/multi-device-enrollment.md` (Ed25519 proof-of-possession trust root, **not** attestation)
+- `docs/security/threat-models/prf-keystore-unlock.md` (unlock model + PRF-strip)
+- `docs/security/threat-models/web-push.md` (content-free push template to preserve)
+- `docs/security/threat-models/voip-calling.md` (authenticated-sender Phase-0 blocker + §14 invariant checklist)
+- `docs/security/threat-models/multi-device-enrollment.md` (Ed25519 proof-of-possession trust root, **not** attestation)

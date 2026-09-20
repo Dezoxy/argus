@@ -19,7 +19,7 @@ const HASH_CHUNK = '71TiZynIYbBq6m8tjzPjmpv6k1aDAylonHeFFKaDOHBvZZm2A2YZ9NNuHuOW
 
 // The SW integrity gate (CDI-1). The whole point: a swapped crypto chunk (nist-*, ed448-*, …) must be
 // refused before it can run inside the crypto boundary, while unknown paths must pass through untouched so
-// a mid-deploy version skew never bricks the app. See docs/threat-models/code-delivery-integrity.md.
+// a mid-deploy version skew never bricks the app. See docs/security/threat-models/code-delivery-integrity.md.
 describe('sw-integrity', () => {
   describe('sha384Base64', () => {
     it('matches the base64 SHA-384 that bundle-manifest.json / SRI use', async () => {

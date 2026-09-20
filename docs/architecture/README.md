@@ -113,6 +113,8 @@ by symlink from [`overview/`](overview/).
 | [Data](data/data-architecture.md) | What is stored, how sensitive, where, and for how long |
 | [Integration](integration/integration-architecture.md) | Every external system and its failure behaviour |
 | [Deployment](deployment/deployment-architecture.md) | The two environments and how a release reaches them |
+| [Secrets inventory](deployment/secrets-inventory.md) | Every secret, where it lives and how it reaches the VM |
+| [Configuration inventory](deployment/config-inventory.md) | The non-secret config values, and why each is not a secret |
 | [Reliability](reliability/reliability-architecture.md) | What fails together, and how service and data come back |
 | [Observability](observability/observability-architecture.md) | How a failure becomes an actionable signal |
 | [Risks](risks/architecture-risks.md) | `RISK-NNN` — known ways this hurts, and what remains |
@@ -159,7 +161,7 @@ Deliberate omissions, so they read as choices rather than gaps.
 - **No API or schema reference.** The OpenAPI spec and the migrations are the
   contract; duplicating them here would create a second source of truth that
   goes stale.
-- **Per-feature threat models** live in [`docs/threat-models/`](../threat-models/),
+- **Per-feature threat models** live in [`docs/security/threat-models/`](../security/threat-models/),
   one per feature, written before the code. This tree covers the
   system-level boundaries only.
 

@@ -15,7 +15,7 @@ permissions:
 jobs:
   sast-semgrep:
     runs-on: ubuntu-latest
-    # SUP-1: digest-pinned (was untagged = :latest). See docs/threat-models/supply-chain-ci.md.
+    # SUP-1: digest-pinned (was untagged = :latest). See docs/security/threat-models/supply-chain-ci.md.
     container: semgrep/semgrep@sha256:c180f0c93a17b420c0af5006214a29d3c747c5459c732b740191adf657dd0068
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

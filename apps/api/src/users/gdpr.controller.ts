@@ -254,7 +254,7 @@ export class GdprController {
    * browsing tools. Rate-limited to 3 per day per user.
    *
    * Auth is passkey-only (Zitadel/OIDC decommissioned in Phase 6) — no external IdP step needed.
-   * See docs/threat-models/gdpr.md §6 for the full deletion runbook.
+   * See docs/security/threat-models/gdpr.md §6 for the full deletion runbook.
    */
   @Delete('me')
   @HttpCode(HttpStatus.NO_CONTENT)

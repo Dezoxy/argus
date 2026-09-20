@@ -1,5 +1,5 @@
 -- 0042_friendships — mutual friendship graph for the contacts feature (Slice C).
--- contact-list-recovery-plan.md §Slice C. Threat-model: docs/threat-models/contact-list-recovery.md §R-friends.
+-- contact-list-recovery-plan.md §Slice C. Threat-model: docs/security/threat-models/contact-list-recovery.md §R-friends.
 --
 -- METADATA ONLY: stores user-id pairs and request state — no keys, no content (invariant #1).
 -- ACCEPTED-ONLY model: once accepted, requested_by is NULLed and expires_at is NULLed.

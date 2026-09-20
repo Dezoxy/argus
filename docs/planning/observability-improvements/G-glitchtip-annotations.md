@@ -17,7 +17,7 @@ GlitchTip is fully deployed (three services: `glitchtip-db`, `glitchtip`,
 on `SENTRY_DSN_FILE`. But the DSN secret is not provisioned, so error tracking
 is a complete no-op in production — exceptions are swallowed silently.
 
-### What to create: `docs/runbooks/arm-glitchtip.md`
+### What to create: `docs/operations/runbooks/arm-glitchtip.md`
 
 The runbook should cover these steps (documentation only — no code changes needed):
 

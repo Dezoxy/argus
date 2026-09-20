@@ -12,7 +12,7 @@ resource "azurerm_resource_group" "exp" {
 # only) — never the production vault. Same hardening posture as the live keyvault.tf: RBAC, default-deny
 # firewall, soft-delete. The firewall allows ONLY the EC2 instance's Elastic IP: with compute on AWS there is
 # no Azure subnet service endpoint, so this is an IP allow-list (a weaker network-identity binding than the
-# live backbone service endpoint — recorded in docs/threat-models/cross-cloud-secret-fetch.md; Private Link is
+# live backbone service endpoint — recorded in docs/security/threat-models/cross-cloud-secret-fetch.md; Private Link is
 # the production upgrade).
 resource "azurerm_key_vault" "exp" {
   # checkov:skip=CKV2_AZURE_32: experiment vault reached via default-deny firewall + the EC2 EIP allow-list; private endpoint is the prod upgrade.

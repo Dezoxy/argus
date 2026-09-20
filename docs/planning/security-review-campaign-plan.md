@@ -57,7 +57,7 @@ Each slice is one PR and follows the same loop:
 3. **Findings triaged** into the four tiers (Must-fix / Should-improve /
    Nice-to-have / Enterprise-optional), each with one line of "why it matters"
    and a file:line.
-4. **Evidence note** written to `docs/reviews/NN-<area>.md` using the template below.
+4. **Evidence note** written to `docs/security/reviews/NN-<area>.md` using the template below.
 5. **Standing guards** added where cheap — a meta-test or Semgrep rule that
    fails if the invariant regresses.
 6. **Must-fixes spin off as their own code PRs** (each through the normal
@@ -65,7 +65,7 @@ Each slice is one PR and follows the same loop:
    guards* PR; it does not bundle behaviour fixes. This keeps each PR reviewable
    and lets fixes be prioritised independently of the audit.
 
-### Evidence-note template (`docs/reviews/NN-<area>.md`)
+### Evidence-note template (`docs/security/reviews/NN-<area>.md`)
 
 ```
 # Review NN — <area>   (<date>, head <sha>)
@@ -108,7 +108,7 @@ package be substituted (key-substitution / MITM)? **Note for the executor:**
 AGENTS.md's crypto review criteria still says "key backup uses Argon2id + unique
 salt" — that describes the *retired* flow; flag this doc drift for a follow-up
 (and pick it up in Slice 7). Cross-check against
-`docs/threat-models/{key-model,key-directory,device-keystore,prf-keystore-unlock,csprng-audit,mls-integration}.md`.
+`docs/security/threat-models/{key-model,key-directory,device-keystore,prf-keystore-unlock,csprng-audit,mls-integration}.md`.
 
 ### Slice 2 — Server boundary: crypto-blindness, RLS, authz, logging  *(reviewer: `security-boundary-auditor`)*
 The proof the server *can't* read what it carries. Scope: all 18 controllers +
@@ -130,7 +130,7 @@ ownership/membership check)? any banned log pattern (plaintext, token, full
 endpoint return content where it should return metadata? Lean on the
 just-completed controller specs as a baseline; this slice goes one layer deeper
 into the service + SQL + realtime layer. Cross-check
-`docs/threat-models/{rls-tenant-isolation,auth-tenant-context,realtime-delivery,live-messaging,metadata-exposure,audit-logging}.md`.
+`docs/security/threat-models/{rls-tenant-isolation,auth-tenant-context,realtime-delivery,live-messaging,metadata-exposure,audit-logging}.md`.
 
 ### Slice 3 — Auth, identity & device trust  *(reviewers: `security-boundary-auditor` + `crypto-reviewer`)*
 Proves you're talking to who you think, and that the server can't impersonate.
@@ -143,7 +143,7 @@ session token be forged or replayed? is breakglass truly fenced (CfAccess +
 AdminGuard + audited)? can a malicious server silently add a device to a user
 (the classic E2EE backdoor)? does fingerprint/safety-number verification
 actually bind the keys a user sees? Cross-check
-`docs/threat-models/{passkey-auth,session-tokens,breakglass-
+`docs/security/threat-models/{passkey-auth,session-tokens,breakglass-
 admin,argus-id-identity,multi-device-enrollment,fingerprint-verification,device-provisioning}.md`.
 
 ### Slice 4 — Metadata exposure & privacy-at-rest  *(reviewers: `security-architect` + `security-boundary-auditor`)*
@@ -156,7 +156,7 @@ Adversarial questions: what's the *worst* a DB-dump attacker learns about the
 social graph? do logs/error-tracking ever carry content or identifiers they
 shouldn't? does GDPR export leak another user's data? does admin tooling have
 any content path? Cross-check
-`docs/threat-models/{metadata-exposure,admin-panel,admin-access-gating,audit-logging,centralized-logs,
+`docs/security/threat-models/{metadata-exposure,admin-panel,admin-access-gating,audit-logging,centralized-logs,
 observability,error-tracking,gdpr,frontend-observability}.md`.
 
 ### Slice 5 — Client / PWA security  *(reviewer: `security-architect`, with targeted code-review)*
@@ -170,7 +170,7 @@ CSP/headers, XSS surface, and frontend observability (no content/keys in client
 telemetry). Adversarial questions: where do decrypted plaintext and private keys
 live in memory/storage, and for how long? is there a CSP that would stop
 injected JS from posting keys out? is the served bundle integrity-checked?
-Cross-check `docs/threat-models/{device-keystore,prf-keystore-unlock,code-
+Cross-check `docs/security/threat-models/{device-keystore,prf-keystore-unlock,code-
 delivery-integrity,frontend-observability,web-push}.md`.
 
 ### Slice 6 — Infra, secrets, deploy & supply chain  *(reviewer: `infra-reviewer`)*
@@ -185,30 +185,30 @@ for the dev-vs-prod delta); `.github/workflows/`; Dockerfiles. Proves invariants
 files via Managed Identity)? containers non-root + read-only FS + dropped caps +
 limits? data services truly private (no public endpoint)? CI uses OIDC and never
 interpolates untrusted event input into `run:`? backups encrypted, EU-pinned,
-restorable? Cross-check `docs/threat-models/{vm-secrets,
+restorable? Cross-check `docs/security/threat-models/{vm-secrets,
 cross-cloud-secret-fetch,vm-ingress,vm-cd,db-backup,centralized-logs}.md` and
 `docs/architecture/security_toolchain.md`.
 
 ### Slice 7 — Synthesis, threat-model reconciliation & attestation  *(reviewer: `security-architect`)*
-Pull it together. Scope: reconcile every `docs/threat-models/*` note against
+Pull it together. Scope: reconcile every `docs/security/threat-models/*` note against
 what slices 1–6 actually found (flag any note that overclaims), **and flag
 stale/orphaned notes that describe dropped architecture** (e.g. anything
 referencing the removed Kubernetes/AKS/Helm/Argo CD path — deploy is now a
 single VM via Docker Compose) so the attestation doesn't preserve obsolete
 claims, assemble the **residual-risk register**, and write the top-level
-`docs/reviews/00-attestation.md` — the one-page "here is the privacy/safety
+`docs/security/reviews/00-attestation.md` — the one-page "here is the privacy/safety
 posture, proven by these artifacts, with these known limits." This is the
 document you show someone who asks "prove it's safe."
 
 ## Definition of done (campaign)
 
-- Each slice 1–6 has a `docs/reviews/NN-<area>.md` evidence note with every in-scope claim marked PROVEN
+- Each slice 1–6 has a `docs/security/reviews/NN-<area>.md` evidence note with every in-scope claim marked PROVEN
   (linked artifact) or GAP (finding id).
 - Every Must-fix finding is either fixed (its own merged PR) or has a recorded,
   owner-accepted justification.
 - At least one new **standing guard** per slice where an invariant was cheap to
   lock (test or Semgrep rule).
-- `docs/reviews/00-attestation.md` exists and the residual-risk register is complete.
+- `docs/security/reviews/00-attestation.md` exists and the residual-risk register is complete.
 - The existing CI gate stays green throughout (Semgrep, OSV, Trivy, Checkov,
   gitleaks, 42Crunch, CodeQL).
 

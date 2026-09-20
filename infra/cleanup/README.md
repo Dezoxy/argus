@@ -21,7 +21,7 @@ natively on the VM via a **systemd timer** — no Node, no container.
 > socket — not a host TCP port. So there is **no DB password** (the role needs
 > only `LOGIN`), `deploy.sh` **auto-installs and arms** the unit, and
 > `MemoryDenyWriteExecute` is dropped (AWS CLI v2). See
-> `docs/threat-models/db-backup.md` §7.
+> `docs/security/threat-models/db-backup.md` §7.
 
 ## Secrets (invariant #5)
 
@@ -70,7 +70,7 @@ journalctl -u argus-attachment-cleanup.service
 
 A B2 bucket **lifecycle rule** (auto-hide at 14 days, delete hidden after 1 day)
 backs this worker so any blob whose DB row vanished is still reclaimed. See
-`docs/threat-models/encrypted-attachments.md` §5.
+`docs/security/threat-models/encrypted-attachments.md` §5.
 
 ## Prod prerequisite — B2 CORS
 

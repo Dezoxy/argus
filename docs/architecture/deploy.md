@@ -39,7 +39,7 @@ The VM opens **no inbound HTTP port** (`infra/azure/terraform/`). The only way
 to the app is the **outbound** Cloudflare tunnel. TLS, WAF, and the edge
 rate-limit live at Cloudflare; Caddy speaks plain HTTP on a non-privileged port
 over the internal Docker network only. Threat model:
-`docs/threat-models/vm-ingress.md`.
+`docs/security/threat-models/vm-ingress.md`.
 
 **The one exception is coturn.** WebRTC media is UDP and a Cloudflare Tunnel
 cannot carry it, so the NSG opens 3478 (STUN/TURN, udp+tcp), 5349 (TURNS,
@@ -47,7 +47,7 @@ udp+tcp), and the narrow 49160–49260/udp relay range to `0.0.0.0/0` — a publ
 relay cannot restrict its source. coturn is a dumb DTLS-SRTP forwarder: it never
 sees plaintext or keys, authenticates with ephemeral HMAC credentials only, and
 is the most exposed service in the stack. Threat model:
-`docs/threat-models/voip-turn.md`; arming: `docs/runbooks/voip-turn.md`.
+`docs/security/threat-models/voip-turn.md`; arming: `docs/operations/runbooks/voip-turn.md`.
 
 ## The stack (`compose.prod.yaml`)
 
@@ -70,7 +70,7 @@ limits).
 
 Auth is **passkey-only** — the API mints and verifies its own EdDSA session
 tokens. Zitadel/OIDC was decommissioned in Phase 6
-(`docs/threat-models/phase-6-decommission.md`); there is no external IdP.
+(`docs/security/threat-models/phase-6-decommission.md`); there is no external IdP.
 
 ### Images
 
@@ -118,7 +118,7 @@ the images → **`cosign verify`s** each (against this repo's `cd.yml` OIDC
 identity) and rolls out **by digest** → brings up Postgres/Redis → runs **DB
 migrations as the owner** (file-mounted DSN, then `shred`-ed) **before** the api
 serves → brings up `api` + `caddy` + `cloudflared`. Idempotent + fail-closed.
-Threat model: [`docs/threat-models/vm-cd.md`](../threat-models/vm-cd.md).
+Threat model: [`docs/security/threat-models/vm-cd.md`](../security/threat-models/vm-cd.md).
 
 **Repo vars/secrets** (from the Terraform outputs): secrets
 `AZURE_CLIENT_ID`/`AZURE_TENANT_ID`/ `AZURE_SUBSCRIPTION_ID`; vars
@@ -147,7 +147,7 @@ The breakglass admin login is **not** on the public landing page. It lives at
 `https://4rgus.com/admin`, and the breakglass surface (`/admin/*`,
 `/api/auth/breakglass/*`) is reachable **only** through Cloudflare Access. Two
 layers enforce this (see
-[`docs/threat-models/admin-access-gating.md`](../threat-models/admin-access-gating.md)):
+[`docs/security/threat-models/admin-access-gating.md`](../security/threat-models/admin-access-gating.md)):
 
 1. **Edge (Caddy):** `infra/stack/caddy/Caddyfile` returns **404** for `/admin`
    and `/api/auth/breakglass/*` unless the request carries the
@@ -166,7 +166,7 @@ layers enforce this (see
 > breakglass CF Access flow. `AdminGuard` is sufficient: it verifies the Argus
 > EdDSA JWT, checks session revocation, and asserts `role='admin'` +
 > `status='active'` in the DB under tenant RLS. See
-> [`docs/threat-models/admin-access-gating.md`](../threat-models/admin-access-gating.md).
+> [`docs/security/threat-models/admin-access-gating.md`](../security/threat-models/admin-access-gating.md).
 
 **Create the Access application (Zero Trust dashboard — same place as grafana/glitchtip):**
 
@@ -187,7 +187,7 @@ layers enforce this (see
 No new tunnel hostname is needed (`4rgus.com → caddy:8080` already exists), and
 **no secret** is introduced. Recovery-of-last-resort if Access is unavailable
 stays the **direct-DB owner runbook** in
-[`breakglass-admin.md`](../threat-models/breakglass-admin.md) — there is
+[`breakglass-admin.md`](../security/threat-models/breakglass-admin.md) — there is
 deliberately no "skip Access" bypass.
 
 > **Load-bearing defaults / arming.** Keep the Access app's default behaviour of
@@ -249,7 +249,7 @@ A, merged). Slice B adds the stack: **Prometheus** scrapes `api:9090` over the
 internal network, **Grafana** visualises it, **Alertmanager** routes alerts.
 Config lives in `infra/stack/observability/` (`deploy.sh` stages it to
 `/opt/argus`; the services bind-mount it read-only). Threat model:
-`docs/threat-models/observability.md`. **Built as code; armed with the rest of
+`docs/security/threat-models/observability.md`. **Built as code; armed with the rest of
 the deploy.**
 
 - **Exposure:** only **Grafana** has ingress — `grafana.4rgus.com` via Caddy,
@@ -276,7 +276,7 @@ Added to the stack (built; deploys at arming): **Loki** (log store — filesyste
 (collector). Logs are queried in the **same Grafana** via a provisioned **Loki**
 datasource. App logs are **IDs/metadata only** by discipline (Semgrep-gated);
 Alloy adds a scrub stage masking bearer/JWT/presigned-URL shapes as
-defense-in-depth. Threat model: `docs/threat-models/centralized-logs.md`.
+defense-in-depth. Threat model: `docs/security/threat-models/centralized-logs.md`.
 
 - **No Docker socket.** Alloy file-tails `/var/lib/docker/containers` mounted
   **read-only** — a socket mount is daemon-root-equivalent and is deliberately
@@ -299,7 +299,7 @@ message content, MLS/session/device keys, tokens, full `Authorization` headers,
 cookies, request bodies/query, or presigned URLs ever leave; an event carries
 only error type/message/stack, the HTTP method + route-**template**, the
 release, and opaque tenant/user id tags (invariant #2). Threat model:
-`docs/threat-models/error-tracking.md`. Only genuine server faults are captured
+`docs/security/threat-models/error-tracking.md`. Only genuine server faults are captured
 (5xx + unhandled; 4xx is skipped), via a non-invasive interceptor that
 observes + rethrows — the response shape is unchanged.
 

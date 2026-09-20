@@ -8,7 +8,7 @@
 --     to argus_app for a suggested cron — this migration introduces the dedicated argus_prune grant instead).
 -- It also adds the column-scoped UPDATE grant the GDPR Art. 17 erasure flow needs for ER-1.
 --
--- Design (see docs/threat-models/audit-logging.md): argus_prune is cross-tenant but, by RLS policy,
+-- Design (see docs/security/threat-models/audit-logging.md): argus_prune is cross-tenant but, by RLS policy,
 -- can ONLY ever see/delete rows past their retention window — never a live row, never any other
 -- column path. The time window is DATABASE-enforced (a policy predicate), not merely a WHERE clause
 -- in the worker: a buggy/omitted predicate, or a leaked argus_prune credential, still cannot touch an
@@ -116,6 +116,6 @@ create index if not exists auth_sessions_expires_at_idx on auth_sessions (expire
 --    This grant is COLUMN-SCOPED to `metadata` ONLY: the app still cannot rewrite event_type, actor_sub,
 --    ip, or created_at — the integrity fields that prove who-did-what. Scrubbing a target identifier
 --    under an erasure obligation is the opposite of a cover-up. Documented + GDPR-owner-cleared in
---    docs/threat-models/audit-logging.md; the append-only negative test now asserts exactly this boundary
+--    docs/security/threat-models/audit-logging.md; the append-only negative test now asserts exactly this boundary
 --    (metadata UPDATE allowed; integrity-column UPDATE still denied).
 grant update (metadata) on audit_events to argus_app;

@@ -4,7 +4,7 @@
 -- `commit` is the opaque base64 mls_private_message frame — crypto-blind (invariant #1).
 -- `sender_user_id` is nullable for GDPR erasure parity with messages.sender_user_id.
 -- FORCE RLS so even the table owner (superuser queries inside the app) hits the tenant filter.
--- See docs/threat-models/group-membership.md.
+-- See docs/security/threat-models/group-membership.md.
 
 create table if not exists conversation_commits (
   id               uuid        primary key default gen_random_uuid(),

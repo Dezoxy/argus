@@ -1,7 +1,7 @@
 # Loki — centralized logs store (roadmap #47b). Monolithic (single-binary) mode with filesystem storage on a
 # named volume; INTERNAL ONLY (no published port, no auth — same posture as Prometheus in #47). Grafana
 # queries it over the internal network; Alloy pushes to it. Logs are IDs/metadata only (see
-# docs/threat-models/centralized-logs.md). 7-day retention bounds how long any accidentally-logged sensitive
+# docs/security/threat-models/centralized-logs.md). 7-day retention bounds how long any accidentally-logged sensitive
 # line could persist.
 auth_enabled: false
 

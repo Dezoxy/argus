@@ -4,7 +4,7 @@
 # reverse-proxies /api + /ws to the API container. Build context is the REPO ROOT — the web build needs the
 # pnpm workspace and @argus/crypto. Build from the repo root:
 #   docker build -f infra/stack/caddy/Dockerfile -t argus-ingress .
-# See infra/stack/caddy/Caddyfile and docs/threat-models/vm-ingress.md.
+# See infra/stack/caddy/Caddyfile and docs/security/threat-models/vm-ingress.md.
 
 # ---- web build (pnpm workspace) ----
 FROM node:26-alpine AS web-build

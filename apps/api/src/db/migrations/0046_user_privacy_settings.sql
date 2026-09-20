@@ -9,7 +9,7 @@
 -- No index: these columns are never filtered on; they are read only per-user via the
 -- existing (id, tenant_id) predicate that uses the PK.
 --
--- See docs/threat-models/privacy-settings.md.
+-- See docs/security/threat-models/privacy-settings.md.
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_read_receipts    boolean;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS privacy_typing_indicators boolean;

@@ -29,7 +29,7 @@ export async function loadTurnSharedSecret(): Promise<string> {
 
   if (process.env['NODE_ENV'] === 'production') {
     throw new Error(
-      'TURN_SHARED_SECRET_FILE must be set in production — see docs/threat-models/voip-turn-credentials.md',
+      'TURN_SHARED_SECRET_FILE must be set in production — see docs/security/threat-models/voip-turn-credentials.md',
     );
   }
 

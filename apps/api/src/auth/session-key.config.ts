@@ -1,4 +1,4 @@
-// Server-auth infrastructure, not E2EE key material — see docs/threat-models/session-tokens.md §invariant-4.
+// Server-auth infrastructure, not E2EE key material — see docs/security/threat-models/session-tokens.md §invariant-4.
 // EdDSA (Ed25519) is used here for server-issued JWT signing/verification only.
 // This is a deliberate, documented exception to invariant #4: `packages/crypto` is the MLS wrapper
 // for E2EE message keys; session signing is transport-auth that the server is intended to own.
@@ -48,7 +48,7 @@ export async function loadSessionKeys(): Promise<SessionKeyPair> {
 
   if (process.env['NODE_ENV'] === 'production') {
     throw new Error(
-      'SESSION_SIGNING_KEY_FILE must be set in production — see docs/threat-models/session-tokens.md',
+      'SESSION_SIGNING_KEY_FILE must be set in production — see docs/security/threat-models/session-tokens.md',
     );
   }
 

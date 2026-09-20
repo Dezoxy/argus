@@ -205,26 +205,26 @@ V1 is done when:
 > **Process note — Phase-0 GDPR artifact bundle (must merge before any VoIP
 > code).** VoIP changes the data-processing picture, so Phase-0 ships four
 > named, canonical repo artifacts — not a vague "flag it for the ROPA/DPIA":
-> - **Revise** [`docs/gdpr/data-residency.md`](../../gdpr/data-residency.md) —
+> - **Revise** [`docs/compliance/data-residency.md`](../../compliance/data-residency.md) —
 >   add the **coturn relay** row (EU-resident relay of encrypted SRTP; no media
 >   decryption).
 > - **Revise**
->   [`docs/gdpr/article-30-records.md`](../../gdpr/article-30-records.md) — add
+>   [`docs/compliance/article-30-records.md`](../../compliance/article-30-records.md) — add
 >   the **new processing activity** (1:1 calling), the **personal-data
 >   category** (call metadata / relayed traffic), the **APNs/FCM sub-processor**
 >   entry (for V1.1 push-wake), and the **retention row** (call ledger = **30
 >   days**, V1.1).
 > - **Extend**
->   [`docs/threat-models/metadata-exposure.md`](../../threat-models/metadata-exposure.md)
+>   [`docs/security/threat-models/metadata-exposure.md`](../../security/threat-models/metadata-exposure.md)
 >   — add **call-graph**, **call-timing**, and **relay-peer-IP** rows.
-> - **Create** `docs/gdpr/dpia-voip-calling.md` — the DPIA, with **legal basis per processing activity**.
+> - **Create** `docs/compliance/dpia-voip-calling.md` — the DPIA, with **legal basis per processing activity**.
 >
 > Each new table ships with `tenant_id` + RLS + a leading-`tenant_id` index or
 > it's a block; each new endpoint ships in the OpenAPI spec with a controller
 > spec pinning its guard; the matching reviewer subagent runs after non-trivial
 > changes in its area. The VoIP threat model
 > ([06](./06-threat-model-and-privacy.md)) is copied to
-> `docs/threat-models/voip-calling.md`, and the TURN networking threat-model
+> `docs/security/threat-models/voip-calling.md`, and the TURN networking threat-model
 > note ([03](./03-infrastructure-turn-and-networking.md)) merges, before any
 > VoIP code.
 
@@ -328,7 +328,7 @@ Read in order for the full picture; jump by concern using the map below.
 | [**03 — Infrastructure: TURN & networking**](./03-infrastructure-turn-and-networking.md) | The Cloudflare-Tunnel-vs-UDP collision and its resolution; coturn as a hardened service (with healthcheck); NSG/Terraform inbound; ephemeral TURN creds; TLS; abuse controls; capacity, cost & availability | Anything about the relay, ports, secrets, cost, or uptime |
 | [**04 — Server API & database**](./04-server-api-and-database.md) | New REST endpoints (`/calls/*`), WS gateway additions, the relay-only preference, authz/IDOR/presence-oracle handling; **the V1.1 metadata-only `call_sessions` table + RLS + prune** (V1 has none) | Server-side surface, schemas, and the data model |
 | [**05 — Frontend, PWA & WebRTC client**](./05-frontend-pwa-and-webrtc.md) | The in-browser WebRTC engine, call UI state machine & components, **honest PWA limitations + precise receivability terms**, failure UX, accessibility, Playwright E2E with mocked media | Client implementation and the PWA reality check |
-| [**06 — Threat model & privacy**](./06-threat-model-and-privacy.md) | Assets/adversaries, STRIDE-style metadata enumeration, per-invariant verification, relay-vs-direct privacy dial, **call-reliability/failure-modes (§11)**, GDPR/EU residency + the artifact-bundle checklist (§12), abuse controls, non-goals, residual-risk register | The security source of truth (copy to `docs/threat-models/` before coding) |
+| [**06 — Threat model & privacy**](./06-threat-model-and-privacy.md) | Assets/adversaries, STRIDE-style metadata enumeration, per-invariant verification, relay-vs-direct privacy dial, **call-reliability/failure-modes (§11)**, GDPR/EU residency + the artifact-bundle checklist (§12), abuse controls, non-goals, residual-risk register | The security source of truth (copy to `docs/security/threat-models/` before coding) |
 | [**07 — Comparative survey**](./07-comparative-survey.md) | How Signal, WhatsApp, Wire, Matrix/Element, Jitsi, Google Meet/Duo build E2EE calling; what to copy vs. avoid; mapping to our locked decisions | External validation and prior art |
 | [**08 — Roadmap & delivery slices**](./08-roadmap-and-delivery-slices.md) | Phase-0 predecessors (auth-sender decrypt path, GDPR bundle, coturn alert+runbook), the ~9-slice audio critical path + dependency graph, then the V1.1 slices | Sequencing and PR-sized planning |
 | [**09 — Decision log & open questions**](./09-decision-log-and-open-questions.md) | Settled rulings (retention 30d, iOS "accept + be honest", TURN TTL 600s, exporter shim async, ingress (a)+(c) now / (d) before video) and what remains open | The "why did we decide X" record |

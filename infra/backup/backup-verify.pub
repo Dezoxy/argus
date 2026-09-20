@@ -7,7 +7,7 @@
 #   az keyvault secret show --vault-name <vault> --name argus-backup-signing-key --query value -o tsv \
 #     | openssl pkey -pubout            # use real OpenSSL 3 (macOS LibreSSL cannot)
 # To rotate, see infra/backup/README.md §"Backup signing key" (coordinated keyring — keep the old block
-# until no live backup is signed by the old key) and docs/threat-models/db-backup.md.
+# until no live backup is signed by the old key) and docs/security/threat-models/db-backup.md.
 -----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAWtCD5GGXUGIUC96WxYLEqt5oVBI18GK2O94U0v+twgA=
 -----END PUBLIC KEY-----

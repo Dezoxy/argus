@@ -10,7 +10,7 @@
 > cuts live in `git log` and [`../archive/`](../archive/); do not follow them.
 >
 > **Phasing is not here.**
-> [`../planning/roadmap/README.md`](../planning/roadmap/README.md) is canonical
+> [`../planning/roadmap/README.md`](../planning/phases/README.md) is canonical
 > for what is done and what is left. **Rules** are in `AGENTS.md`. This doc is
 > the shape of the system.
 
@@ -287,7 +287,7 @@ Full operational detail — rollout, rollback, health gates — lives in
   coturn is the most exposed service in the stack and is hardened accordingly —
   ephemeral HMAC credentials, no long-lived users, peer ACLs. See
   `threat-models/voip-turn.md` and
-  [`../runbooks/voip-turn.md`](../runbooks/voip-turn.md).
+  [`../runbooks/voip-turn.md`](../operations/runbooks/voip-turn.md).
 - **Internal proxy = Caddy** (plain HTTP, single origin): serves the PWA and
   proxies `/api` and `/ws`. TLS is Cloudflare's job (no cert-manager, no
   Let's-Encrypt-on-host).
@@ -621,7 +621,7 @@ client and server can never disagree on the encrypted envelope.
 
 ## 14. Threat Model
 
-Per-feature notes live in [`../threat-models/`](../threat-models/); this is the summary sheet.
+Per-feature notes live in [`../threat-models/`](../security/threat-models/); this is the summary sheet.
 
 | Threat                                                | Protection                                                                                                                                                                                          |
 | ----------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -651,7 +651,7 @@ retention.
 
 **Position:** stay privacy-first. Keep a documented, opt-in, **per-tenant
 compliance mode** as a future feature if that market ever matters
-([`../planning/roadmap/09-backlog.md`](../planning/roadmap/09-backlog.md), item
+([`../planning/roadmap/09-backlog.md`](../planning/phases/09-backlog.md), item
 B3). Decide the target user before writing any public copy.
 
 ---
@@ -681,7 +681,7 @@ mitigated by the nightly encrypted B2 backup and a rehearsed restore drill
 
 ## 17. Delivery History
 
-[`../planning/roadmap/README.md`](../planning/roadmap/README.md) is **canonical** — it tracks what is done
+[`../planning/roadmap/README.md`](../planning/phases/README.md) is **canonical** — it tracks what is done
 and what is left. The short version of how the system got here:
 
 | Phase    | What it delivered                                                                                  |

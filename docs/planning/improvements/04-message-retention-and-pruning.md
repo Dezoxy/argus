@@ -39,7 +39,7 @@ largest and fastest-growing data in the system.
 
 The server is a **relay, not the client's archive**: clients persist their own
 decrypted history locally, sealed at rest
-(`docs/threat-models/message-history.md`), so the server's `messages` table is
+(`docs/security/threat-models/message-history.md`), so the server's `messages` table is
 only an offline catch-up buffer — yet that buffer is never drained.
 Consequences:
 
@@ -51,7 +51,7 @@ Consequences:
 - **GDPR storage-limitation (Art. 5(1)(e))** — argus currently has *no*
   retention story for message content. This is the same latent-debt class as the
   F1/AR-1 finding that made unbounded `audit_events` a must-fix
-  (`docs/reviews/04-metadata-privacy.md`); `messages` is the larger,
+  (`docs/security/reviews/04-metadata-privacy.md`); `messages` is the larger,
   ciphertext-bearing version.
 
 ## Proposed approach
@@ -217,12 +217,12 @@ until welcome pruning is implemented.
 > prune-safe. The legacy UUID `nextCursor` and a legacy bare-id `after` are both
 > still accepted (server discriminates by UUID shape → legacy anchor-lookup vs
 > opaque → keyset). No DB/RLS/migration, no envelope change.
-2. **✅ Threat-model note (no code)** — `docs/threat-models/message-retention.md` via `/feature-threat-model`;
+2. **✅ Threat-model note (no code)** — `docs/security/threat-models/message-retention.md` via `/feature-threat-model`;
    verify the 6 invariants; `security-architect` sign-off on the rule + the #262 re-scope.
 
 > **Implemented 2026-06-21
 > ([#290](https://github.com/Dezoxy/secmes/pull/290)).** Wrote
-> [`docs/threat-models/message-retention.md`](../../threat-models/message-retention.md)
+> [`docs/security/threat-models/message-retention.md`](../../security/threat-models/message-retention.md)
 > (6-section structure, all 6 invariants checked). Both reviewers
 > **PASS_WITH_CONDITIONS** — the design is validated against the code; every
 > condition is binding on the **code** slices (3/4/5) and is recorded in the
@@ -447,7 +447,7 @@ until welcome pruning is implemented.
 - New worker `infra/retention/prune-messages.sh` + `argus-message-retention.{service,timer}`.
 - `infra/stack/deploy/deploy.sh`: grant the new role LOGIN with a NULL password out-of-band + install the
   timer (mirror the existing prune/cleanup wiring).
-- New `docs/threat-models/message-retention.md`.
+- New `docs/security/threat-models/message-retention.md`.
 - **The position-carrying cursor spans the shared contract (slice 1), not just
   `apps/api` (Codex P2):** `ListMessagesQuerySchema.after` *and*
   `MessagePage.nextCursor` (today a UUID at

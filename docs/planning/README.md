@@ -1,7 +1,7 @@
 # Planning
 
 All plan, roadmap, and step-tracking docs for argus. The **canonical phasing**
-lives in [`roadmap/`](roadmap/) (split per phase, with a progress table and a
+lives in [`roadmap/`](phases/) (split per phase, with a progress table and a
 remaining-work rollup); everything else here is a focused plan for one effort,
 each carrying a `**Status:**` header.
 
@@ -16,9 +16,9 @@ ISO (`YYYY-MM-DD`).
 
 ## The build roadmap
 
-- [`roadmap/`](roadmap/) — the living checkpoint checklist, split by phase. Start at
-  [`roadmap/README.md`](roadmap/README.md) for the progress table and what's left.
-- [`roadmap/history.md`](roadmap/history.md) — the archived per-checkpoint build log (PR-by-PR, snapshot
+- [`roadmap/`](phases/) — the living checkpoint checklist, split by phase. Start at
+  [`roadmap/README.md`](phases/README.md) for the progress table and what's left.
+- [`roadmap/history.md`](phases/history.md) — the archived per-checkpoint build log (PR-by-PR, snapshot
   2026-06-14). New status goes in the phase files, not here.
 
 ## Focused plans
@@ -30,7 +30,7 @@ ISO (`YYYY-MM-DD`).
 | [contact-list-recovery-plan.md](contact-list-recovery-plan.md)           | Server-backed Friends list + tap-to-resume         | **COMPLETE** (friendships `0042`, PRs #234–#238 + follow-ups) |
 | [frontend-rebranding-roadmap.md](frontend-rebranding-roadmap.md)         | "Minimal Messenger OS" UI/UX rebrand               | in progress (v2 sketches live at `/v2`) |
 | [controller-spec-coverage-plan.md](controller-spec-coverage-plan.md)     | Close the controller-spec gap (3 slices)           | APPROVED (not started)             |
-| [security-review-campaign-plan.md](security-review-campaign-plan.md)     | 6-slice adversarial review → evidence notes        | done (see [`../reviews/`](../reviews/)) |
+| [security-review-campaign-plan.md](security-review-campaign-plan.md)     | 6-slice adversarial review → evidence notes        | done (see [`../reviews/`](../security/reviews/)) |
 
 ## Codebase improvement tracks
 

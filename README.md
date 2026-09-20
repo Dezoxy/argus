@@ -10,7 +10,7 @@ provider.
 Architecture:
 [`docs/architecture/secure_messaging_platform_plan.md`](docs/architecture/secure_messaging_platform_plan.md).
 Phasing & checkpoint status:
-[`docs/planning/roadmap/README.md`](docs/planning/roadmap/README.md).
+[`docs/planning/phases/README.md`](docs/planning/phases/README.md).
 
 > **Deployment:** the target is a **single Azure VM** (EU, `germanywestcentral`)
 > running the stack via **Docker Compose** — self-hosted **Postgres + Redis**
@@ -96,7 +96,7 @@ compose.prod.yaml      # prod stack (+ Caddy, cloudflared, coturn, observability
 
 The application is built end-to-end (Phases 0–7, plus group chat, multi-device
 sync, and VoIP V1 — see
-[`docs/planning/roadmap/README.md`](docs/planning/roadmap/README.md)). What
+[`docs/planning/phases/README.md`](docs/planning/phases/README.md)). What
 remains is **operational**, not feature work:
 
 - **The Azure production track is still gated.** The Terraform, the prod Compose

@@ -26,7 +26,7 @@
 -- bypasses RLS when its owner holds BYPASSRLS (environment-dependent; would silently return zero rows where
 -- the migration role is not a superuser). The GUC-scoped policy reuses the existing app.tenant_id idiom.
 --
--- See docs/threat-models/tenant-onboarding.md and rls-tenant-isolation.md.
+-- See docs/security/threat-models/tenant-onboarding.md and rls-tenant-isolation.md.
 
 alter policy tenant_invites_isolation on tenant_invites
   using      (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)

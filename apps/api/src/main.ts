@@ -1,5 +1,5 @@
 // tracing.ts MUST be the first import so the OTel SDK patches Node built-ins before any other module
-// loads. See docs/threat-models/structured-logging-and-tracing.md and apps/api/Dockerfile CMD.
+// loads. See docs/security/threat-models/structured-logging-and-tracing.md and apps/api/Dockerfile CMD.
 import './observability/tracing.js';
 
 import 'reflect-metadata';

@@ -200,7 +200,7 @@ access is `T | undefined`).
 ### Phase 0 — Identity spine: `argus_id` (foundation, additive)
 **Goal:** every user gets an immutable, system-generated argus-id, surfaced in
 `/me`. OIDC still active. **Threat model:**
-`docs/threat-models/argus-id-identity.md`. **Changes:**
+`docs/security/threat-models/argus-id-identity.md`. **Changes:**
 - `apps/api/src/db/migrations/0030_argus_id.sql` — **Recommended approach (no
   SQL random generator):** add `argus_id` nullable, **backfill existing rows
   explicitly via the app generator `generateArgusId()`** (CSPRNG, canonical
@@ -236,7 +236,7 @@ access is `T | undefined`).
 
 ### Phase 1 — Self-minted session tokens (parallel-safe with Phase 2)
 **Goal:** the API mints/verifies its own EdDSA JWTs; "stay logged in" via rotating refresh.
-**Threat model:** `docs/threat-models/session-tokens.md`.
+**Threat model:** `docs/security/threat-models/session-tokens.md`.
 **Changes:**
 - `auth_sessions` table (tenant-scoped, FORCE RLS, leading tenant_id index):
   `id`(sid), `tenant_id`, `user_id`, `refresh_token_hash` (SHA-256 at rest),
@@ -287,7 +287,7 @@ access is `T | undefined`).
 ### Phase 2 — WebAuthn + registration-by-code
 **Goal:** redeem a code → set up a passkey → first session; passkey login via
 discoverable credentials. **Threat models (write first):**
-`docs/threat-models/passkey-auth.md`, `registration-and-tenancy.md`.
+`docs/security/threat-models/passkey-auth.md`, `registration-and-tenancy.md`.
 **Changes:**
 - Add `@simplewebauthn/server` (api) + `@simplewebauthn/browser` (web) (one-line dep justification each).
 - `webauthn_credentials` table (tenant-scoped, FORCE RLS): `id`, `tenant_id`,
@@ -371,7 +371,7 @@ discoverable credentials. **Threat models (write first):**
 
 ### Phase 3 — Breakglass admin (username + password)
 **Goal:** an emergency admin login that yields an admin session (never a content path).
-**Threat model:** `docs/threat-models/breakglass-admin.md`.
+**Threat model:** `docs/security/threat-models/breakglass-admin.md`.
 **Changes:**
 - `admin_credentials` table (tenant-scoped, FORCE RLS, **leading `tenant_id`
   index**): `tenant_id`, `user_id`, `username` (the breakglass login id — stored
@@ -408,7 +408,7 @@ discoverable credentials. **Threat models (write first):**
 ### Phase 4 — Discovery by argus-id + profile editing
 **Goal:** replace the directory with exact-match lookup; let users edit name +
 (generated) avatar. **Threat models:**
-`docs/threat-models/discovery-by-argus-id.md` (+ supersede `user-directory.md`),
+`docs/security/threat-models/discovery-by-argus-id.md` (+ supersede `user-directory.md`),
 `profile-edit.md`. **Changes:**
 - Add `GET /users/lookup?argusId=…` — **exact match only** (no
   LIKE/prefix/fuzzy), authenticated, hard rate-limited (new

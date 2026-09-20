@@ -119,7 +119,7 @@ groups:
           severity: critical
         annotations:
           summary: 'coturn TURN relay scrape is failing'
-          description: 'Prometheus cannot scrape coturn:9641 for >2m; metrics may be misparsed or the TURN relay may be unavailable. Check the coturn container health before treating relay-only calls as failed. See docs/runbooks/voip-turn.md.'
+          description: 'Prometheus cannot scrape coturn:9641 for >2m; metrics may be misparsed or the TURN relay may be unavailable. Check the coturn container health before treating relay-only calls as failed. See docs/operations/runbooks/voip-turn.md.'
 
       - alert: LokiIngestionSilent
         expr: rate(loki_distributor_lines_received_total[5m]) == 0

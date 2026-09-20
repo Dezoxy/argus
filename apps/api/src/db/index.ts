@@ -69,7 +69,7 @@ export function asTenantId(value: string): TenantId {
  * (`DEFAULT_TENANT_ID`, for passkey/breakglass bootstrap); or (3) a server-derived row — e.g. the
  * `auth_sessions` row matched by refresh-token hash on the `@Public` refresh path, whose own
  * `tenant_id` is then used. There are NO client-derived exceptions —
- * see docs/threat-models/rls-tenant-isolation.md.
+ * see docs/security/threat-models/rls-tenant-isolation.md.
  */
 export async function withTenant<T>(tenantId: string, fn: (tx: Tx) => Promise<T>): Promise<T> {
   const tid = asTenantId(tenantId); // fail fast before opening a transaction

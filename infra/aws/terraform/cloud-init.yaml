@@ -71,7 +71,7 @@ write_files:
       # Fetch the onboarding SP secret from SSM (instance role + IMDSv2; the secret is a SecureString). Held in
       # a shell var only — never on disk. NOTE: azcmagent takes the secret as an argv flag, so it is briefly
       # visible in /proc on this single-tenant root box during onboarding (one-time, transient cred that cannot
-      # read Key Vault). Recorded in docs/threat-models/cross-cloud-secret-fetch.md.
+      # read Key Vault). Recorded in docs/security/threat-models/cross-cloud-secret-fetch.md.
       ARC_SECRET="$(aws ssm get-parameter \
         --name '${arc_onboarding_param}' --with-decryption \
         --region '${aws_region}' --query 'Parameter.Value' --output text)"

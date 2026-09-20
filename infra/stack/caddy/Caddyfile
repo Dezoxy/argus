@@ -4,7 +4,7 @@
 # internal Docker network, so Caddy never needs a public cert or :443. A non-privileged port lets Caddy run
 # as a non-root user with all Linux capabilities dropped. Caddy is the single origin: it serves the PWA
 # static build and reverse-proxies /api + /ws to the API. The Cloudflare tunnel ingress (dashboard-managed)
-# points the public hostname at http://caddy:8080. See docs/threat-models/vm-ingress.md.
+# points the public hostname at http://caddy:8080. See docs/security/threat-models/vm-ingress.md.
 {
 	# No public cert, no :443, no Let's Encrypt — the edge owns TLS.
 	auto_https off
@@ -49,7 +49,7 @@ http://glitchtip.4rgus.com:8080 {
 	# against the live app at arming (CSP violations surface in the browser console). SRI (sha384 integrity on
 	# the built bundles via vite-plugin-sri3) + the published bundle-manifest.json are emitted at build time, and
 	# service-worker pinning is the @revalidate/@immutable cache policy below — the #43 frontend-build slice is
-	# now complete (docs/threat-models/code-delivery-integrity.md).
+	# now complete (docs/security/threat-models/code-delivery-integrity.md).
 	header {
 		# script-src is strict 'self' — no inline scripts (index.html only loads /src/main.tsx as a module) and
 		# ts-mls is pure JS (no wasm-eval), so injected/foreign script can't run to read decrypted content or keys
@@ -74,7 +74,7 @@ http://glitchtip.4rgus.com:8080 {
 		X-Content-Type-Options nosniff
 		X-Frame-Options DENY
 		# HSTS: pin HTTPS for a year. Set at the ORIGIN, not relying on the Cloudflare edge — a live review
-		# (docs/reviews/07-live-domain-security-overview.md) found HSTS absent on the HTTPS response despite the
+		# (docs/security/reviews/07-live-domain-security-overview.md) found HSTS absent on the HTTPS response despite the
 		# old assumption that "the edge adds it". cloudflared forwards this header to the client over the public
 		# HTTPS connection, so an origin-set value is reliable and lives in-repo (CI-visible) instead of as
 		# undocumented dashboard state. No includeSubDomains/preload yet: grafana.4rgus.com / glitchtip.4rgus.com
@@ -110,7 +110,7 @@ http://glitchtip.4rgus.com:8080 {
 	# user with role='admin' (enforced by AdminGuard: Argus JWT + session revocation check + DB role
 	# check). CF Access was removed from /api/admin/* to allow regular admin users to use the in-app
 	# admin panel (Settings → Admin) without having gone through the breakglass CF Access flow.
-	# See docs/threat-models/admin-access-gating.md.
+	# See docs/security/threat-models/admin-access-gating.md.
 	@breakglass_nojwt {
 		# Match the bare prefixes too (not just /*) so a future index route on the breakglass
 		# controller can never be reachable un-gated at the bare path.

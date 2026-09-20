@@ -24,7 +24,7 @@ vm run-command`** (Azure OIDC) — the VM pulls the signed images and runs DB
 double-gated: `vars.ENABLE_DEPLOY` (master kill-switch) **and** the **`prod`
 GitHub Environment**'s required-reviewer approval (a per-release human gate).
 The run-command payload is non-secret (exact-SHA config); every secret is
-fetched on the VM via the Managed Identity. See `docs/threat-models/vm-cd.md`.
+fetched on the VM via the Managed Identity. See `docs/security/threat-models/vm-cd.md`.
 
 **Secrets/vars to set before first run:** `X42C_API_TOKEN` (42Crunch),
 `vars.STAGING_URL` (DAST), and for CD:

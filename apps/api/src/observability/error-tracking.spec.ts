@@ -12,7 +12,7 @@ import { shouldCapture } from './error-tracking.interceptor.js';
 
 // Invariant #2: error tracking is a form of logging — a shipped event must NEVER carry plaintext content,
 // keys, tokens, full Authorization headers, cookies, request bodies/query, or presigned URLs. These tests
-// pin the default-deny scrubbing that enforces it. See docs/threat-models/error-tracking.md.
+// pin the default-deny scrubbing that enforces it. See docs/security/threat-models/error-tracking.md.
 describe('scrubEvent — request surface is stripped', () => {
   it('drops body / query / cookies / url and all non-allowlisted headers', () => {
     const event = {

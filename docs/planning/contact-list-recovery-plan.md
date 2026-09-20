@@ -7,7 +7,7 @@
 > list** is the durable contact source. The reinstall mechanics, the crypto
 > reasoning, and the tap-to-resume identity-change spine carry over unchanged.
 > **This doc is the implementation roadmap.** The companion *threat-model note*
-> lives at `docs/threat-models/contact-list-recovery.md` (authored task #20,
+> lives at `docs/security/threat-models/contact-list-recovery.md` (authored task #20,
 > merged #234) and gets a friends-graph section added (see *Residual risks*).
 > **Tracker / status (updated post-merge 2026-06-18):** task #20 (threat-model
 > note) merged #234 · task #21 (roster recovery) merged #235 — **its
@@ -113,7 +113,7 @@ We still **reject** any encrypted-roster blob — it would re-create the
   ([packages/crypto/src/index.ts:203](../../packages/crypto/src/index.ts)), the
   `VerifySecurity` OOB panel
   ([VerifySecurity.tsx](../../apps/web/src/features/chat/VerifySecurity.tsx)), and
-  [fingerprint-verification.md](../threat-models/fingerprint-verification.md).
+  [fingerprint-verification.md](../security/threat-models/fingerprint-verification.md).
   PR #236 moves verified-state from ephemeral `useState` to a sealed
   per-`peerUserId` record and wires the live "security code changed" signal.
 - **argus-id discovery already exists, hardened.** `UserService.lookupByArgusId`
@@ -122,7 +122,7 @@ We still **reject** any encrypted-roster blob — it would re-create the
   bearer-auth, a 10/min rate limit, and argus-id log-injection sanitization. The
   friends backend **reuses this verbatim** — see *argus-id discovery hardening*.
   Threat-modeled in
-  [discovery-by-argus-id.md](../threat-models/discovery-by-argus-id.md).
+  [discovery-by-argus-id.md](../security/threat-models/discovery-by-argus-id.md).
 
 ## The friends data model (the core new design)
 
@@ -320,7 +320,7 @@ source).
   friendships). Record explicitly; if a future ops need arises, threat-model it
   separately (R-friends-6).
 
-## Residual risks (add to `docs/threat-models/contact-list-recovery.md`; cross-link metadata-exposure.md)
+## Residual risks (add to `docs/security/threat-models/contact-list-recovery.md`; cross-link metadata-exposure.md)
 
 - **R-friends-1 (pre-conversation social graph):** `friendships` lets a
   DB-compromise/subpoena see "A and B are friends" with zero messages. Mitigated

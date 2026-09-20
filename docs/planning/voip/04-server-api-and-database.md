@@ -590,7 +590,7 @@ Notes:
 
 Calling retention plugs into **Track 4**
 (`docs/planning/improvements/04-message-retention-and-pruning.md`; threat model
-`docs/threat-models/message-retention.md`) and the merged `0044` pattern:
+`docs/security/threat-models/message-retention.md`) and the merged `0044` pattern:
 
 - **30-day hard ceiling** — the confirmed Q3 ruling
   ([09](./09-decision-log-and-open-questions.md)) — expressed as the literal
@@ -708,7 +708,7 @@ presence oracle even when no call connects. Mitigations, layered:
 Residual, accepted risk: a *friend* who calls repeatedly can infer
 answer-vs-ignore patterns. That is inherent to any calling product and is
 bounded by the friendship consent + rate limits (§8). Captured in the
-threat-model note and in the extended `docs/threat-models/metadata-exposure.md`
+threat-model note and in the extended `docs/security/threat-models/metadata-exposure.md`
 rows (§9).
 
 ---
@@ -742,7 +742,7 @@ needs tighter limits than messaging.
 
 Per AGENTS.md Definition of Done, the V1 slice must ship with:
 
-- [ ] **Threat-model note** under `docs/threat-models/` (e.g.
+- [ ] **Threat-model note** under `docs/security/threat-models/` (e.g.
   `voip-call-signaling.md`) written **before** coding — covers:
   signaling-over-Redis with no persistence (best-effort drop =
   call-fails-closed); the **authenticated-sender decrypt path** as the MITM
@@ -773,16 +773,16 @@ artifacts (echoed in [00](./00-overview-and-goals.md) process note, [06
 §12](./06-threat-model-and-privacy.md) checklist, and
 [08](./08-roadmap-and-delivery-slices.md) P0-TM):
 
-- [ ] **Revise `docs/gdpr/data-residency.md`** — add the **coturn relay** row
+- [ ] **Revise `docs/compliance/data-residency.md`** — add the **coturn relay** row
   (EU-pinned relay host; SRTP transits but is never decrypted; what metadata the
   relay process can observe).
-- [ ] **Revise `docs/gdpr/article-30-records.md`** — add the new **processing
+- [ ] **Revise `docs/compliance/article-30-records.md`** — add the new **processing
   activity** (1:1 calling), the new **personal-data category** (call metadata /
   relayed peer IP), the **APNs/FCM sub-processor** entry (V1.1, when push-wake
   lands), and the **retention row** (call ledger = **30 days**, V1.1).
-- [ ] **Extend `docs/threat-models/metadata-exposure.md`** — add the
+- [ ] **Extend `docs/security/threat-models/metadata-exposure.md`** — add the
   **call-graph**, **call-timing**, and **relay-observable peer-IP** rows.
-- [ ] **Create `docs/gdpr/dpia-voip-calling.md`** — the DPIA, stating the
+- [ ] **Create `docs/compliance/dpia-voip-calling.md`** — the DPIA, stating the
   **legal basis per processing activity** (calling, ledger, push).
 
 ### 9.3 V1.1 additions
@@ -812,7 +812,7 @@ artifacts (echoed in [00](./00-overview-and-goals.md) process note, [06
 |---|---|---|
 | **P0-crypto** | Authenticated-sender decrypt path in `packages/crypto` (MITM defense for the call signal) | **crypto-reviewer** (hard predecessor of the first connecting call) |
 | **P0-GDPR** | The four-artifact bundle (§9.2): revise data-residency + article-30, extend metadata-exposure, create dpia-voip-calling | TM / GDPR review |
-| **S1** | Threat-model note (`docs/threat-models/voip-call-signaling.md`) | — (docs first) |
+| **S1** | Threat-model note (`docs/security/threat-models/voip-call-signaling.md`) | — (docs first) |
 | **S2** | `call_relay_only` boolean on `users` (no new table) + `GET/PUT /calls/settings` | DB review (column-grant scope) |
 | **S3** | `calls` module: `POST /calls/turn-credentials` (**per-user**, relay-only shaping, HMAC creds, no-log) + secret wiring in fetch script | crypto/boundary review |
 | **S4** | `POST /calls/:friendUserId/invite` (friendship gate, authenticated-sender stamp, uniform 202 with an inactive `callId` on no-op, in-memory **call-authorization map**, no DB write) | boundary review |
