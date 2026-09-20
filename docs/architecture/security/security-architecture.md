@@ -46,18 +46,20 @@ fails a test rather than shipping. The admin guard re-reads the role from the
 database under RLS and checks session revocation rather than trusting a claim
 in a token.
 
-**In the database**: FORCE row-level security on every tenant-scoped table,
-with the application connecting as a role that cannot bypass it. A missed
-`WHERE` clause in application code therefore cannot leak across tenants — the
-database refuses. The tenant identifier is set per transaction from the
-verified session, never from client input.
+**In the database**: the crossing itself, and what is enforced at it, belongs
+to [trust boundaries](trust-boundaries.md). What matters here is the *shape* of
+the control: it is enforced by the database rather than by application code, so
+a missed `WHERE` clause cannot leak across tenants — the database refuses
+rather than the query being careful.
 
 ## Secrets
 
-No secret is committed, and none reaches an environment variable. At boot, a
-systemd unit reads every secret from Key Vault using the VM's Managed Identity
-— a credential that is not itself a stored secret — and writes them into a
-private tmpfs as files the services mount.
+No secret is committed, and none reaches an environment variable. The delivery
+path — Key Vault to Managed Identity to tmpfs credential file — is a boundary
+crossing and is described in [trust boundaries](trust-boundaries.md). The
+control worth stating here is the choice behind it: the VM authenticates with
+an identity rather than a stored credential, so there is no bootstrap secret to
+leak.
 
 What necessarily lives on the host: the session signing key, the TURN shared
 secret and the backup signing key. A full host-root compromise reaches those.

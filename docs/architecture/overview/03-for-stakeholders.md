@@ -47,8 +47,11 @@ That is protected by the operator behaving well, not by mathematics, and anyone
 who needs to hide *that* they are talking to someone should not use argus.
 
 **It runs on one machine.** If that machine is lost, the service is restored
-from backup rather than failing over — and **that restore has never been
-rehearsed**, so the recovery promises are designs, not evidence.
+from backup rather than failing over. That restore **has been practised once**,
+on a copy — it worked, and it found a real problem that was then fixed. But it
+has never been practised on the actual backups, and nobody has measured how
+long it takes, so the recovery promise is partly evidence and partly still a
+design.
 
 **It is not actually deployed yet.** The production track is built and gated;
 what runs today is an experiment holding no real data.

@@ -19,7 +19,7 @@ What is not done is operational: the Azure rollout switch is off, so the
 environment described as production is **not running**; the environment that
 runs is an experiment holding no real data. Two external gates — an independent
 cryptographic review and a penetration test — are open, and the database
-restore has never been rehearsed.
+restore has never been run against the real backup objects.
 
 [Roadmap](roadmap/roadmap.md) has the order those are worth doing in.
 

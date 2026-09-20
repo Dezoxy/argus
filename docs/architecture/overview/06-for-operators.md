@@ -53,7 +53,8 @@ Recovery is a rebuild and a restore, not a failover — that is a decision, not
 an oversight. The stack is deliberately cloud-agnostic and the experiment box
 on another provider is the proof that rebuilding works.
 
-**The restore itself has never been rehearsed.** Before trusting the runbook,
+**The restore has been drilled once, against a synthetic dump — never against
+the real backup objects.** Before trusting the runbook,
 read what it is honest about: signatures prove a backup is genuine, not that it
 is the *latest*, so the restore needs the operator to know the compromise
 window.

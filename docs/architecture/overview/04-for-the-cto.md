@@ -83,9 +83,14 @@ Backups are encrypted to a key the machine does not hold, written to
 write-once storage that nobody — not the operator, not the provider — can
 delete or shorten, and signed with a key the storage credential lacks.
 
-**And the restore has never been run.** A backup that has never been restored
-is a hypothesis. That single gap is why the recovery objective is the weakest
-claim in the whole set.
+**And the restore has never been run against the real backup objects.** The
+procedure was drilled once, on 2026-06-14, against a synthetic dump on a
+scratch cluster — it verified data, schema, every RLS policy and per-role
+grant, and it found a real gap that has since been fixed. That is genuine
+evidence, and it is not the same thing as restoring the actual production
+backups in the armed environment, which has never happened. The recovery time
+has never been measured at all. That gap is why the recovery objective is the
+weakest claim in the whole set.
 
 - [Reliability and recovery](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/reliability/reliability-architecture.md): what fails, what notices, what comes back
 - [TD-001](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/risks/technical-debt.md): the restore drill, and what clearing it costs
