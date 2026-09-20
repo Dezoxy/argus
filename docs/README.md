@@ -4,7 +4,17 @@ Map of the `docs/` tree. Start here.
 
 ## Architecture & reference — [`architecture/`](architecture/)
 
-The canonical "how the system is built" docs.
+The canonical "how the system is built" docs. Start at
+[`architecture/README.md`](architecture/README.md): it carries the reading paths
+for each audience, the view register and the decision index.
+
+The **C4 model** lives in [`architecture/model/`](architecture/model/) as text,
+so the diagrams cannot drift from their source. `make view` browses it,
+`make export` renders it, and `make pdf` turns the whole thing — narrative,
+registers, decision records and every diagram — into one document you can hand
+to someone. The **decision records** are in
+[`architecture/decisions/`](architecture/decisions/), one file per significant
+choice, including the alternatives rejected and the cost accepted.
 
 - [`secure_messaging_platform_plan.md`](architecture/secure_messaging_platform_plan.md)
   — **the architecture**: what exists today (passkey-only invite messenger, MLS,
