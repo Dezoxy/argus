@@ -7,19 +7,34 @@ writes the code.
 ## One source of truth
 
 ```
-AGENTS.md                  <- canonical rules (read natively by Codex, Cursor, Gemini CLI, …)
-  └─ CLAUDE.md             <- `@AGENTS.md` import + Claude-only wiring (subagents, skills, hooks)
+AGENTS.md                  <- canonical contract (read natively by Codex, Cursor, Gemini CLI, …)
+CLAUDE.md                  <- byte-identical twin, read by Claude Code
 ```
 
-Edit rules in **AGENTS.md only**. Never copy rules into CLAUDE.md — it imports them.
+Edit **`AGENTS.md`**, then `cp AGENTS.md CLAUDE.md`. `make docs` fails when the
+two drift, so the copy cannot be forgotten.
+
+**This used to be an import.** `CLAUDE.md` was a one-line `@AGENTS.md` plus a
+Claude-only section, which kept the rules in exactly one place. Adopting
+`architecture-base` changed it: that kit's documentation gate requires the two
+files to be byte-identical, and satisfying the rule was preferred over patching
+the shared `check_docs_consistency.py`, which every repository built from the
+kit copies unchanged.
+
+The trade is real and worth stating. Claude-specific wiring — subagents, model
+routing, the plan-mode gate — now also sits in the file Codex reads. It is
+clearly fenced under a "Claude Code specifics" heading, and nothing in it
+contradicts the shared rules; an agent that is not Claude Code simply has no
+`.claude/` directory to apply it to.
 
 ## What's portable vs. tool-specific
 
 | Capability | Claude Code | Codex | Portable? |
 |---|---|---|---|
-| Rules / contract | CLAUDE.md → AGENTS.md | AGENTS.md | ✅ same file |
+| Rules / contract | CLAUDE.md | AGENTS.md | ✅ byte-identical twins, gated by `make docs` |
 | Review checklists | subagents (`.claude/agents/`) | "Review criteria" section in AGENTS.md | ✅ as guidance |
 | Procedures (RLS migration, threat model, api-spec) | skills (`.claude/skills/`) | prompts (`.codex/prompts/`) | ✅ mirrored |
+| Architecture authoring | skills (`.claude/skills/`) | same files under `.agents/skills/` | ✅ byte-identical mirror, gated by `make docs` |
 | Destructive-command boundary | PreToolUse hooks + permissions (`.claude/settings.json`) | `approval_policy` + `sandbox_mode` (`~/.codex/config.toml`) | ⚠️ different mechanism, same outcome |
 | **Hard enforcement** | — | — | ✅ **lefthook + CI, identical for both** |
 

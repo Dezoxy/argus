@@ -87,6 +87,9 @@ Hard rules. A change that violates one is wrong even if it "works".
   behaviour (uniform-202 / 404-no-oracle / metadata-only / audit-field
   sanitisation). Services are faked — no DB.
 - New tables: `tenant_id` + RLS policy.
+- `make docs` passes: no broken link, unindexed document, malformed ADR,
+  view register disagreeing with `views.dsl`, or cited requirement ID no
+  document defines. Model or ADR touched: `make check` too.
 - Security-relevant change: a short threat-model note under `docs/threat-models/`.
 - No secrets; no banned log patterns.
 
@@ -173,17 +176,138 @@ Whatever agent you are, these gates run on commit/push regardless — do not byp
 
 - **pre-commit** (lefthook): gitleaks, ESLint, Prettier, Semgrep (`.semgrep/`).
 - **pre-push**: typecheck, tests.
-- **CI**: Semgrep, OSV, Trivy, Checkov, gitleaks, 42Crunch audit, CodeQL;
-  nightly DAST. (Kubescape dropped with K8s — deploy is a single VM via Docker
-  Compose.)
+- **CI**: Semgrep, OSV, Trivy, Checkov, gitleaks, 42Crunch audit, CodeQL,
+  docs consistency (`make docs`); nightly DAST. (Kubescape dropped with K8s —
+  deploy is a single VM via Docker Compose.)
+
+## Architecture authoring
+
+The kit comes from `architecture-base`. Apply **this** repository's evidence,
+paths, pins and checks; never copy the base repo's fictional Payment Platform.
+
+- Structurizr model and view work: read
+  `.agents/skills/architecture-views/SKILL.md`.
+- Architecture documentation beyond diagrams — requirements, assumptions, ADR
+  history, data and integration concerns, risks, roadmap: read
+  `.agents/skills/architecture-docs/SKILL.md`. Use both for a mixed request.
+- **Before opening or updating any pull request**: read
+  `.agents/skills/docs-sync/SKILL.md` and fix, in the same branch, every doc
+  claim the branch falsified. `make docs` is its counted half — a green run
+  means "nothing provably false", not "the docs are good".
+- Use automatic layout and verify rendered readability. Export PNG/SVG by hand;
+  do not add export automation unless asked.
+- **Prose wraps at 80 columns**, enforced by `make docs`. Never use a Markdown
+  formatter for it: mdformat and prettier both pad table cells to the widest
+  column, making the longest line longer. Tables, fenced blocks, headings,
+  image lines, YAML frontmatter and a line held long by one unbreakable token
+  are exempt.
+- `docs/architecture/overview/` is the only folder Structurizr imports and it
+  does not recurse: one file is one page is one navigation entry. A register
+  reaches the Documentation tab and the PDF by being **symlinked** into it as
+  `NN-name.md`, staying authored once in its own folder. Keep every
+  `![alt](embed:Key)` on ONE line — a wrapped embed drops the view into the
+  appendix and still exits 0.
+- Never title a document the same as the workspace: the PDF builder treats a
+  matching first line as the cover and lifts that file's subheadings to top
+  level.
+- `docs/architecture/model/styles-shared.dsl` and the three files copied into
+  `scripts/` stay unchanged; improve them in architecture-base first, then
+  re-copy. A deliberate local divergence carries a `LOCAL CHANGE (report
+  upstream)` comment saying why.
 
 ## Per-tool wiring
 
+- **`AGENTS.md` and `CLAUDE.md` are byte-identical twins.** Edit `AGENTS.md`,
+  then `cp AGENTS.md CLAUDE.md`; `make docs` fails when they drift. This
+  replaces the previous `@AGENTS.md`-import arrangement, so that the shared
+  `check_docs_consistency.py` needs no local patch. Everything in this file
+  applies to whichever agent reads it — the Claude Code sections below are
+  wiring, not a separate rule set.
 - **Codex**: reads this file natively (merges `~/.codex/AGENTS.md` + repo
   `AGENTS.md`). Recommended `~/.codex/config.toml` and prompt files are in
   `.codex/` — see `docs/architecture/agent-portability.md`. Codex enforces the
   destructive-command boundary via its **sandbox + approval policy**, not
   per-command hooks.
-- **Claude Code**: `CLAUDE.md` imports this file and adds subagents
-  (`.claude/agents/`), skills (`.claude/skills/`), and hooks/permissions
-  (`.claude/settings.json`).
+- **Claude Code**: reads `CLAUDE.md`, the twin of this file, and adds subagents
+  (`.claude/agents/`), skills (`.claude/skills/`) and hooks/permissions
+  (`.claude/settings.json`). Agent and skill definitions carry YAML
+  frontmatter that Claude Code parses — never rewrap it.
+
+## Claude Code specifics
+
+Everything above is the shared contract. This section adds only the
+Claude-Code-specific tooling that serves it.
+
+- **Subagents** (`.claude/agents/`): route through the matching reviewer after
+  non-trivial changes — `crypto-reviewer` (crypto/keys/envelope),
+  `security-boundary-auditor` (server boundary, RLS, logging, authz),
+  `infra-reviewer` (Terraform / Docker Compose / systemd). Use
+  `security-architect` proactively *before* coding anything that touches
+  architecture, roadmap order, E2EE/protocol design, key management, or trust
+  boundaries — get its plan, then implement on the session model.
+- **Skills** (`.claude/skills/`): `/db-migration`, `/feature-threat-model`,
+  `/api-spec`. Plus built-ins `/security-review`, `/code-review`.
+- **Hooks + permissions** (`.claude/settings.json`): destructive-bash guard +
+  edit-time invariant checks. Open `/hooks` once (or restart) to activate after
+  a fresh clone.
+
+### Model & effort routing (token budget)
+
+The session default is set in `.claude/settings.json`: `opusplan` (Sonnet for
+execution, Opus automatically in plan mode) at high effort. Escalation happens
+through delegation, never by raising the main-session model:
+
+- **Plan-mode gate — the trigger is the upcoming file edit, not whether the task
+  "feels big".** Reading and investigating are free-form, but the moment a task
+  is headed for a code change (any roadmap item, bug fix, feature, or refactor
+  that will end in a PR), enter plan mode (Opus under `opusplan`) **before the
+  first Edit/Write** — scouting the fix site, checking conventions, and sizing
+  the change belong *inside* plan mode, not before it. Present the plan in plain
+  language a non-programmer product owner can judge — what will change, what
+  could break, how it gets verified — and get approval before any file is
+  modified. If you catch yourself preparing an implementation without an
+  approved plan, stop and enter plan mode immediately. Only trivial mechanical
+  edits the user explicitly dictated (a typo, a one-line config value) skip the
+  gate.
+- Heavy reasoning is pinned where it belongs: every reviewer subagent
+  (`security-architect`, `crypto-reviewer`, `security-boundary-auditor`,
+  `infra-reviewer`) and the `/feature-threat-model` skill run **Opus at max
+  effort**. Delegate to them instead of suggesting a model switch.
+- **Deep reviews are scheduled, not continuous.** At milestones (finished
+  roadmap phase, pre-beta), suggest a one-off `/code-review ultra` plus a
+  full-surface `security-architect` pass. Per-PR: one `/code-review` (medium
+  effort) pass over the branch diff before opening the PR, plus the pinned
+  reviewers + Codex. Never per-edit — the hooks and pre-commit gates cover that
+  tier.
+- Never use or suggest `ultracode`, a Fable main session, or a `[1m]` context
+  model unless the user explicitly asks — these burn the usage window.
+- Stay frugal in the main loop: don't scan the whole repo when a targeted search
+  works; prefer subagents (fresh, small context) for broad exploration.
+- After a merged PR or a finished roadmap slice, suggest `/compact`.
+
+These are Claude Code's own controls. The rules they serve live above, in
+the sections every agent shares.
+
+### Post-coding auto-flow
+
+Once local gates pass (`pnpm -r typecheck && pnpm -r test`), run the full PR
+flow **automatically — no pause, no confirmation needed**:
+
+1. `/code-review` (medium effort) over the full branch diff → fix any must-fix
+   findings → commit (Write tool for body file, `git commit -F`).
+2. `git push -u origin <branch>`.
+3. `gh pr create --body-file /tmp/pr-body.md` (Write tool for the body), then
+   immediately post **both** review requests per the `/await-reviews` skill:
+   `@codex review` plus the `@claude review …` ping with the `VERDICT:`
+   contract.
+4. **Watch CI**: `gh pr checks <pr> --watch` — if any job fails, immediately
+   investigate (`gh run view … --log | grep -A20 Error`) and fix: new commit →
+   push → wait for CI to re-run. Don't wait for the user to notice failures.
+5. **Await both reviews**: `.claude/hooks/review-status.sh <pr> --wait` (blocks
+   up to 15 min; aggregates Codex + Claude per the `/await-reviews` skill). If
+   FINDINGS — from either reviewer — fix → push → re-request both → re-run.
+6. **Only pause for `gh pr merge`** — that is the one outward, hard-to-reverse
+   step the user drives explicitly.
+
+Steps 4 and 5 run concurrently: start the CI watch, then in the same turn run
+the review status check with `--wait`. Fix CI failures as they appear.

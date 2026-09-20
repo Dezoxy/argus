@@ -77,7 +77,14 @@ infra/
   retention/           # systemd timer — 90-day message prune
   notify/ b2/          # failure alerting, Backblaze bucket CORS
 docs/                  # architecture, planning/roadmap, operations, threat models, reviews, GDPR
+  architecture/
+    model/             # Structurizr C4 model (workspace.dsl + !include fragments)
+    overview/          # the Structurizr Documentation tab, and the body of the PDF
+    decisions/         # ADRs, adr-tools format, NNNN-short-title.md
 scripts/               # repo guards (CSP, dockerignore/secret sync, log labels, PWA build verify)
+                       #   + the docs-consistency gate and the architecture PDF builder
+.claude/ .agents/      # agent skills (byte-identical mirrors), subagents, hooks, permissions
+Makefile               # local stack (up/migrate/api-dev) + architecture (check/docs/view/export/pdf)
 .design-sync/          # durable inputs that sync the real UI primitives into the design tool
 .github/workflows/     # CI (build/test); security (Semgrep/Checkov/gitleaks/CodeQL/DAST/42Crunch); CD (gated)
 compose.yaml           # dev stack (Postgres, Redis, MinIO, api)

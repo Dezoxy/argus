@@ -166,3 +166,17 @@ jobs:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       - name: Assert the secret-exclude block is identical across all *dockerignore
         run: bash scripts/check-dockerignore-secret-sync.sh
+
+  # The counted half of the /docs-sync audit: fails when documentation
+  # contradicts the tree it documents -- a broken link, a document reachable
+  # from no index, a malformed ADR, a view register that disagrees with
+  # views.dsl, or a cited requirement ID no document defines. Needs nothing but
+  # python3 and the checkout, so it runs on its own rather than inside
+  # build-test. A green run means "nothing provably false", not "docs are good".
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - name: Check documentation consistency
+        run: make docs
