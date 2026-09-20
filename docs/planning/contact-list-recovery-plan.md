@@ -86,38 +86,38 @@ We still **reject** any encrypted-roster blob — it would re-create the
 ## Why it works (ground truth, cited)
 
 - **Client storage:** one IndexedDB DB `argus-keystore`
-  ([keystore.ts](apps/web/src/lib/keystore.ts)) — `device` (MLS identity),
+  ([keystore.ts](../../apps/web/src/lib/keystore.ts)) — `device` (MLS identity),
   `group-state` (the only local record of "I'm in conversation X"),
   `message-log` (history). Uninstall wipes all of it. **The conversation list is
   therefore correctly empty after reinstall** — that is the new product
   behaviour, not a bug to paper over.
 - **Reinstall = new MLS identity, unlock key returns.** Passkey survives (OS
   authenticator); PRF unlock key is deterministic
-  ([prf.ts:26](apps/web/src/lib/prf.ts)); but MLS device keys are random and
+  ([prf.ts:26](../../apps/web/src/lib/prf.ts)); but MLS device keys are random and
   only *sealed* under it, and the sealed blob was wiped → `getOrCreateDevice`
-  ([keystore.ts:214](apps/web/src/lib/keystore.ts)) mints a brand-new identity.
+  ([keystore.ts:214](../../apps/web/src/lib/keystore.ts)) mints a brand-new identity.
   History unrecoverable by design.
 - **Server already has the *conversation* graph (reused for `is_direct`, not for
   the contact list anymore):** `conversation_members`
-  ([0007_messaging.sql](apps/api/src/db/migrations/0007_messaging.sql), FORCE
+  ([0007_messaging.sql](../../apps/api/src/db/migrations/0007_messaging.sql), FORCE
   RLS). The `is_direct` column added in #235 and `GET /devices/me/conversations`
-  ([devices.controller.ts:281](apps/api/src/devices/devices.controller.ts)) are
+  ([devices.controller.ts:281](../../apps/api/src/devices/devices.controller.ts)) are
   **kept** — the friends graph needs to distinguish direct from group
   conversations when a tapped friend resolves to a 1:1.
 - **Resume is already-built crypto.** `ConversationManager.prepare(peerUserId)`
-  → `confirm()` ([conversations.ts:152,189](apps/web/src/lib/conversations.ts))
+  → `confirm()` ([conversations.ts:152,189](../../apps/web/src/lib/conversations.ts))
   creates a fresh 1:1 group, with a built-in safety-number gate before
   `confirm()`. The reinstalled device has a fresh identity + KeyPackage pool —
   all it needs.
 - **Safety numbers exist + the spine is being built:** `safetyNumber()`
-  ([packages/crypto/src/index.ts:203](packages/crypto/src/index.ts)), the
+  ([packages/crypto/src/index.ts:203](../../packages/crypto/src/index.ts)), the
   `VerifySecurity` OOB panel
-  ([VerifySecurity.tsx](apps/web/src/features/chat/VerifySecurity.tsx)), and
+  ([VerifySecurity.tsx](../../apps/web/src/features/chat/VerifySecurity.tsx)), and
   [fingerprint-verification.md](../threat-models/fingerprint-verification.md).
   PR #236 moves verified-state from ephemeral `useState` to a sealed
   per-`peerUserId` record and wires the live "security code changed" signal.
 - **argus-id discovery already exists, hardened.** `UserService.lookupByArgusId`
-  ([user.service.ts](apps/api/src/users/user.service.ts)) +
+  ([user.service.ts](../../apps/api/src/users/user.service.ts)) +
   `users.controller.ts` do exact-match-only lookup, uniform 404 (no oracle),
   bearer-auth, a 10/min rate limit, and argus-id log-injection sanitization. The
   friends backend **reuses this verbatim** — see *argus-id discovery hardening*.
@@ -178,7 +178,7 @@ The non-obvious calls:
   `user_low_id` or `user_high_id`** (and accept/decline is **recipient-only**,
   cancel is **requester-only**). This is the same lesson as
   `conversation_members` ("intra-tenant membership authz is the app layer's
-  job", [0007_messaging.sql](apps/api/src/db/migrations/0007_messaging.sql)).
+  job", [0007_messaging.sql](../../apps/api/src/db/migrations/0007_messaging.sql)).
   **`security-boundary-auditor` must assert this — it is the IDOR gate.**
 
 **Deferred hardening (record, don't build):** the strongest design delivers a
@@ -244,7 +244,7 @@ must-haves:
   path: new MLS group, **new conversationId**.
 - **Tap a friend → find-or-create the 1:1.** Tapping an accepted friend routes
   through the existing `findConversationWith(peerUserId)`
-  ([ChatScreen.tsx:284](apps/web/src/features/chat/ChatScreen.tsx)) → if no live
+  ([ChatScreen.tsx:284](../../apps/web/src/features/chat/ChatScreen.tsx)) → if no live
   1:1, `ConversationManager.prepare()` → `VerifySecurity` gate → `confirm()`.
   **Same crypto path the original PR4 specified**, now sourced from the friends
   list instead of a placeholder. The dead-thread residual (peer keeps a stale
@@ -395,7 +395,7 @@ a friend tap; it fires on the incoming Welcome either way.
 Smallest, lowest risk; unblocks the friends list from competing with
 placeholders as a contact source.
 - **Remove** `useRosterRecovery`, `buildRosterPlaceholders`, `filterNewPlaceholders`
-  ([useConversationBackfill.ts](apps/web/src/features/chat/useConversationBackfill.ts)) and their call sites in
+  ([useConversationBackfill.ts](../../apps/web/src/features/chat/useConversationBackfill.ts)) and their call sites in
   `ChatScreen`/`useChatState`; remove the `recoveredFromServer` field on `Conversation` and its read-only
   rendering.
 - **Keep** `0041_conversations_is_direct.sql`, the creation-time write, and `GET
@@ -443,7 +443,7 @@ Isolate the schema change so the RLS review is clean and focused.
 
 ### Slice E — wire the friends-list UI to the backend — **client, no crypto**
 
-The friends panel UI already exists as a mock ([ConversationList.tsx](apps/web/src/features/chat/ConversationList.tsx)):
+The friends panel UI already exists as a mock ([ConversationList.tsx](../../apps/web/src/features/chat/ConversationList.tsx)):
 `acceptedFriendsFromConversations` (derives from conversations), `pendingFriendRequests` (`useState`),
 `handleMockFriendRequest`. Replace the mock with real data:
 - `acceptedFriendsFromConversations` → `GET /friends`; `pendingFriendRequests` → `GET /friends/requests`;

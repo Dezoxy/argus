@@ -9,7 +9,7 @@ tenancy); external SaaS only where it clearly wins. Scanners see code/specs/deps
 
 | Workflow | Tools | Blocks on |
 |---|---|---|
-| `ci.yml` | ESLint, Prettier, typecheck, tests, build, OpenAPI emit | lint/type/test failure |
+| `ci.yml` | ESLint, Prettier, typecheck, tests, build, OpenAPI emit, **docs consistency** | lint/type/test failure, documentation contradicting the tree |
 | `security.yml` | Semgrep (custom + auto), OSV-Scanner, gitleaks, Checkov, **42Crunch Audit** | HIGH/CRITICAL findings, secrets, API score < 75 |
 | `codeql.yml` | CodeQL (security-extended) | new code-scanning alerts |
 | `dast.yml` (nightly) | OWASP ZAP baseline, **42Crunch Conformance Scan** | against staging |
