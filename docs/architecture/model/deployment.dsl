@@ -76,20 +76,38 @@ deploymentEnvironment "AWS" {
 
         awsEc2 = deploymentNode "EC2 instance" "Runs the same cloud-agnostic infra/stack/ as the Azure VM -- that portability is the point of the experiment." "t3.medium, Ubuntu" {
 
-            awsCompose = deploymentNode "Docker Compose (argus-prod)" "The same Compose stack, from the same signed images." "Docker Compose" {
+            // Genuinely the same stack, not an abbreviation of it. deploy.sh is
+            // cloud-agnostic and is the script both clouds run: cd-aws.yml
+            // bundles infra/stack/observability, glitchtip, backup, cleanup,
+            // audit-prune and retention, and deploy.sh stages observability
+            // unconditionally and arms all four timers. Modelling a smaller
+            // AWS box would be the false picture this pair of views exists to
+            // prevent.
+            awsCompose = deploymentNode "Docker Compose (argus-prod)" "The same Compose stack, from the same signed images -- including the full observability stack, which deploy.sh stages unconditionally." "Docker Compose" {
                 containerInstance argus.cloudflared
                 containerInstance argus.ingress
                 containerInstance argus.api
                 containerInstance argus.postgres
                 containerInstance argus.redis
+                containerInstance argus.prometheus
+                containerInstance argus.alertmanager
+                containerInstance argus.grafana
+                containerInstance argus.loki
+                containerInstance argus.alloy
+                containerInstance argus.tempo
+                containerInstance argus.pyroscope
+                containerInstance argus.glitchtip
+                containerInstance argus.exporters
             }
 
             awsHostNet = deploymentNode "Host network" "coturn, as on Azure." "Linux host networking" {
                 containerInstance argus.coturn
             }
 
-            awsSystemd = deploymentNode "systemd" "The same native units as on Azure." "systemd" {
+            awsSystemd = deploymentNode "systemd" "The same native units as on Azure: deploy.sh installs and arms the backup, cleanup, audit-prune and retention timers on every deploy, to this box too." "systemd" {
                 awsSecrets = containerInstance argus.secretsUnit
+                containerInstance argus.backupTimer
+                containerInstance argus.retentionTimer
             }
         }
 

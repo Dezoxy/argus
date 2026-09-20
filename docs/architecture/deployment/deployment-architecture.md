@@ -12,6 +12,7 @@ thing on this page.
 | Host | One `Standard_B2ms` VM, Ubuntu 24.04 | One `t3.medium` EC2 instance |
 | Secrets | Key Vault via system-assigned Managed Identity | The same Key Vault, via an Azure Arc-projected identity |
 | Deploy channel | `az vm run-command` | AWS SSM |
+| What runs there | The whole stack | **The whole stack too** — see below |
 
 **A view labelled simply "production" would be false.** The environment
 described as production is not running, and the environment that is running is
@@ -52,3 +53,12 @@ than the claim: the same stack, the same signed images, a different cloud. That
 is also the practical mitigation for
 [RISK-004](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/risks/architecture-risks.md) — rebuilding elsewhere is a known
 quantity, not a hope.
+
+**"The same stack" is literal, and worth stating because it is easy to assume
+otherwise.** `deploy.sh` is the single script both clouds run. `cd-aws.yml`
+bundles `infra/stack/observability`, `infra/stack/glitchtip`, `infra/backup`,
+`infra/cleanup`, `infra/audit-prune` and `infra/retention`; `deploy.sh` stages
+observability unconditionally and installs and arms all four systemd timers.
+So the experiment box runs the full twelve-service observability stack and
+takes nightly backups, exactly as the production target would. It differs in
+what it holds — no real data — not in what it runs.
