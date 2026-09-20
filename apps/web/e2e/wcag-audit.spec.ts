@@ -26,7 +26,15 @@ function contrastRatio(l1: number, l2: number): number {
 // are near-white (L≈1) so we can treat them as white * alpha.
 function parseColor(css: string): { r: number; g: number; b: number; a: number } | null {
   // rgb / rgba
-  const rgbMatch = css.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)/);
+  // Every quantifier is bounded: a channel is at most 3 digits and an alpha is
+  // 0, 1, or 0.xxx. safe-regex still reports star height 2 because of the
+  // nested optional group, but a bounded quantifier cannot backtrack
+  // catastrophically -- the search space is finite and tiny. Bounding it was
+  // worth doing anyway: it also stops a 4-digit channel matching as a prefix.
+  const rgbMatch = css.match(
+    // eslint-disable-next-line security/detect-unsafe-regex -- all quantifiers bounded
+    /rgba?\((\d{1,3}),\s{0,4}(\d{1,3}),\s{0,4}(\d{1,3})(?:,\s{0,4}(\d{0,3}(?:\.\d{1,6})?))?\)/,
+  );
   if (rgbMatch) {
     return {
       r: parseInt(rgbMatch[1]!),

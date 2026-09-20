@@ -36,6 +36,7 @@ async function makeHashFile(password: string): Promise<void> {
   const hash = Buffer.from(
     await argon2idAsync(Buffer.from(password, 'utf8'), salt, { ...TEST_PARAMS, dkLen: 32 }),
   );
+  // eslint-disable-next-line security/detect-non-literal-fs-filename -- temp path this test built
   writeFileSync(
     TEST_HASH_FILE,
     JSON.stringify({

@@ -28,7 +28,7 @@ jobs:
   # Build, scan, SBOM, and keyless-sign both images (api + the Caddy ingress that bakes the PWA), push to GHCR.
   images:
     if: ${{ vars.ENABLE_DEPLOY == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: true
       matrix:
@@ -132,7 +132,7 @@ jobs:
   deploy:
     needs: images
     if: ${{ vars.ENABLE_DEPLOY == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Serialize rollouts to the SINGLE VM: a constant group (not per-ref) means two releases pushed close
     # together queue instead of running `az vm run-command` + `compose up` against the one host in parallel.
     # cancel-in-progress:false — never cancel a deploy mid-rollout; let it finish, then the next one runs.

@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   sast-semgrep:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # SUP-1: digest-pinned (was untagged = :latest). See docs/security/threat-models/supply-chain-ci.md.
     container: semgrep/semgrep@sha256:c180f0c93a17b420c0af5006214a29d3c747c5459c732b740191adf657dd0068
     steps:
@@ -23,7 +23,7 @@ jobs:
         run: semgrep scan --config .semgrep --config auto --error --quiet
 
   deps-osv:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: OSV-Scanner (dependency CVEs)
@@ -39,7 +39,7 @@ jobs:
   #  Trivy's unique value is container-IMAGE scanning, which belongs in cd.yml.)
 
   secrets-gitleaks:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # gitleaks-action's ScanPullRequest lists the PR's commits via GET /repos/.../pulls/{n}/commits.
     # On a PRIVATE repo that endpoint needs `pull-requests: read` — public repos returned it under the
     # default token, so this only started 403'ing ("Resource not accessible by integration") once the repo
@@ -56,7 +56,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   iac-checkov:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: bridgecrewio/checkov-action@a8664e3a0549367977f0cda990a34311835c87c0 # v12
@@ -66,7 +66,7 @@ jobs:
   api-42crunch-audit:
     # Enable by setting repo variable ENABLE_42CRUNCH=true after adding the X42C_API_TOKEN secret.
     if: ${{ vars.ENABLE_42CRUNCH == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6
