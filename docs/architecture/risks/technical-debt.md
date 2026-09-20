@@ -1,0 +1,12 @@
+# Technical debt
+
+Deliberate shortcuts and known-unfinished work. Each says what it would take to
+clear, so that "later" is a decision rather than a habit.
+
+| ID | Debt | Why it exists | Cost of clearing | Consequence of leaving it |
+| --- | --- | --- | --- | --- |
+| TD-001 | The database restore has never been exercised end to end. | Backups were built first; restoring needs a scratch environment and deliberate time. | A scheduled drill: fetch the newest valid locked pair, decrypt, restore into a throwaway database, verify row counts and a sample conversation. | The recovery objective in [QA-06](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/requirements/quality-attributes.md) is unproven. A backup that cannot be restored is storage, not a backup. |
+| TD-002 | The rate limiter stores state in memory on a single instance. | One VM, one API process — nothing needed sharing yet. | Move the store to Redis, which is already present. | Limits reset on restart, and the design cannot survive a second API instance. It quietly constrains horizontal scaling. |
+| TD-003 | `stripe` is a declared dependency of `apps/api` with no import anywhere in `src`. | Billing was built and then removed in Phase 6; the schema comments mark the tables inert. | Remove the dependency and the inert columns, or record why they are kept. | Dead dependency surface: it appears in vulnerability scans and implies a payment path that does not exist. |
+| TD-004 | Observability runs on the same host it observes. | One VM ([ADR 5](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/decisions/0005-run-on-one-vm-with-docker-compose.md)). | An external uptime check, off-host, that alerts when the VM stops answering. | The single failure that matters most — the host dying — is the one the monitoring cannot report. |
+| TD-005 | Secrets exist on the VM for the service to run: the session signing key, the TURN shared secret and the backup signing key. | Unavoidable for a running service; [P-03](https://github.com/Dezoxy/secmes/blob/main/docs/architecture/principles/architecture-principles.md) minimises but cannot eliminate them. | A key-management service that signs without releasing the key. | A full host-root compromise reaches them. This is a strictly smaller exposure than an off-host key, and it is recorded rather than hidden. |
