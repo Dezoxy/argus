@@ -210,6 +210,9 @@ paths, pins and checks; never copy the base repo's fictional Payment Platform.
 - Never title a document the same as the workspace: the PDF builder treats a
   matching first line as the cover and lifts that file's subheadings to top
   level.
+- Title documents under `docs/architecture/overview/` with `##`, not `#`.
+  Structurizr hides a level-1 heading from the page and the navigation, and the
+  PDF will not show you the problem. `make docs` enforces it.
 - `docs/architecture/model/styles-shared.dsl` and the three files copied into
   `scripts/` stay unchanged; improve them in architecture-base first, then
   re-copy. A deliberate local divergence carries a `LOCAL CHANGE (report

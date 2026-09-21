@@ -57,11 +57,6 @@ What is built, what is left, and the plan for each effort.
 
 GDPR Article 30 records, the data-residency statement, and the VoIP DPIA.
 
-## Archive — [`archive/`](archive/)
-
-Superseded and historical, kept for the record. **Do not follow these for
-current process.**
-
 ## Full document index
 
 Every document under `docs/`, so none goes unreachable. `make docs` fails when
@@ -275,11 +270,3 @@ Article 30 records, data residency and the VoIP DPIA.
 - [Article 30 Records of Processing Activities](compliance/article-30-records.md)
 - [Data Residency Statement](compliance/data-residency.md)
 - [DPIA — VoIP 1:1 Calling](compliance/dpia-voip-calling.md)
-
-### Archive
-
-Superseded and historical. **Do not follow these for current process.**
-
-- [docs/archive — historical & superseded docs](archive/README.md)
-- [AWS Secure Internal Messaging App — Architecture Plan](archive/aws_secure_internal_messaging_architecture_plan.md)
-- [What Fable 5 thinks — multi-hat repo review](archive/fable5-thoughts.md)
