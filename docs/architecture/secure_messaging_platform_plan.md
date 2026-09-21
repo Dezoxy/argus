@@ -7,7 +7,7 @@
 > replaced the enterprise-SaaS shape — Zitadel OIDC, per-tenant SSO, Stripe
 > billing, self-serve workspaces, the browsable user directory — with an
 > invite-only, passkey-only messenger. The earlier AWS/Kubernetes/enterprise
-> cuts live in `git log` and [`../archive/`](../archive/); do not follow them.
+> cuts live in `git log`; do not follow them.
 >
 > **Phasing is not here.**
 > [`../planning/roadmap/README.md`](../planning/phases/README.md) is canonical

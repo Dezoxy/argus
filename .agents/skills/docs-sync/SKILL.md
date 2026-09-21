@@ -72,8 +72,11 @@ of those goes stale silently when something is added or renamed.
 
    The script checks the `AGENTS.md`/`CLAUDE.md` twins, the `.agents/` skill
    mirror, relative links, the docs index, prose line width, the ADR format and
-   index, the view register against `views.dsl`, and that every cited
-   requirement ID is defined in its owning document. It reads `docs/`,
+   index, the view register against `views.dsl`, that every cited
+   requirement ID is defined in its owning document, and that every document
+   the Documentation tab imports has a visible `##` title — Structurizr hides a
+   level-1 heading, so a `#`-titled document renders with no title while its PDF
+   looks fine. It reads `docs/`,
    `.claude/`, `.agents/`, the three instruction files, and **a `README.md`
    anywhere else in the tree** — so a module or service README is covered where
    it sits. Dot-directories are skipped: a vendored `.terraform/` provider
@@ -87,6 +90,9 @@ of those goes stale silently when something is added or renamed.
    - a command a doc gives → run it, or `--help` / dry-run it if it mutates
    - a legal or tariff fact → the source it cites, not memory
    - a rendered view → `make export` and look at the PNG
+   - an imported document → `make view`, open the Documentation tab, and
+     confirm its title appears in both the page and the navigation. The PDF
+     cannot tell you this: it normalises heading levels.
    - a step's status → does the work it names actually exist?
 
    If you add a doc claim that *could* be checked mechanically, add it to the
