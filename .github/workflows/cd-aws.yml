@@ -33,7 +33,7 @@ jobs:
   # gate this job behind the environment too if these signed images ever need to be trusted elsewhere.
   images:
     if: ${{ vars.ENABLE_DEPLOY_AWS == 'true' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     strategy:
       fail-fast: true
       matrix:
@@ -135,7 +135,7 @@ jobs:
   deploy:
     needs: images
     if: ${{ vars.ENABLE_DEPLOY_AWS == 'true' }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     concurrency:
       group: argus-aws-rollout
       cancel-in-progress: false

@@ -1,0 +1,8 @@
+# actionlint validates `runs-on:` against a list of runner labels baked into its
+# binary. v1.7.12, the newest release, predates GitHub's ubuntu-26.04 image and
+# rejects the label as unknown. The label is real: these workflows run on it.
+# Declaring it here is actionlint's own documented answer. Drop the entry once a
+# release knows the label, so the check goes back to catching typos on its own.
+self-hosted-runner:
+  labels:
+    - ubuntu-26.04
