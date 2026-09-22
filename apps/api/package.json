@@ -37,7 +37,7 @@
     "@opentelemetry/semantic-conventions": "^1.43.0",
     "@pyroscope/nodejs": "^0.6.3",
     "@sentry/node": "^10.74.0",
-    "@simplewebauthn/server": "^13.3.2",
+    "@simplewebauthn/server": "^14.0.2",
     "cookie-parser": "^1.4.7",
     "drizzle-orm": "^0.45.2",
     "ioredis": "^5.11.1",
