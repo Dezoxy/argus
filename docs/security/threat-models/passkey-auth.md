@@ -132,13 +132,21 @@ enable signal — requesting PRF at registration is REQUIRED so the authenticato
 includes it in later assertions). The server still NEVER reads the PRF output;
 it stays crypto-blind.
 
+**Algorithms (@simplewebauthn/server v14):** the API passes no
+`supportedAlgorithmIDs`, so it takes the library default. From v14 that default
+lists ML-DSA-44 (post-quantum) first wherever the runtime supports it, which
+Node does. An authenticator that cannot do ML-DSA picks the next entry (ES256
+in practice), so existing and new passkeys keep working. ML-DSA public keys are
+larger, and `webauthn_credentials.public_key` is an unbounded `bytea`, so they
+store without a schema change. Verification is Node's own crypto, not ours.
+
 **Client:** the salt is client-owned (a fixed, non-secret 32-byte constant in
 `apps/web/src/lib/prf.ts`), injected as raw bytes into
-`extensions.prf.eval.first` before each ceremony — @simplewebauthn v13 passes
-`extensions` through verbatim and does NOT base64url-decode the salt, so a
-server-sent salt string would silently break PRF. The PRF output (a native
-`ArrayBuffer`) is imported as a non-extractable AES-256-GCM `CryptoKey` and
-never logged or transmitted.
+`extensions.prf.eval.first` before each ceremony — @simplewebauthn (v13, and
+v14, whose ceremony code is unchanged here) passes `extensions` through verbatim
+and does NOT base64url-decode the salt, so a server-sent salt string would
+silently break PRF. The PRF output (a native `ArrayBuffer`) is imported as a
+non-extractable AES-256-GCM `CryptoKey` and never logged or transmitted.
 
 **Decision (owner, 2026-06-17): PRF-only — no recovery code.** A device with no
 PRF (or a wiped browser keystore) is a fresh start: the admin mints a new
