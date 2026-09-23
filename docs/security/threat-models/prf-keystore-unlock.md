@@ -23,8 +23,9 @@ and the no-restore rule.
   not the salt. The salt MUST be identical for registration and every login, or
   the keystore becomes permanently unopenable — hence a hardcoded constant,
   never per-login random.
-- **Why the client injects the salt as bytes.** `@simplewebauthn/browser@13`
-  passes the options' `extensions` through to the native `create()`/`get()` call
+- **Why the client injects the salt as bytes.** `@simplewebauthn/browser` (v13;
+  v14's ceremony code is unchanged here) passes the options' `extensions`
+  through to the native `create()`/`get()` call
   **verbatim** (it only decodes `challenge` / `user.id` / `allowCredentials`)
   and its bundled DOM types are PRF-unaware. A base64url salt string in the
   server options would reach native WebAuthn as a *string*, which the PRF
