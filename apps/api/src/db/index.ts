@@ -42,6 +42,22 @@ export function getDb(): { sql: Sql; db: Db } {
   return { sql: pool, db };
 }
 
+// How long closeDb() lets in-flight queries finish before postgres.js drops the connections.
+const DB_CLOSE_TIMEOUT_SECONDS = 5;
+
+/**
+ * Close the pool opened by getDb(). The pool is module-level, outside Nest's DI container, so Nest's
+ * shutdown never reaches it — and postgres.js never closes idle connections on its own, so one idle
+ * connection keeps the process alive after SIGTERM. Called from AppModule.onApplicationShutdown.
+ * A no-op when no pool was opened; safe to call twice; a later getDb() opens a fresh pool.
+ */
+export async function closeDb(): Promise<void> {
+  const open = pool;
+  pool = undefined;
+  db = undefined;
+  if (open) await open.end({ timeout: DB_CLOSE_TIMEOUT_SECONDS });
+}
+
 // Shape-validate tenant ids before they reach SQL. The HTTP tenant guard (checkpoint 14) is the
 // authoritative source; this is defense-in-depth so a malformed/hostile value fails fast here
 // instead of as an opaque 22P02 error inside the RLS predicate.
