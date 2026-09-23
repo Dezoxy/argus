@@ -19,6 +19,7 @@ import { metricsMiddleware } from './observability/metrics.middleware.js';
 import { startMetricsServer } from './observability/metrics-server.js';
 import { pinoConfig } from './observability/logger.js';
 import { configureDynamicResponseCaching } from './common/http-cache.js';
+import { SHUTDOWN_DEADLINE_MS, armShutdownDeadline } from './common/shutdown-deadline.js';
 
 // Bootstrap-phase logger for messages emitted before/after the DI container is up.
 const bootLog = pino({ ...pinoConfig, name: 'Bootstrap' });
@@ -99,6 +100,16 @@ async function bootstrap(): Promise<void> {
   for (const signal of ['SIGTERM', 'SIGINT'] as const) {
     process.once(signal, () => metricsServer.close());
   }
+
+  // Safety net: if anything still holds the event loop open after a termination signal, exit (and say why)
+  // before the container runtime's SIGKILL instead of hanging until it.
+  armShutdownDeadline((signal) => {
+    bootLog.error(
+      { signal, deadlineMs: SHUTDOWN_DEADLINE_MS },
+      'graceful shutdown overran its deadline; forcing exit',
+    );
+    process.exit(1);
+  });
 }
 
 void bootstrap();

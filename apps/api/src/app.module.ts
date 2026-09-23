@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, type OnApplicationShutdown } from '@nestjs/common';
 import { LoggerModule } from 'nestjs-pino';
 import { AppController } from './app.controller.js';
 import { AdminModule } from './admin/admin.module.js';
@@ -14,6 +14,7 @@ import { RealtimeModule } from './realtime/realtime.module.js';
 import { TenantsModule } from './tenants/tenants.module.js';
 import { UsersModule } from './users/users.module.js';
 import { pinoHttpConfig } from './observability/logger.js';
+import { closeDb } from './db/index.js';
 
 @Module({
   imports: [
@@ -35,4 +36,10 @@ import { pinoHttpConfig } from './observability/logger.js';
   ],
   controllers: [AppController],
 })
-export class AppModule {}
+export class AppModule implements OnApplicationShutdown {
+  // The Postgres pool (db/index.ts) is module-level, not a Nest provider, so only this hook releases it.
+  // Nest runs it after the HTTP server has stopped accepting requests, so no request loses its DB mid-flight.
+  async onApplicationShutdown(): Promise<void> {
+    await closeDb();
+  }
+}
