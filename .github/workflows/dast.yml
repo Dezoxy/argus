@@ -71,8 +71,8 @@ jobs:
         run: pnpm --filter @argus/api... build
 
       # DB env is scoped to the steps that need it (migrate + the API server) — NOT job-level — so the
-      # "Generate OpenAPI spec" step runs WITHOUT DATABASE_URL. With it, the generator's Nest app opens a
-      # module-level Postgres pool that app.close() doesn't own, so it hangs after writing the file.
+      # "Generate OpenAPI spec" step runs WITHOUT DATABASE_URL: it needs no database. (It also used to hang
+      # with one, on a Postgres pool app.close() didn't release; AppModule's shutdown hook now closes it.)
       - name: Apply DB migrations
         env:
           DATABASE_URL: postgres://argus@localhost:5432/argus
