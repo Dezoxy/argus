@@ -41,7 +41,8 @@ overrides:
 
 # Moved from .npmrc's "engine-strict" — pnpm >=11 only reads auth/registry settings from
 # .npmrc, everything else must live here. Fails `pnpm install` outright on an unsupported
-# Node version instead of warning, so the engines.node floor (ESLint 10) is actually enforced.
+# Node version instead of warning, so the engines.node floor (Node 26, matching CI and the
+# Docker images) is actually enforced.
 engineStrict: true
 
 # Supply-chain hardening: delay installing newly-published package versions, block

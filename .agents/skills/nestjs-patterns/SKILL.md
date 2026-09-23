@@ -6,7 +6,7 @@ metadata:
 ---
 
 
-> **In this repository.** NestJS 12 on Node 25, strict TypeScript, ESM. The
+> **In this repository.** NestJS 12 on Node 26, strict TypeScript, ESM. The
 > database layer is **SQL-first — Drizzle or Kysely, not Prisma** — because the
 > tenant identifier is set per transaction and an ORM that hides the connection
 > makes that hard to guarantee. The API is crypto-blind: it routes ciphertext
