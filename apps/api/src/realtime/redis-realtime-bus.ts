@@ -67,7 +67,12 @@ export class RedisRealtimeBus extends RealtimeBus implements OnModuleDestroy {
   private readonly callRingListeners: Array<(event: CallRingEvent) => void> = [];
   private readonly callSignalListeners: Array<(event: CallSignalEvent) => void> = [];
   private readonly callEndListeners: Array<(event: CallEndEvent) => void> = [];
-  /** Resolves once the subscriptions are active — await before relying on receipt (readiness/tests). */
+  /**
+   * Resolves once the subscriptions are active AND the publisher is connected — await before relying
+   * on delivery (readiness/tests). Both halves matter: the publisher has no offline queue, so an emit
+   * issued while it is still connecting is rejected and (by design) silently dropped. One-shot: it
+   * covers the initial connect only — emits during a later reconnect stay best-effort.
+   */
   readonly ready: Promise<void>;
 
   constructor(url: string) {
@@ -84,7 +89,9 @@ export class RedisRealtimeBus extends RealtimeBus implements OnModuleDestroy {
     this.pub.on('error', () => {});
     this.sub.on('error', () => {});
     this.sub.on('message', (channel, payload) => this.onPayload(channel, payload));
-    this.ready = this.sub
+    // ioredis emits 'ready' asynchronously, so a listener attached here cannot miss it.
+    const pubReady = new Promise<void>((resolve) => this.pub.once('ready', () => resolve()));
+    const subscribed = this.sub
       .subscribe(
         CHANNEL,
         WELCOME_CHANNEL,
@@ -99,6 +106,7 @@ export class RedisRealtimeBus extends RealtimeBus implements OnModuleDestroy {
         CALL_END_CHANNEL,
       )
       .then(() => undefined);
+    this.ready = Promise.all([subscribed, pubReady]).then(() => undefined);
   }
 
   private onPayload(channel: string, payload: string): void {
