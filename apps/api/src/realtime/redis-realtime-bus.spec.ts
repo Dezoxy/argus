@@ -50,6 +50,38 @@ describe.skipIf(!REDIS_URL)('RedisRealtimeBus — cross-pod fan-out', () => {
     expect(received[0]).toEqual(sample); // delivered to the OTHER pod, verbatim
   });
 
+  // Regression pin for the old flake: `ready` once covered only the subscriber, so an emit right after
+  // it could hit a still-connecting publisher (no offline queue) and be dropped silently.
+  // Deterministic: the publisher's 'ready' event is held back until the test releases it.
+  it('ready also waits for the publisher connection', async () => {
+    let releasePub: (() => void) | undefined;
+    const realEmit = Redis.prototype.emit;
+    const spy = vi.spyOn(Redis.prototype, 'emit').mockImplementation(function (
+      this: Redis,
+      event: string | symbol,
+      ...args: unknown[]
+    ) {
+      // The publisher is the connection built with enableOfflineQueue: false.
+      if (event === 'ready' && this.options.enableOfflineQueue === false && !releasePub) {
+        releasePub = () => realEmit.call(this, event, ...args);
+        return true;
+      }
+      return realEmit.call(this, event, ...args);
+    });
+    try {
+      const pod = mkBus();
+      let settled = false;
+      void pod.ready.then(() => (settled = true));
+      await vi.waitFor(() => expect(releasePub).toBeDefined(), { timeout: 2000, interval: 20 });
+      await new Promise((r) => setTimeout(r, 200)); // ample time for the subscribe half to finish
+      expect(settled).toBe(false); // subscriber alone is not enough
+      releasePub?.();
+      await pod.ready;
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('a receipt advance published on one bus reaches a subscriber on another (cross-pod)', async () => {
     const podA = mkBus();
     const podB = mkBus();
